@@ -33,7 +33,19 @@ function collectionForYear(year) {
   const collection = collectionForYear(YEAR);
   const existing = await collection.where('username', '==', USERNAME).limit(1).get();
   if (!existing.empty) {
-    console.log(`Bootstrap Commissione: account ${USERNAME} già presente; nessuna credenziale è stata sovrascritta.`);
+    const account = existing.docs[0];
+    const record = account.data() || {};
+    const passwordAlreadyChanged = Boolean(record.passwordChangedAt);
+
+    if (!passwordAlreadyChanged && record.mustChangePassword !== true) {
+      await account.ref.update({
+        mustChangePassword: true,
+        firstAccessPasswordResetAppliedAt: FieldValue.serverTimestamp()
+      });
+      console.log(`Bootstrap Commissione: account ${USERNAME} già presente; cambio password obbligatorio impostato per il primo accesso senza modificare la password.`);
+    } else {
+      console.log(`Bootstrap Commissione: account ${USERNAME} già presente; nessuna credenziale è stata sovrascritta.`);
+    }
     process.exit(0);
   }
 
@@ -60,6 +72,7 @@ function collectionForYear(year) {
     passwordHash,
     passwordSalt,
     mustChangePassword: true,
+    firstAccessPasswordResetAppliedAt: FieldValue.serverTimestamp(),
     bootstrapAccount: true,
     bootstrapVersion: '2026-09-11a',
     createdAt: FieldValue.serverTimestamp(),
