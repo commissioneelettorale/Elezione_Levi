@@ -39,7 +39,7 @@ firebase deploy --only functions,firestore:rules
 
 Prima di usarlo occorre inserire nel repository GitHub il secret:
 
-`FIREBASE_SERVICE_ACCOUNT_MIO_SISTEMA_VOTO`
+`FIREBASE_SERVICE_ACCOUNT_VOTAZIONI_LEVI`
 
 Il valore deve essere il JSON di un service account dedicato al deploy con privilegi minimi necessari. Non committare mai il JSON nel repository.
 
