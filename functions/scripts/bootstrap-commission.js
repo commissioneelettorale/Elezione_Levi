@@ -12,6 +12,7 @@
  */
 const { initializeApp, getApps } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const crypto = require('crypto');
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
@@ -21,8 +22,7 @@ const YEAR = '2026/2027';
 const USERNAME = 'commissione.presidente';
 const DISPLAY_NAME = 'Presidente Commissione Elettorale';
 const ROLE = 'COMMISSIONE';
-const PASSWORD_SALT = 'f759600a6eb94822d3f6411f05772bb5f98d0fae33919faf';
-const PASSWORD_HASH = 'fecb7feba555566bf2fd17ee6f5ae84c3e793f9fa815794050fe0b2301ecdaab3f526caf7bb4322aff3271efe67e38757ecc08a92982a2857ef360495370575c';
+const INITIAL_PASSWORD = String(process.env.COMMISSIONE_INITIAL_PASSWORD || '');
 
 function collectionForYear(year) {
   const suffix = year.replace('/', '_');
@@ -37,6 +37,19 @@ function collectionForYear(year) {
     process.exit(0);
   }
 
+  if (
+    INITIAL_PASSWORD.length < 16 ||
+    !/[A-Z]/.test(INITIAL_PASSWORD) ||
+    !/[a-z]/.test(INITIAL_PASSWORD) ||
+    !/[0-9]/.test(INITIAL_PASSWORD) ||
+    !/[^A-Za-z0-9]/.test(INITIAL_PASSWORD)
+  ) {
+    console.error('La secret COMMISSIONE_INITIAL_PASSWORD deve contenere almeno 16 caratteri, maiuscole, minuscole, numeri e simboli.');
+    process.exit(2);
+  }
+
+  const passwordSalt = crypto.randomBytes(24).toString('hex');
+  const passwordHash = crypto.scryptSync(INITIAL_PASSWORD, passwordSalt, 64).toString('hex');
   const ref = collection.doc();
   await ref.set({
     name: DISPLAY_NAME,
@@ -44,17 +57,17 @@ function collectionForYear(year) {
     role: ROLE,
     scopeClass: 'TUTTE',
     active: true,
-    passwordHash: PASSWORD_HASH,
-    passwordSalt: PASSWORD_SALT,
+    passwordHash,
+    passwordSalt,
     mustChangePassword: true,
     bootstrapAccount: true,
-    bootstrapVersion: '2026-09-04c',
+    bootstrapVersion: '2026-09-11a',
     createdAt: FieldValue.serverTimestamp(),
     createdBy: 'SECURE_BOOTSTRAP_DEPLOY'
   });
 
   console.log(`Bootstrap Commissione completato: ${USERNAME} (${ref.id}).`);
-  console.log('La password in chiaro non è presente nel repository né nei log del workflow. Cambio obbligatorio al primo accesso.');
+  console.log('La password arriva esclusivamente dalla secret GitHub e non viene scritta nel repository né nei log. Cambio obbligatorio al primo accesso.');
 })().catch((err) => {
   console.error('Bootstrap Commissione fallito:', err && err.message ? err.message : err);
   process.exit(1);
