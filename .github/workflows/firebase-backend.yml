@@ -45,7 +45,13 @@ jobs:
       - name: Deploy Firestore Rules
         run: firebase deploy --project votazioni-levi --only firestore:rules --non-interactive
       - name: Crea account iniziale Commissione se assente
-        run: node functions/scripts/bootstrap-commission.js
+        shell: bash
+        env:
+          COMMISSIONE_INITIAL_PASSWORD: ${{ secrets.COMMISSIONE_INITIAL_PASSWORD }}
+        run: |
+          set -euo pipefail
+          trap 'unset COMMISSIONE_INITIAL_PASSWORD' EXIT
+          node functions/scripts/bootstrap-commission.js
       - name: Deploy Functions
         run: firebase deploy --project votazioni-levi --only functions --non-interactive
       - name: Verifica progetto Firebase raggiungibile
