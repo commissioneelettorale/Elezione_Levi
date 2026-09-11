@@ -1,0 +1,56 @@
+name: Deploy backend Firebase
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "functions/**"
+      - "firestore.rules"
+      - "firebase.json"
+      - ".firebaserc"
+      - ".github/workflows/firebase-backend.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Installa dipendenze Functions
+        run: npm install --prefix functions
+      - name: Verifica sintassi backend
+        run: npm run check --prefix functions
+      - name: Prepara credenziale Firebase temporanea
+        shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MIO_SISTEMA_VOTO }}
+        run: |
+          set -euo pipefail
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "Secret FIREBASE_SERVICE_ACCOUNT_MIO_SISTEMA_VOTO mancante" >&2
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+          chmod 600 "$RUNNER_TEMP/firebase-sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-sa.json" >> "$GITHUB_ENV"
+      - name: Installa Firebase CLI
+        run: npm install -g firebase-tools
+      - name: Deploy Firestore Rules
+        run: firebase deploy --project mio-sistema-voto --only firestore:rules --non-interactive
+      - name: Crea account iniziale Commissione se assente
+        run: node functions/scripts/bootstrap-commission.js
+      - name: Deploy Functions
+        run: firebase deploy --project mio-sistema-voto --only functions --non-interactive
+      - name: Verifica progetto Firebase raggiungibile
+        run: firebase projects:list --json --non-interactive > "$RUNNER_TEMP/firebase-projects.json"
+      - name: Elimina credenziale temporanea dal runner
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/firebase-sa.json" "$RUNNER_TEMP/firebase-projects.json"

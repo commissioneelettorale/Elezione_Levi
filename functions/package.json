@@ -1,0 +1,21 @@
+{
+  "name": "primo-levi-voting-functions",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend server-side per la piattaforma elettorale ITSCG Primo Levi",
+  "engines": {
+    "node": "22"
+  },
+  "main": "index.js",
+  "scripts": {
+    "check": "node --check index.js",
+    "provision": "node scripts/provision-account.js",
+    "preflight": "node scripts/preflight-check.js",
+    "migrate:dry": "node scripts/migrate-legacy-data.js",
+    "migrate:apply": "node scripts/migrate-legacy-data.js --apply"
+  },
+  "dependencies": {
+    "firebase-admin": "14.3.0",
+    "firebase-functions": "7.3.2"
+  }
+}

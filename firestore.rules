@@ -1,0 +1,87 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function roleIs(roleName) {
+      return signedIn() && request.auth.token.role == roleName;
+    }
+
+    function isCommission() {
+      return roleIs('COMMISSIONE');
+    }
+
+    function isInstitutionalStaff() {
+      return signedIn() && request.auth.token.role in [
+        'COMMISSIONE', 'DIRIGENTE', 'VICEPRESIDE', 'DSGA', 'SEGRETERIA'
+      ];
+    }
+
+    // Configurazione pubblica necessaria a mostrare calendario, schede e liste.
+    // Ogni modifica passa dalla Cloud Function autenticata e viene sottoposta a audit.
+    match /artifacts/iis-levi-electoral-v3/public/data/config/{documentId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /artifacts/iis-levi-electoral-v3/public/data/{collectionId}/{documentId} {
+      // Registro degli aventi diritto. Nessun documento può contenere un ID della
+      // scheda. La Commissione può leggerlo e creare nuove credenziali prima
+      // dell'apertura; i flag di voto non sono modificabili dal browser.
+      allow read: if isCommission()
+        && collectionId.matches('tokens_[0-9]{4}_[0-9]{4}');
+
+      allow create: if isCommission()
+        && collectionId.matches('tokens_[0-9]{4}_[0-9]{4}')
+        && request.resource.data.keys().hasOnly([
+          'nome', 'classe', 'indirizzo', 'tipo', 'hasVoted',
+          'voted_consiglio', 'voted_istituto', 'voted_consulta',
+          'voted_classe_studente', 'voted_classe_genitore'
+        ])
+        && request.resource.data.tipo in ['STUDENTE','GENITORE','DOCENTE','ATA']
+        && request.resource.data.hasVoted == false
+        && request.resource.data.voted_consiglio == false
+        && request.resource.data.voted_istituto == false
+        && request.resource.data.voted_consulta == false
+        && request.resource.data.voted_classe_studente == false
+        && request.resource.data.voted_classe_genitore == false;
+
+      // Solo correzioni anagrafiche, mai stato di voto/sessione.
+      allow update: if isCommission()
+        && collectionId.matches('tokens_[0-9]{4}_[0-9]{4}')
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['nome','classe','indirizzo','tipo']);
+
+      // La cancellazione del registro dal client è sempre vietata.
+      allow delete: if false;
+
+      // Chiavi referenti: sola lettura Commissione; scrittura solo Admin SDK.
+      allow read: if isCommission()
+        && collectionId.matches('config_[0-9]{4}_[0-9]{4}');
+      allow write: if false;
+
+      // Account gestionali: consultabili dalla Commissione, modifiche server-side.
+      allow read: if isCommission()
+        && collectionId.matches('gestione_accessi_[0-9]{4}_[0-9]{4}');
+      allow write: if false;
+
+      // URNE: nessun client, neppure Commissione/Dirigenza, legge o scrive
+      // direttamente i documenti. Scrutinio e deposito passano dalle Functions.
+      allow read, write: if false;
+    }
+
+    // Audit amministrativo: lettura istituzionale, scrittura solo Admin SDK.
+    match /artifacts/iis-levi-electoral-v3/public/data/audit_admin/{documentId} {
+      allow read: if isInstitutionalStaff();
+      allow write: if false;
+    }
+
+    // Fail-closed per ogni altro percorso.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
