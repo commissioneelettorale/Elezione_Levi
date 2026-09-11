@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://elezioni-primo-levi-vercel.vercel.app; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; frame-src 'none'; child-src 'none'; media-src 'none'; form-action 'self'; upgrade-insecure-requests">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; frame-src 'none'; child-src 'none'; media-src 'none'; form-action 'self'; upgrade-insecure-requests">
     <meta name="referrer" content="no-referrer">
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
     <meta http-equiv="Pragma" content="no-cache">
@@ -24,65 +24,38 @@
     <script src="vendor/jszip.min.js"></script>
 
     <style>
-        body { 
-            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
-            background-color: #f8fafc; 
-            overflow-x: hidden; 
-            min-height: 100vh;
+        html {
+            min-height: 100%;
+            background: #0b4f9c;
         }
-        
-        .bubble-bg {
+
+        body {
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, rgba(5, 39, 87, 0.96) 0%, rgba(12, 91, 170, 0.94) 100%);
+            color: #eaf3ff;
+            overflow-x: hidden;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        .brand-background {
             position: fixed;
-            top: 0; left: 0; width: 100vw; height: 100vh;
+            inset: 0;
             z-index: -1;
             overflow: hidden;
             pointer-events: none;
-            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            background: linear-gradient(135deg, #052757 0%, #0c5baa 100%);
         }
-        
-        .delicate-bubble {
+
+        .brand-background::after {
+            content: "";
             position: absolute;
-            background: radial-gradient(circle, rgba(255, 255, 255, 0.85) 0%, rgba(241, 245, 249, 0.6) 70%, rgba(226, 232, 240, 0.4) 100%);
-            border: 1px solid rgba(30, 58, 138, 0.08);
-            border-radius: 50%;
-            pointer-events: none;
-            backdrop-filter: blur(2px);
-            animation: casualDrift 24s infinite ease-in-out;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            box-shadow: inset 0 0 12px rgba(255,255,255,0.8), 0 4px 12px rgba(0,0,0,0.03);
-            transition: all 0.5s ease-in-out;
+            inset: 0;
+            background: url("levi.png") center / min(72vw, 760px) auto no-repeat;
+            opacity: 0.18;
+            filter: drop-shadow(0 20px 50px rgba(0, 0, 0, 0.35));
         }
 
-        .delicate-bubble:hover {
-            transform: scale(1.05);
-            border-color: rgba(30, 58, 138, 0.2);
-        }
-
-        .delicate-bubble img {
-            width: 45%;
-            height: 45%;
-            object-fit: contain;
-            opacity: 0.15;
-        }
-
-        .delicate-bubble span {
-            color: rgba(30, 58, 138, 0.15);
-            font-size: 9px;
-            font-weight: 800;
-            margin-top: 4px;
-            letter-spacing: 0.05em;
-        }
-        
-        @keyframes casualDrift {
-            0% { transform: translate(0, 0) scale(1) rotate(0deg); }
-            33% { transform: translate(30px, -45px) scale(1.05) rotate(120deg); }
-            66% { transform: translate(-25px, 30px) scale(0.95) rotate(240deg); }
-            100% { transform: translate(0, 0) scale(1) rotate(360deg); }
-        }
-        
         .hidden { display: none !important; }
         .bg-gradient-header { background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%); }
         
@@ -173,24 +146,7 @@
     <div class="secure-watermark" aria-hidden="true"></div>
 
 
-    <div class="bubble-bg">
-        <div class="delicate-bubble w-28 h-28" style="top: 10%; left: 5%; animation-delay: 0s; animation-duration: 22s;">
-            <img src="levi.png" alt="Levi Logo" onerror="this.src='https://placehold.co/100x100/1e3a8a/ffffff?text=LEVI'">
-            <span>VOTAZIONI ELETTRONICHE</span>
-        </div>
-        <div class="delicate-bubble w-20 h-20" style="top: 65%; left: 10%; animation-delay: 3s; animation-duration: 28s;">
-            <img src="levi.png" alt="Levi Logo" onerror="this.src='https://placehold.co/100x100/1e3a8a/ffffff?text=LEVI'">
-            <span>ITSCG "PRIMO LEVI"</span>
-        </div>
-        <div class="delicate-bubble w-32 h-32" style="top: 25%; left: 80%; animation-delay: 1s; animation-duration: 25s;">
-            <img src="levi.png" alt="Levi Logo" onerror="this.src='https://placehold.co/100x100/1e3a8a/ffffff?text=LEVI'">
-            <span>MBTD430001</span>
-        </div>
-        <div class="delicate-bubble w-24 h-24" style="top: 50%; left: 48%; animation-delay: 4s; animation-duration: 26s;">
-            <img src="levi.png" alt="Levi Logo" onerror="this.src='https://placehold.co/100x100/1e3a8a/ffffff?text=LEVI'">
-            <span>20831, SEREGNO</span>
-        </div>
-    </div>
+    <div class="brand-background" aria-hidden="true"></div>
 
     <header class="bg-gradient-header text-white shadow-xl relative border-b-4 border-yellow-500 z-20">
         <div class="container mx-auto p-4 flex flex-col lg:flex-row items-center justify-between gap-4">
@@ -395,12 +351,13 @@
         const appId = 'iis-levi-electoral-v3';
         
         const firebaseConfig = {
-            apiKey: "AIzaSyBDXldnedqfjaihDFXvFixO5KZZNP5SkdE",
-            authDomain: "mio-sistema-voto.firebaseapp.com",
-            projectId: "mio-sistema-voto",
-            storageBucket: "mio-sistema-voto.firebasestorage.app",
-            messagingSenderId: "188743609131",
-            appId: "1:188743609131:web:da7666758444a40be3336e"
+            apiKey: "AIzaSyDNdRz4Abowmh0Fx91oHt4A5IB1JyNRCkA",
+            authDomain: "votazioni-levi.firebaseapp.com",
+            projectId: "votazioni-levi",
+            storageBucket: "votazioni-levi.firebasestorage.app",
+            messagingSenderId: "36801299062",
+            appId: "1:36801299062:web:d29c94bb8a9f33c82a5557",
+            measurementId: "G-KYGPC6ZLTJ"
         };
 
         const app = initializeApp(firebaseConfig);
@@ -434,41 +391,14 @@
             closeElectoralProcedure: httpsCallable(functions, 'closeElectoralProcedure'),
             destructiveAction: httpsCallable(functions, 'destructiveAction')
         });
-        // Backend primario Vercel; Firebase Functions resta fallback tecnico.
-        const VERCEL_BACKEND_URL = 'https://elezioni-primo-levi-vercel.vercel.app/api/call';
+        // Backend principale: Firebase Functions sul progetto votazioni-levi.
         const SECURE_API = new Proxy({}, {
             get: (_, functionName) => async (data = {}) => {
-                const fallback = FIREBASE_API[functionName];
-                const headers = { 'Content-Type': 'application/json' };
-                if (auth.currentUser) {
-                    const idToken = await auth.currentUser.getIdToken();
-                    headers.Authorization = `Bearer ${idToken}`;
+                const callable = FIREBASE_API[functionName];
+                if (typeof callable !== 'function') {
+                    throw new Error(`Funzione Firebase non disponibile: ${String(functionName)}`);
                 }
-                try {
-                    const response = await fetch(VERCEL_BACKEND_URL, {
-                        method: 'POST',
-                        headers,
-                        cache: 'no-store',
-                        body: JSON.stringify({ name: String(functionName), data })
-                    });
-                    let payload = {};
-                    try { payload = await response.json(); } catch (_) {}
-                    if (!response.ok || payload.error) {
-                        const err = new Error(payload?.error?.message || 'Operazione non completata.');
-                        err.code = payload?.error?.code || (response.status === 401 ? 'unauthenticated' : 'internal');
-                        throw err;
-                    }
-                    return { data: payload.data };
-                } catch (vercelError) {
-                    // Fallback solo per indisponibilità tecnica del backend Vercel.
-                    const code = String(vercelError?.code || '');
-                    const msg = String(vercelError?.message || '');
-                    const technicalFailure = /unavailable|internal|network-request-failed/i.test(code) || /failed to fetch|network|cors|temporaneamente non disponibile/i.test(msg);
-                    if (technicalFailure && typeof fallback === 'function') {
-                        return await fallback(data);
-                    }
-                    throw vercelError;
-                }
+                return await callable(data);
             }
         });
         let secureVotingSession = null;
@@ -2240,7 +2170,7 @@
             try {
                 const sec = await SECURE_API.getSecurityStatus({ annoScolastico: configElezioni.annoScolastico });
                 if (sec.data?.ok !== true) throw new Error('Risposta tecnica non valida.');
-                details.technical = { ok:true, message:'Backend Vercel, Firebase e API autenticata operativi' };
+                details.technical = { ok:true, message:'Backend Firebase e API autenticata operativi' };
             } catch (e) {
                 details.technical = { ok:false, message:e?.message || 'Controllo tecnico non disponibile' };
                 errors.push('Controllo tecnico non superato.');
@@ -2292,7 +2222,7 @@
                         </div>
                         <div class="bg-white rounded-2xl border p-5">
                             <h4 class="font-black text-slate-900 text-sm mb-3">Diagnostica tecnica reale</h4>
-                            <p class="text-xs text-slate-600 mb-3">Controlla backend Vercel, collegamento Firebase e stato di sicurezza senza inserire voti.</p>
+                            <p class="text-xs text-slate-600 mb-3">Controlla il collegamento Firebase e lo stato di sicurezza senza inserire voti.</p>
                             <button onclick="runElectionTechnicalCheck()" class="px-4 py-2 rounded-xl bg-blue-900 hover:bg-blue-950 text-white text-xs font-black">ESEGUI TEST BACKEND / FIREBASE</button>
                             <div id="technical-check-result" class="mt-3 text-xs"></div>
                             <div class="mt-4 p-3 rounded-xl bg-slate-50 border text-[11px] text-slate-700 leading-relaxed">
@@ -2382,7 +2312,7 @@
                         note: 'Verifica tecnica autenticata eseguita dalla piattaforma: backend, Firebase, API e controlli server-side raggiungibili.'
                     });
                 } catch(e) {}
-                if (out) out.innerHTML = '<div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-black">✓ Backend Vercel operativo<br>✓ Firebase operativo<br>✓ API autenticata raggiungibile<br>✓ Collaudo tecnico registrato</div>';
+                if (out) out.innerHTML = '<div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-black">✓ Backend Firebase operativo<br>✓ API autenticata raggiungibile<br>✓ Collaudo tecnico registrato</div>';
                 showNotification('Test tecnico superato','Il controllo tecnico è stato registrato automaticamente nella regolarità.','success');
             } catch (e) {
                 if (out) out.innerHTML = `<div class="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 font-black">✕ ${e?.message || 'Test non superato'}</div>`;
