@@ -20,14 +20,14 @@ URL previsto per questo repository:
 
 ## B. Firebase backend
 
-Le funzioni di voto e le Firestore Security Rules devono essere distribuite sul progetto Firebase `mio-sistema-voto` (oppure va cambiato coerentemente il project ID nel codice e nella configurazione).
+Le funzioni di voto e le Firestore Security Rules devono essere distribuite sul progetto Firebase `votazioni-levi` (oppure va cambiato coerentemente il project ID nel codice e nella configurazione).
 
 ### Metodo 1 — locale
 
 ```bash
 npm install -g firebase-tools
 firebase login
-firebase use mio-sistema-voto
+firebase use votazioni-levi
 npm install --prefix functions
 npm run check --prefix functions
 firebase deploy --only functions,firestore:rules
