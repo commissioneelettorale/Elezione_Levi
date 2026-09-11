@@ -1,60 +1,47 @@
-# 15 — Pubblicazione GitHub + backend Firebase
+# 15 — Pubblicazione GitHub + Vercel + backend Firebase
 
-## A. GitHub Pages (frontend)
+## A. Vercel — frontend statico
 
-Il repository contiene `.github/workflows/pages.yml`. Al primo push su `main` il workflow tenta la pubblicazione.
+Il repository `commissioneelettorale/Elezione_Levi` contiene un frontend HTML statico. Vercel serve `index.html`; autenticazione, voto e database restano nelle Firebase Functions/Firestore del progetto `votazioni-levi`.
 
-Per un repository nuovo GitHub richiede normalmente una sola impostazione amministrativa:
+Impostazioni del nuovo progetto Vercel:
 
-1. aprire **Settings** del repository;
-2. **Pages**;
-3. in **Build and deployment → Source** scegliere **GitHub Actions**.
+1. **Add New… → Project**.
+2. Collega GitHub e autorizza il repository `commissioneelettorale/Elezione_Levi`.
+3. **Project Name:** `elezione-levi`.
+4. **Framework Preset:** `Other`.
+5. **Root Directory:** `./`.
+6. **Build Command:** lasciare vuoto.
+7. **Output Directory:** lasciare vuoto.
+8. **Install Command:** lasciare vuoto.
+9. **Environment Variables:** nessuna obbligatoria per il frontend.
+10. Premi **Deploy**.
 
-Dopo questa abilitazione, ogni modifica a `index.html` su `main` viene pubblicata automaticamente.
-
-URL previsto per questo repository:
-
-`https://giuseppeborzumati-cmyk.github.io/Elezioni/`
-
-> GitHub Pages ospita soltanto il frontend. Non sostituisce il backend di voto.
+Non inserire in Vercel il JSON del service account Firebase o la password iniziale Commissione. Il vecchio endpoint Vercel non viene più usato dal frontend.
 
 ## B. Firebase backend
 
-Le funzioni di voto e le Firestore Security Rules devono essere distribuite sul progetto Firebase `votazioni-levi` (oppure va cambiato coerentemente il project ID nel codice e nella configurazione).
+Le funzioni e le Firestore Security Rules vengono distribuite sul progetto Firebase `votazioni-levi` in regione `europe-west1`. Per pubblicare Cloud Functions il progetto deve avere il piano Blaze.
 
-### Metodo 1 — locale
+Nel repository GitHub aprire **Settings → Secrets and variables → Actions → New repository secret** e creare entrambe le secret:
 
-```bash
-npm install -g firebase-tools
-firebase login
-firebase use votazioni-levi
-npm install --prefix functions
-npm run check --prefix functions
-firebase deploy --only functions,firestore:rules
-```
+- `FIREBASE_SERVICE_ACCOUNT_VOTAZIONI_LEVI`: incollare il JSON completo della chiave del service account Firebase/GCP.
+- `COMMISSIONE_INITIAL_PASSWORD`: password temporanea scelta per l'account `commissione.presidente`; almeno 16 caratteri con maiuscole, minuscole, numeri e simboli.
 
-### Metodo 2 — GitHub Actions
+Il JSON e la password non devono essere committati nel repository e non devono essere inseriti in Vercel.
 
-È incluso `.github/workflows/firebase-backend.yml`, volutamente manuale.
+Poi aprire **Actions → Deploy backend Firebase → Run workflow → main**. Il workflow distribuisce Rules, crea l'account iniziale se assente e pubblica tutte le Functions.
 
-Prima di usarlo occorre inserire nel repository GitHub il secret:
+## C. Primo accesso Commissione
 
-`FIREBASE_SERVICE_ACCOUNT_VOTAZIONI_LEVI`
+Dopo un workflow verde:
 
-Il valore deve essere il JSON di un service account dedicato al deploy con privilegi minimi necessari. Non committare mai il JSON nel repository.
+- username: `commissione.presidente`;
+- password: il valore scelto in `COMMISSIONE_INITIAL_PASSWORD`;
+- anno: `2026/2027`.
 
-Percorso GitHub:
+Al primo accesso il sito obbliga a scegliere una nuova password personale. La secret iniziale non viene stampata nei log e non viene sovrascritta durante i deploy successivi.
 
-**Settings → Secrets and variables → Actions → New repository secret**.
+## D. Alternativa offline
 
-Dopo il collaudo:
-
-**Actions → Deploy backend Firebase (manuale) → Run workflow**.
-
-## C. Primo account Commissione
-
-La piattaforma non contiene una password di emergenza o hard-coded. Il primo account deve essere creato offline con `functions/scripts/provision-account.js`; vedere doc 12.
-
-## D. Perché questi passaggi non sono automatizzati nel browser
-
-Consentire al frontend pubblico di creare il primo amministratore, modificare le Rules o distribuire il backend introdurrebbe una backdoor incompatibile con il principio del minimo privilegio. Queste operazioni restano volutamente fuori dal sito elettorale.
+Se l'account esiste già e non si conosce la password, usare il provisioning offline documentato in `docs/12_PROCEDURA_MESSA_IN_ESERCIZIO.md`; non creare amministratori dal browser pubblico.
