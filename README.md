@@ -2,20 +2,34 @@
 
 Repository della piattaforma elettorale digitale.
 
-Il sito pubblico e l'endpoint `/api/call` vengono pubblicati su Vercel dal branch `main`.
+## Architettura
 
-## Struttura essenziale
+- `index.html` — sito web principale;
+- `api/call.js` — backend Node.js serverless su Vercel;
+- `functions/core.js` — logica applicativa condivisa;
+- `functions/index.js` — wrapper opzionale compatibile con Firebase Functions;
+- `firestore.rules` — regole di sicurezza Firestore;
+- `firebase.json` — configurazione Firestore/Hosting;
+- `.github/workflows/firebase-backend.yml` — deploy delle regole e bootstrap account.
 
-- `index.html` — sito web principale
-- `404.html` — pagina di fallback
-- `api/call.js` — proxy Vercel verso le Firebase Functions
-- `vercel.json` — configurazione Vercel
-- `firebase.json` — configurazione Hosting/Functions/Firestore
-- `firestore.rules` — regole di sicurezza Firestore
-- `functions/` — backend Firebase
-- `docs/` — documentazione tecnica e normativa
-- `.github/workflows/firebase-backend.yml` — deploy backend Firebase
+Flusso principale:
 
-Il frontend usa il progetto Firebase `votazioni-levi` e le Functions in regione `europe-west1`. Vercel è il backend HTTP principale tramite `/api/call`; Firebase resta il backend applicativo e il database.
+```text
+Browser → Vercel /api/call → Firebase Admin SDK → Firestore
+```
 
-Prima di usare la piattaforma per una consultazione reale devono risultare distribuite le Functions e le Firestore Rules dello stesso commit, completato il collaudo dell'ambiente reale e verificata la disciplina elettorale applicabile alla specifica consultazione.
+Le Firebase Functions non vengono utilizzate per il backend applicativo: in questo modo il progetto può restare sul piano Firebase senza Blaze. Firestore resta il database e il service account viene usato solo server-side da Vercel.
+
+## Variabile obbligatoria Vercel
+
+In Vercel, per **Production** e **Preview**, creare:
+
+- `FIREBASE_SERVICE_ACCOUNT_JSON`: contenuto completo del nuovo JSON del service account Firebase.
+
+Non usare il prefisso `NEXT_PUBLIC_` e non inserire mai questo JSON nel repository o nel browser. La chiave privata deve essere ruotata se è stata esposta.
+
+## Deploy
+
+Vercel esegue automaticamente il deploy dal branch `main`. Non serve eseguire `firebase deploy --only functions`.
+
+Il workflow GitHub pubblica soltanto Firestore Rules e prepara l’account iniziale `commissione.presidente`. Il primo accesso richiede il cambio della password temporanea.

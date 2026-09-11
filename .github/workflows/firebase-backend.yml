@@ -1,12 +1,13 @@
-name: Deploy backend Firebase
+name: Deploy Firestore rules and bootstrap
 
 on:
   workflow_dispatch:
   push:
     branches: ["main"]
     paths:
-      - "functions/**"
       - "firestore.rules"
+      - "functions/scripts/bootstrap-commission.js"
+      - "functions/package.json"
       - "firebase.json"
       - ".firebaserc"
       - ".github/workflows/firebase-backend.yml"
@@ -23,10 +24,12 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
-      - name: Installa dipendenze Functions
+      - name: Installa dipendenze bootstrap
         run: npm install --prefix functions
-      - name: Verifica sintassi backend
-        run: npm run check --prefix functions
+      - name: Verifica sintassi backend condiviso
+        run: |
+          npm run check --prefix functions
+          node --check functions/core.js
       - name: Prepara credenziale Firebase temporanea
         shell: bash
         env:
@@ -44,7 +47,7 @@ jobs:
         run: npm install -g firebase-tools
       - name: Deploy Firestore Rules
         run: firebase deploy --project votazioni-levi --only firestore:rules --non-interactive
-      - name: Crea account iniziale Commissione se assente
+      - name: Prepara account Commissione e cambio password iniziale
         shell: bash
         env:
           COMMISSIONE_INITIAL_PASSWORD: ${{ secrets.COMMISSIONE_INITIAL_PASSWORD }}
@@ -52,8 +55,10 @@ jobs:
           set -euo pipefail
           trap 'unset COMMISSIONE_INITIAL_PASSWORD' EXIT
           node functions/scripts/bootstrap-commission.js
-      - name: Deploy Functions
-        run: firebase deploy --project votazioni-levi --only functions --non-interactive
+      - name: Backend applicativo su Vercel
+        run: |
+          echo "Le API applicative sono pubblicate da Vercel in /api/call."
+          echo "Non viene eseguito firebase deploy --only functions: non serve il piano Blaze."
       - name: Verifica progetto Firebase raggiungibile
         run: firebase projects:list --json --non-interactive > "$RUNNER_TEMP/firebase-projects.json"
       - name: Elimina credenziale temporanea dal runner
