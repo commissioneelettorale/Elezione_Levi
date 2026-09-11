@@ -19,9 +19,17 @@
 
 ## Fase 3 — Primo account Commissione
 
-Il primo account non viene creato dal browser per evitare una “backdoor” di bootstrap.
+Il primo account viene creato una sola volta dal workflow GitHub usando la secret `COMMISSIONE_INITIAL_PASSWORD`; il browser pubblico non può creare amministratori.
 
-Con credenziali amministrative Firebase/GCP autorizzate:
+Dopo aver impostato le due secret GitHub descritte nel doc 15, eseguire **Actions → Deploy backend Firebase → Run workflow**. L'account iniziale è:
+
+- username: `commissione.presidente`;
+- anno: `2026/2027`;
+- password: il valore scelto nella secret `COMMISSIONE_INITIAL_PASSWORD`.
+
+Al primo accesso il cambio password è obbligatorio.
+
+Se si preferisce il provisioning offline, con credenziali amministrative Firebase/GCP autorizzate:
 
 ```powershell
 cd functions
