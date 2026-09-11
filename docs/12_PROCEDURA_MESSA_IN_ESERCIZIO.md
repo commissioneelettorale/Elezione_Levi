@@ -10,7 +10,7 @@
 
 ## Fase 2 — Firebase
 
-1. Aprire il progetto Firebase `mio-sistema-voto` o sostituire coerentemente il project ID in `.firebaserc` e `index.html`.
+1. Aprire il progetto Firebase `votazioni-levi` o sostituire coerentemente il project ID in `.firebaserc` e `index.html`.
 2. Abilitare Firestore e Cloud Functions.
 3. Configurare regione `europe-west1` come da codice oppure approvare una regione diversa e aggiornare entrambi i lati.
 4. Distribuire Functions e Rules dello stesso commit.
