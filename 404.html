@@ -391,14 +391,42 @@
             closeElectoralProcedure: httpsCallable(functions, 'closeElectoralProcedure'),
             destructiveAction: httpsCallable(functions, 'destructiveAction')
         });
-        // Backend principale: Firebase Functions sul progetto votazioni-levi.
+        // Backend principale Vercel; Firebase Functions resta il fallback tecnico.
+        const VERCEL_BACKEND_URL = '/api/call';
         const SECURE_API = new Proxy({}, {
             get: (_, functionName) => async (data = {}) => {
-                const callable = FIREBASE_API[functionName];
-                if (typeof callable !== 'function') {
-                    throw new Error(`Funzione Firebase non disponibile: ${String(functionName)}`);
+                const fallback = FIREBASE_API[functionName];
+                const headers = { 'Content-Type': 'application/json' };
+                if (auth.currentUser) {
+                    const idToken = await auth.currentUser.getIdToken();
+                    headers.Authorization = 'Bearer ' + idToken;
                 }
-                return await callable(data);
+                try {
+                    const response = await fetch(VERCEL_BACKEND_URL, {
+                        method: 'POST',
+                        headers,
+                        cache: 'no-store',
+                        body: JSON.stringify({ name: String(functionName), data })
+                    });
+                    let payload = {};
+                    try { payload = await response.json(); } catch (_) {}
+                    if (!response.ok || payload.error) {
+                        const err = new Error(payload?.error?.message || 'Operazione non completata.');
+                        err.code = payload?.error?.code || (response.status === 401 ? 'unauthenticated' : 'internal');
+                        throw err;
+                    }
+                    return { data: payload.data };
+                } catch (vercelError) {
+                    const code = String(vercelError?.code || '');
+                    const msg = String(vercelError?.message || '');
+                    const technicalFailure =
+                        /unavailable|internal|network-request-failed/i.test(code) ||
+                        /failed to fetch|network|cors|temporaneamente non disponibile/i.test(msg);
+                    if (technicalFailure && typeof fallback === 'function') {
+                        return await fallback(data);
+                    }
+                    throw vercelError;
+                }
             }
         });
         let secureVotingSession = null;
@@ -2170,7 +2198,7 @@
             try {
                 const sec = await SECURE_API.getSecurityStatus({ annoScolastico: configElezioni.annoScolastico });
                 if (sec.data?.ok !== true) throw new Error('Risposta tecnica non valida.');
-                details.technical = { ok:true, message:'Backend Firebase e API autenticata operativi' };
+                details.technical = { ok:true, message:'Backend Vercel, Firebase e API autenticata operativi' };
             } catch (e) {
                 details.technical = { ok:false, message:e?.message || 'Controllo tecnico non disponibile' };
                 errors.push('Controllo tecnico non superato.');
@@ -2222,7 +2250,7 @@
                         </div>
                         <div class="bg-white rounded-2xl border p-5">
                             <h4 class="font-black text-slate-900 text-sm mb-3">Diagnostica tecnica reale</h4>
-                            <p class="text-xs text-slate-600 mb-3">Controlla il collegamento Firebase e lo stato di sicurezza senza inserire voti.</p>
+                            <p class="text-xs text-slate-600 mb-3">Controlla il backend Vercel, il collegamento Firebase e lo stato di sicurezza senza inserire voti.</p>
                             <button onclick="runElectionTechnicalCheck()" class="px-4 py-2 rounded-xl bg-blue-900 hover:bg-blue-950 text-white text-xs font-black">ESEGUI TEST BACKEND / FIREBASE</button>
                             <div id="technical-check-result" class="mt-3 text-xs"></div>
                             <div class="mt-4 p-3 rounded-xl bg-slate-50 border text-[11px] text-slate-700 leading-relaxed">
@@ -2254,7 +2282,7 @@
                         <h4 class="font-black text-sm mb-3">Checklist prima dell'attivazione reale</h4>
                         <div class="grid md:grid-cols-2 gap-x-6 gap-y-2 text-xs">
                             <div>☐ Accesso Commissione e cambio password verificati</div>
-                            <div>☐ Backend/Firebase: test tecnico verde</div>
+                            <div>☐ Backend Vercel/Firebase: test tecnico verde</div>
                             <div>☐ Registro studenti e genitori caricato</div>
                             <div>☐ Liste e candidati verificati</div>
                             <div>☐ Date/orari Europe/Rome corretti</div>
@@ -2303,16 +2331,16 @@
             if (out) out.innerHTML = '<span class="font-bold text-blue-700">Controllo autenticato in corso...</span>';
             try {
                 const sec = await SECURE_API.getSecurityStatus({ annoScolastico: configElezioni.annoScolastico });
-                if (sec.data?.ok !== true) throw new Error('Backend/Firebase non operativo.');
+                if (sec.data?.ok !== true) throw new Error('Backend Vercel/Firebase non operativo.');
                 try {
                     await SECURE_API.setRegularityControl({
                         annoScolastico: configElezioni.annoScolastico,
                         control: 'technicalTestPassed',
                         value: true,
-                        note: 'Verifica tecnica autenticata eseguita dalla piattaforma: backend, Firebase, API e controlli server-side raggiungibili.'
+                        note: 'Verifica tecnica autenticata eseguita dalla piattaforma: backend Vercel, Firebase, API e controlli server-side raggiungibili.'
                     });
                 } catch(e) {}
-                if (out) out.innerHTML = '<div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-black">✓ Backend Firebase operativo<br>✓ API autenticata raggiungibile<br>✓ Collaudo tecnico registrato</div>';
+                if (out) out.innerHTML = '<div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-black">✓ Backend Vercel operativo<br>✓ Firebase operativo<br>✓ API autenticata raggiungibile<br>✓ Collaudo tecnico registrato</div>';
                 showNotification('Test tecnico superato','Il controllo tecnico è stato registrato automaticamente nella regolarità.','success');
             } catch (e) {
                 if (out) out.innerHTML = `<div class="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 font-black">✕ ${e?.message || 'Test non superato'}</div>`;
@@ -2358,7 +2386,7 @@
             };
             const card=(ok,title,body,action='')=>`<div class="p-4 rounded-2xl border-2 ${ok?'bg-emerald-50 border-emerald-300':'bg-amber-50 border-amber-300'}"><div class="text-[10px] font-black uppercase ${ok?'text-emerald-700':'text-amber-800'}">${ok?'✓ COMPLETO':'DA COMPLETARE'}</div><div class="font-black mt-1">${title}</div><div class="text-[10px] mt-2 text-slate-600">${body}</div>${action}</div>`;
             box.innerHTML=`<div class="grid md:grid-cols-3 gap-3">
-                ${card(d.technical?.ok===true,'1. Sistema tecnico',d.technical?.ok?'Backend, Firebase e API autenticata rispondono correttamente.':'Esegui il test tecnico dal Collaudo.',`<button onclick="window.switchAdminTab('collaudo')" class="mt-3 px-3 py-2 rounded-lg bg-blue-900 text-white text-[10px] font-black">VAI AL TEST TECNICO</button>`)}
+                ${card(d.technical?.ok===true,'1. Sistema tecnico',d.technical?.ok?'Backend Vercel, Firebase e API autenticata rispondono correttamente.':'Esegui il test tecnico dal Collaudo.',`<button onclick="window.switchAdminTab('collaudo')" class="mt-3 px-3 py-2 rounded-lg bg-blue-900 text-white text-[10px] font-black">VAI AL TEST TECNICO</button>`)}
                 ${card(d.regularity?.ok===true,'2. Regolarità',d.regularity?.ok?'Tutti i controlli pre-voto risultano confermati.':`${regMissing.length} voce/i da confermare: ${regMissing.slice(0,3).map(k=>regLabels[k]||k).join(' · ')}${regMissing.length>3?' …':''}`,`<button onclick="window.switchAdminTab('regolarita')" class="mt-3 px-3 py-2 rounded-lg bg-slate-900 text-white text-[10px] font-black">GESTISCI REGOLARITÀ</button>`)}
                 ${card(d.mim?.ok===true,'3. Checklist MIM',d.mim?.ok?'Verifiche documentali e organizzative registrate.':`${mimMissing.length} verifica/e ancora da attestare.`, `<button onclick="window.switchAdminTab('collaudo')" class="mt-3 px-3 py-2 rounded-lg bg-indigo-900 text-white text-[10px] font-black">GESTISCI CHECKLIST MIM</button>`)}
             </div>${r.ok?'<div class="mt-3 p-4 rounded-xl bg-emerald-600 text-white font-black">✓ SISTEMA PRONTO — PUOI PREMERE “APRI ORA”</div>':'<div class="mt-3 p-3 rounded-xl bg-slate-50 border text-[10px] text-slate-600"><b>Nota:</b> le voci di Regolarità e MIM non sono errori informatici. Sono attestazioni che devono essere confermate solo quando gli atti e le verifiche corrispondenti esistono realmente.</div>'}`;
