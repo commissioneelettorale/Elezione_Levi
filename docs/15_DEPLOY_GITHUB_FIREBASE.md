@@ -1,84 +1,72 @@
-# 15 — Pubblicazione GitHub + Vercel + backend Firebase
+# 15 — Pubblicazione GitHub + Vercel + Firestore senza Firebase Blaze
 
 ## A. Architettura
 
-Il sito pubblico viene pubblicato su Vercel. Vercel gestisce sia il frontend statico (`index.html`) sia l'endpoint serverless `/api/call`.
-
-L'endpoint Vercel inoltra esclusivamente le chiamate autorizzate alle Firebase Functions del progetto `votazioni-levi`. Firebase resta il sistema che gestisce autenticazione, regole, database e logica elettorale.
-
-Flusso operativo:
+Il sito e il backend applicativo sono pubblicati da Vercel:
 
 ```text
-Browser → Vercel /api/call → Firebase Functions → Firestore
+Browser → Vercel /api/call → Firebase Admin SDK → Firestore
 ```
+
+Firebase conserva Firestore, Authentication e Security Rules. Le Firebase Functions non sono necessarie e non vengono distribuite; quindi il progetto non deve essere portato al piano Blaze per il backend applicativo.
 
 ## B. Impostazioni Vercel
 
 Nel nuovo account Vercel:
 
-1. **Add New → Project**.
-2. Importare `commissioneelettorale/Elezione_Levi`.
-3. **Project Name:** `elezione-levi`.
-4. **Framework Preset:** `Other`.
-5. **Root Directory:** `.`.
-6. **Build Command:** vuoto.
-7. **Output Directory:** vuoto.
-8. **Install Command:** vuoto.
-9. Branch di produzione: `main`.
-10. Deploy automatico attivo a ogni push su `main`.
+1. Importare `commissioneelettorale/Elezione_Levi`.
+2. Framework Preset: **Other**.
+3. Root Directory: `.`.
+4. Build Command: vuoto.
+5. Output Directory: vuoto.
+6. Install Command: predefinito.
+7. Branch di produzione: `main`.
+8. Deploy automatico attivo.
 
-In **Settings → Environment Variables** creare:
+In **Settings → Environment Variables** creare la seguente variabile per **Production** e **Preview**:
 
-- **Name:** `FIREBASE_FUNCTIONS_BASE_URL`
-- **Value:** `https://europe-west1-votazioni-levi.cloudfunctions.net`
-- **Environments:** `Production` e `Preview`.
+- **Name:** `FIREBASE_SERVICE_ACCOUNT_JSON`
+- **Value:** JSON completo di una nuova chiave service account del progetto `votazioni-levi`.
 
-Non inserire in Vercel il service account Firebase e non inserire la password iniziale della Commissione.
+La variabile è server-side: non usare `NEXT_PUBLIC_`. Non committare il JSON e non inserirlo in `index.html`.
 
-Il file `vercel.json` e il file `api/call.js` sono già presenti nel repository.
+## C. Firebase senza Blaze
 
-## C. Firebase
+Devono restare attivi:
 
-Il progetto Firebase deve avere Project ID `votazioni-levi`, Firestore attivo, Authentication attivo e provider **Anonymous** abilitato. Le Functions usano la regione `europe-west1`.
+- Firestore;
+- Firebase Authentication;
+- il provider necessario all’accesso previsto;
+- Firestore Rules.
 
-Per pubblicare le Functions è necessario il piano Blaze. Il dominio Vercel deve essere aggiunto in **Authentication → Settings → Authorized domains**.
+Il deploy delle regole può continuare tramite GitHub Actions. Il workflow non esegue più `firebase deploy --only functions`, perché l’API applicativa è Vercel.
 
-## D. Secret GitHub per il deploy Firebase
+## D. Secret GitHub
 
-Nel repository GitHub aprire **Settings → Secrets and variables → Actions → New repository secret** e creare:
+Nel repository GitHub mantenere:
 
-- `FIREBASE_SERVICE_ACCOUNT_VOTAZIONI_LEVI`: JSON completo della chiave service account Firebase/GCP;
-- `COMMISSIONE_INITIAL_PASSWORD`: password iniziale scelta per `commissione.presidente`, almeno 16 caratteri con maiuscole, minuscole, numeri e simboli.
+- `FIREBASE_SERVICE_ACCOUNT_VOTAZIONI_LEVI`;
+- `COMMISSIONE_INITIAL_PASSWORD`.
 
-Il JSON e la password non devono essere committati e non devono essere inseriti in Vercel.
+Il workflow usa la chiave soltanto per pubblicare le Rules e preparare l’account Commissione. La password iniziale viene usata solo quando l’account non esiste; non sovrascrive un account già presente.
 
-## E. Deploy
-
-1. Aprire **Actions**.
-2. Selezionare **Deploy backend Firebase**.
-3. Cliccare **Run workflow**.
-4. Selezionare `main`.
-5. Attendere il risultato verde.
-
-Il workflow pubblica Firestore Rules, crea l'account Commissione se assente e distribuisce le Functions.
-
-## F. Primo accesso Commissione
+## E. Primo accesso Commissione
 
 - username: `commissione.presidente`;
 - anno scolastico: `2026/2027`;
-- password: valore scelto in `COMMISSIONE_INITIAL_PASSWORD`.
+- password temporanea: valore presente nella secret al momento della creazione.
 
-Al primo accesso è obbligatorio impostare una nuova password personale.
+Al primo accesso viene mostrata la schermata di cambio password e il pannello resta bloccato fino al completamento.
 
-## G. Verifica tecnica
+## F. Verifica
 
 Dal dominio Vercel verificare:
 
-- apertura di `index.html`;
-- caricamento di `levi.png`;
-- chiamata `POST /api/call`;
-- accesso Commissione;
-- risposta della Function `commissionLogin`;
-- cambio password iniziale.
+1. apertura del sito;
+2. risposta `POST /api/call`;
+3. accesso Commissione;
+4. cambio password obbligatorio;
+5. caricamento del pannello dopo il cambio;
+6. lettura/scrittura Firestore tramite le operazioni autorizzate.
 
-Se `/api/call` non risponde, il frontend utilizza il fallback diretto Firebase; in ogni caso il deploy Firebase deve risultare verde prima del collaudo reale.
+La chiave service account deve essere conservata esclusivamente nelle variabili segrete Vercel/GitHub e ruotata se è stata pubblicata o condivisa.

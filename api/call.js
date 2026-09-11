@@ -1,31 +1,38 @@
 'use strict';
 
+const { getAuth } = require('firebase-admin/auth');
+
 const ALLOWED_FUNCTIONS = new Set([
-  'validateVoterToken',
-  'castVote',
-  'commissionLogin',
-  'changeCommissionPassword',
-  'managementLogin',
-  'referentLogin',
-  'getAnonymousBallots',
-  'createStaffAccount',
-  'getStaffAccounts',
-  'setStaffAccountActive',
-  'saveElectionConfig',
-  'ensureReferentKeys',
-  'getSecurityStatus',
-  'getRegularityState',
-  'setRegularityControl',
-  'recordResultsPublication',
-  'fileElectoralAppeal',
-  'resolveElectoralAppeal',
-  'recordElectoralIncident',
-  'setEmergencySuspension',
-  'closeElectoralProcedure',
-  'destructiveAction'
+  "validateVoterToken",
+  "castVote",
+  "commissionLogin",
+  "changeCommissionPassword",
+  "managementLogin",
+  "referentLogin",
+  "getAnonymousBallots",
+  "createStaffAccount",
+  "getStaffAccounts",
+  "setStaffAccountActive",
+  "getRegularityState",
+  "setRegularityControl",
+  "recordResultsPublication",
+  "fileElectoralAppeal",
+  "resolveElectoralAppeal",
+  "recordElectoralIncident",
+  "setEmergencySuspension",
+  "closeElectoralProcedure",
+  "getSecurityStatus",
+  "destructiveAction",
+  "saveElectionConfig",
+  "ensureReferentKeys"
 ]);
 
-const DEFAULT_FUNCTIONS_BASE_URL = 'https://europe-west1-votazioni-levi.cloudfunctions.net';
+let handlers;
+
+function loadHandlers() {
+  if (!handlers) handlers = require('../functions/core');
+  return handlers;
+}
 
 function sendJson(res, status, payload) {
   res.status(status);
@@ -35,21 +42,77 @@ function sendJson(res, status, payload) {
 
 function normalizeFirebaseCode(error) {
   const raw = String(error?.code || error?.status || 'internal');
-  return raw.toLowerCase().replace(/_/g, '-');
+  return raw
+    .replace(/^functions\//i, '')
+    .toLowerCase()
+    .replace(/_/g, '-');
+}
+
+function statusForCode(code) {
+  const statuses = {
+    'invalid-argument': 400,
+    'unauthenticated': 401,
+    'permission-denied': 403,
+    'not-found': 404,
+    'already-exists': 409,
+    'failed-precondition': 412,
+    'aborted': 409,
+    'resource-exhausted': 429,
+    'deadline-exceeded': 504,
+    'unavailable': 503
+  };
+  return statuses[code] || 500;
+}
+
+async function resolveAuth(req) {
+  const authorization = req.headers?.authorization;
+  if (!authorization) return null;
+
+  if (typeof authorization !== 'string' || !/^Bearer\s+/i.test(authorization)) {
+    const error = new Error('Sessione non valida.');
+    error.code = 'unauthenticated';
+    throw error;
+  }
+
+  const idToken = authorization.replace(/^Bearer\s+/i, '').trim();
+  if (!idToken) {
+    const error = new Error('Sessione non valida.');
+    error.code = 'unauthenticated';
+    throw error;
+  }
+
+  try {
+    const decoded = await getAuth().verifyIdToken(idToken);
+    return { uid: decoded.uid, token: decoded };
+  } catch (_) {
+    const error = new Error('Sessione non valida o scaduta.');
+    error.code = 'unauthenticated';
+    throw error;
+  }
+}
+
+function parseBody(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
+  if (typeof req.body === 'string') {
+    try { return JSON.parse(req.body); } catch (_) { return null; }
+  }
+  return null;
 }
 
 module.exports = async function handler(req, res) {
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Allow', 'POST, OPTIONS');
+    return res.status(204).end();
+  }
+
   if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
+    res.setHeader('Allow', 'POST, OPTIONS');
     return sendJson(res, 405, {
       error: { code: 'method-not-allowed', message: 'Metodo non consentito.' }
     });
   }
 
-  let body = req.body;
-  if (typeof body === 'string') {
-    try { body = JSON.parse(body); } catch (_) { body = null; }
-  }
+  const body = parseBody(req);
   const functionName = typeof body?.name === 'string' ? body.name : '';
   if (!ALLOWED_FUNCTIONS.has(functionName)) {
     return sendJson(res, 400, {
@@ -57,42 +120,44 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  const baseUrl = String(process.env.FIREBASE_FUNCTIONS_BASE_URL || DEFAULT_FUNCTIONS_BASE_URL).replace(/\/+$/, '');
-  const headers = { 'Content-Type': 'application/json' };
-  const authorization = req.headers.authorization;
-  if (typeof authorization === 'string' && authorization.startsWith('Bearer ')) {
-    headers.Authorization = authorization;
-  }
-  const appCheck = req.headers['x-firebase-appcheck'];
-  if (typeof appCheck === 'string' && appCheck) {
-    headers['X-Firebase-AppCheck'] = appCheck;
-  }
-
   try {
-    const upstream = await fetch(baseUrl + '/' + encodeURIComponent(functionName), {
-      method: 'POST',
-      headers,
-      cache: 'no-store',
-      body: JSON.stringify({ data: body?.data ?? {} })
-    });
-    const text = await upstream.text();
-    let payload;
-    try { payload = text ? JSON.parse(text) : {}; } catch (_) { payload = {}; }
-
-    if (payload?.error) {
-      payload.error.code = payload.error.code || normalizeFirebaseCode(payload.error);
-      return sendJson(res, upstream.status, payload);
-    }
-    if (!upstream.ok) {
-      return sendJson(res, 502, {
-        error: { code: 'unavailable', message: 'Backend Firebase non raggiungibile.' }
+    const availableHandlers = loadHandlers();
+    if (typeof availableHandlers[functionName] !== 'function') {
+      return sendJson(res, 404, {
+        error: { code: 'not-found', message: 'Operazione non disponibile.' }
       });
     }
-    return sendJson(res, 200, payload);
+
+    const auth = await resolveAuth(req);
+    const result = await availableHandlers[functionName]({
+      data: body?.data && typeof body.data === 'object' ? body.data : {},
+      auth,
+      rawRequest: req
+    });
+
+    return sendJson(res, 200, { data: result });
   } catch (error) {
-    console.error('Vercel proxy Firebase:', error?.message || error);
-    return sendJson(res, 502, {
-      error: { code: 'unavailable', message: 'Backend Firebase temporaneamente non disponibile.' }
+    const code = normalizeFirebaseCode(error);
+    console.error('[api/call]', functionName, code, error?.message || error);
+
+    const clientVisibleCodes = new Set([
+      'invalid-argument',
+      'unauthenticated',
+      'permission-denied',
+      'not-found',
+      'already-exists',
+      'failed-precondition',
+      'aborted',
+      'resource-exhausted',
+      'deadline-exceeded',
+      'unavailable'
+    ]);
+    const message = clientVisibleCodes.has(code)
+      ? String(error?.message || 'Operazione non completata.')
+      : 'Backend Vercel temporaneamente non disponibile.';
+
+    return sendJson(res, statusForCode(code), {
+      error: { code, message }
     });
   }
 };
