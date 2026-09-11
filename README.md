@@ -15,6 +15,6 @@ La pagina principale è `index.html` nella root del branch `main`.
 - `.github/workflows/pages.yml` — pubblicazione frontend su GitHub Pages
 - `.github/workflows/firebase-backend.yml` — deploy backend Firebase
 
-Il frontend è configurato per il progetto Firebase `mio-sistema-voto` e per le Functions in regione `europe-west1`.
+Il frontend è configurato per il progetto Firebase `votazioni-levi` e per le Functions in regione `europe-west1`.
 
 Prima di usare la piattaforma per una consultazione reale devono risultare distribuite le Functions e le Firestore Rules dello stesso commit, completato il collaudo dell'ambiente reale e verificata la disciplina elettorale applicabile alla specifica consultazione.
