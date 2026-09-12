@@ -549,7 +549,7 @@ exports.validateVoterToken = async (request) => {
     voted_classe_studente: !!voterData.voted_classe_studente,
     voted_classe_genitore: !!voterData.voted_classe_genitore
   };
-});
+};
 
 exports.castVote = async (request) => {
   const sessionId = String(request.data?.sessionId || '');
@@ -635,7 +635,7 @@ exports.castVote = async (request) => {
 
   // Nessun audit individuale del voto: evita correlazioni temporali elettore/scheda.
   return { ok: true, ...result };
-});
+};
 
 exports.commissionLogin = async (request) => {
   const year = request.data?.annoScolastico;
@@ -644,7 +644,7 @@ exports.commissionLogin = async (request) => {
   const result = await authenticateStaff({ username, password, requestedRole: 'COMMISSIONE', year });
   await auditAdmin({ uid: result.profile.id, role: 'COMMISSIONE' }, 'COMMISSION_LOGIN', { username });
   return result;
-});
+};
 
 
 exports.changeCommissionPassword = async (request) => {
@@ -706,7 +706,7 @@ exports.changeCommissionPassword = async (request) => {
       mustChangePassword: false
     }
   };
-});
+};
 
 exports.managementLogin = async (request) => {
   const result = await authenticateStaff({
@@ -717,7 +717,7 @@ exports.managementLogin = async (request) => {
   });
   await auditAdmin({ uid: result.profile.id, role: result.profile.role }, 'STAFF_LOGIN', { username: result.profile.username });
   return result;
-});
+};
 
 exports.referentLogin = async (request) => {
   const token = normalize(request.data?.token);
@@ -732,7 +732,7 @@ exports.referentLogin = async (request) => {
     role: 'REFERENTE', scopeClass: rec.classe, referentType: rec.tipo
   });
   return { customToken, classe: rec.classe, tipo: rec.tipo };
-});
+};
 
 exports.getAnonymousBallots = async (request) => {
   const actor = requireAuth(request, ['COMMISSIONE', 'DIRIGENTE', 'VICEPRESIDE', 'DSGA', 'SEGRETERIA', 'REFERENTE']);
@@ -769,7 +769,7 @@ exports.getAnonymousBallots = async (request) => {
     return { phase, ballots: makeTurnoutProjection(sanitized), aggregateOnly: true };
   }
   return { phase, ballots: makeAggregateProjection(sanitized, collectionName), aggregateOnly: true };
-});
+};
 
 exports.createStaffAccount = async (request) => {
   const actor = requireAuth(request, ['COMMISSIONE']);
@@ -808,7 +808,7 @@ exports.createStaffAccount = async (request) => {
     id: ref.id,
     ...(expiresAt ? { expiresAt: expiresAt.toISOString(), expiresOn: expiryLabel(expiresAt) } : {})
   };
-});
+};
 
 exports.getStaffAccounts = async (request) => {
   requireAuth(request, ['COMMISSIONE']);
@@ -834,7 +834,7 @@ exports.getStaffAccounts = async (request) => {
   }
   accounts.sort((a, b) => a.role.localeCompare(b.role) || a.username.localeCompare(b.username));
   return { accounts };
-});
+};
 
 exports.setStaffAccountActive = async (request) => {
   const actor = requireAuth(request, ['COMMISSIONE']);
@@ -845,7 +845,7 @@ exports.setStaffAccountActive = async (request) => {
   await yearlyCollection('gestione_accessi', year).doc(id).update({ active, updatedAt: FieldValue.serverTimestamp() });
   await auditAdmin(actor, 'SET_STAFF_ACCOUNT_ACTIVE', { accountId: id, active });
   return { ok: true };
-});
+};
 
 exports.getRegularityState = async (request) => {
   requireAuth(request,['COMMISSIONE','DIRIGENTE','VICEPRESIDE','DSGA','SEGRETERIA']);
@@ -854,7 +854,7 @@ exports.getRegularityState = async (request) => {
   const appeals=snap.docs.map(d=>{const x=d.data()||{};return{id:d.id,protocolRef:x.protocolRef||'',subject:x.subject||'',status:x.status||'OPEN',decisionRef:x.decisionRef||'',filedAt:timestampIso(x.filedAt),decidedAt:timestampIso(x.decidedAt)}});
   const missing=regularityMissing(state);
   return{state:serializeRegularityState(state),appeals,missing,readyForVoting:missing.length===0&&!state.emergencySuspended&&!state.procedureClosed};
-});
+};
 
 exports.setRegularityControl = async (request) => {
   const actor=requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico;
@@ -866,7 +866,7 @@ exports.setRegularityControl = async (request) => {
   await db.runTransaction(async tx=>{const snap=await tx.get(ref),cur={...emptyRegularityState(),...(snap.exists?snap.data():{})};tx.set(ref,{[control]:value,notes:{...(cur.notes||{}),[control]:note},updatedAt:FieldValue.serverTimestamp(),updatedBy:actor.uid},{merge:true});});
   await regularityEvents(year).add({type:'CONTROL_UPDATE',control,value,note,actorUid:actor.uid,at:FieldValue.serverTimestamp()});
   await auditAdmin(actor,'REGULARITY_CONTROL_UPDATE',{control,value}); return{ok:true};
-});
+};
 
 exports.recordResultsPublication = async (request) => {
   const actor=requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico;
@@ -876,7 +876,7 @@ exports.recordResultsPublication = async (request) => {
   await regularityStateRef(year).set({resultsPublished:true,resultsPublishedAt:FieldValue.serverTimestamp(),resultsPublicationProtocol:protocolRef,appealDeadline,appealWindowClosed:false,legalHold:true,updatedAt:FieldValue.serverTimestamp(),updatedBy:actor.uid},{merge:true});
   await regularityEvents(year).add({type:'RESULTS_PUBLICATION',protocolRef,appealDeadline,actorUid:actor.uid,at:FieldValue.serverTimestamp()});
   await auditAdmin(actor,'RESULTS_PUBLICATION_RECORDED',{protocolRef,appealDeadline}); return{ok:true};
-});
+};
 
 exports.fileElectoralAppeal = async (request) => {
   const actor=requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico;
@@ -885,7 +885,7 @@ exports.fileElectoralAppeal = async (request) => {
   const ref=regularityAppeals(year).doc(); await ref.set({protocolRef,subject,status:'OPEN',filedAt:FieldValue.serverTimestamp(),createdBy:actor.uid});
   await regularityStateRef(year).set({legalHold:true,appealWindowClosed:false,updatedAt:FieldValue.serverTimestamp()},{merge:true});
   await auditAdmin(actor,'ELECTORAL_APPEAL_FILED',{appealId:ref.id,protocolRef}); return{ok:true,id:ref.id};
-});
+};
 
 exports.resolveElectoralAppeal = async (request) => {
   const actor=requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico,id=String(request.data?.id||''),decisionRef=String(request.data?.decisionRef||'').trim().slice(0,200);
@@ -893,7 +893,7 @@ exports.resolveElectoralAppeal = async (request) => {
   const ref=regularityAppeals(year).doc(id),snap=await ref.get(); if(!snap.exists) throw new HttpsError('not-found','Ricorso non trovato.');
   await ref.update({status:'RESOLVED',decisionRef,decidedAt:FieldValue.serverTimestamp(),decidedBy:actor.uid});
   await auditAdmin(actor,'ELECTORAL_APPEAL_RESOLVED',{appealId:id,decisionRef}); return{ok:true};
-});
+};
 
 exports.recordElectoralIncident = async (request) => {
   const actor=requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico;
@@ -902,7 +902,7 @@ exports.recordElectoralIncident = async (request) => {
   await regularityEvents(year).add({type:'INCIDENT',protocolRef,title,details,suspend,actorUid:actor.uid,at:FieldValue.serverTimestamp()});
   await regularityStateRef(year).set({emergencySuspended:suspend,lastIncidentAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp(),updatedBy:actor.uid},{merge:true});
   await auditAdmin(actor,'ELECTORAL_INCIDENT_RECORDED',{protocolRef,title,suspend}); return{ok:true};
-});
+};
 
 exports.setEmergencySuspension = async (request) => {
   const actor=requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico,suspended=request.data?.suspended===true,reason=String(request.data?.reason||'').trim().slice(0,1000);
@@ -910,7 +910,7 @@ exports.setEmergencySuspension = async (request) => {
   await regularityStateRef(year).set({emergencySuspended:suspended,suspensionReason:reason,updatedAt:FieldValue.serverTimestamp(),updatedBy:actor.uid},{merge:true});
   await regularityEvents(year).add({type:suspended?'SUSPENSION':'RESUMPTION',reason,actorUid:actor.uid,at:FieldValue.serverTimestamp()});
   await auditAdmin(actor,suspended?'ELECTION_SUSPENDED':'ELECTION_RESUMED',{}); return{ok:true};
-});
+};
 
 exports.closeElectoralProcedure = async (request) => {
   const actor=requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico,closureRef=String(request.data?.closureRef||'').trim().slice(0,200);
@@ -924,7 +924,7 @@ exports.closeElectoralProcedure = async (request) => {
   await regularityStateRef(year).set({procedureClosed:true,procedureClosedAt:FieldValue.serverTimestamp(),closureRef,legalHold:false,emergencySuspended:false,updatedAt:FieldValue.serverTimestamp(),updatedBy:actor.uid},{merge:true});
   await regularityEvents(year).add({type:'PROCEDURE_CLOSED',closureRef,revokedManagementAccounts:count,actorUid:actor.uid,at:FieldValue.serverTimestamp()});
   await auditAdmin(actor,'ELECTORAL_PROCEDURE_CLOSED',{closureRef,revokedManagementAccounts:count}); return{ok:true,revokedManagementAccounts:count};
-});
+};
 exports.getSecurityStatus = async (request) => {
   const actor = requireAuth(request, ['COMMISSIONE', 'DIRIGENTE', 'VICEPRESIDE', 'DSGA', 'SEGRETERIA']);
   const year = request.data?.annoScolastico;
@@ -947,7 +947,7 @@ exports.getSecurityStatus = async (request) => {
       sessionExpiryMinutes: 15
     }
   };
-});
+};
 
 exports.destructiveAction = async (request) => {
   const actor = requireAuth(request, ['COMMISSIONE']);
@@ -956,7 +956,7 @@ exports.destructiveAction = async (request) => {
     'failed-precondition',
     'Operazione distruttiva disabilitata dal canale web. È richiesta una procedura straordinaria offline, autorizzata e verbalizzata.'
   );
-});
+};
 
 exports.saveElectionConfig = async (request) => {
   const actor = requireAuth(request, ['COMMISSIONE']);
@@ -976,7 +976,7 @@ exports.saveElectionConfig = async (request) => {
   });
   await auditAdmin(actor, 'SAVE_ELECTION_CONFIG', { annoScolastico: year });
   return { ok: true };
-});
+};
 
 exports.ensureReferentKeys = async (request) => {
   const actor = requireAuth(request, ['COMMISSIONE']);
@@ -1019,4 +1019,4 @@ exports.ensureReferentKeys = async (request) => {
   });
   await auditAdmin(actor, 'ENSURE_REFERENT_KEYS', { tipo: type, classCount: classes.length });
   return { keys: result };
-});
+};
