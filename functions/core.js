@@ -281,7 +281,12 @@ async function authenticateStaff({ username, password, requestedRole, year }) {
     .where('role', '==', role)
     .limit(1)
     .get();
-  if (snap.empty) throw new HttpsError('permission-denied', 'Credenziali non valide.');
+  if (snap.empty) {
+    console.warn('[staff-auth]', JSON.stringify({
+      reason: 'account-not-found', role, year: yearSuffix(year), projectId: db.projectId
+    }));
+    throw new HttpsError('permission-denied', 'Credenziali non valide.');
+  }
   const docSnap = snap.docs[0];
   const record = docSnap.data() || {};
   if (record.active === false) throw new HttpsError('permission-denied', 'Account disattivato.');
@@ -293,7 +298,13 @@ async function authenticateStaff({ username, password, requestedRole, year }) {
     const hash = crypto.scryptSync(String(password), salt, 64).toString('hex');
     await docSnap.ref.update({ passwordSalt: salt, passwordHash: hash, migratedAt: FieldValue.serverTimestamp() });
   }
-  if (!valid) throw new HttpsError('permission-denied', 'Credenziali non valide.');
+  if (!valid) {
+    console.warn('[staff-auth]', JSON.stringify({
+      reason: record.passwordHash ? 'password-mismatch' : 'password-record-missing',
+      role, year: yearSuffix(year), projectId: db.projectId
+    }));
+    throw new HttpsError('permission-denied', 'Credenziali non valide.');
+  }
 
   const expiresAt = managementExpiryForRecord(record, year, role);
   if (expiresAt && Date.now() >= expiresAt.getTime()) {
