@@ -21,7 +21,7 @@
     {
       "path": "docs/verifiche-sviluppo.json",
       "bytes": 9909,
-      "sha256": "b563bd877592c968b84aeb7994d07ac9b21730bc502003183ed2908cca4898a8"
+      "sha256": "0c7be0f929591ede7238e36b3e5813d2a3894b2a46bde9cf3d7d113d6fea75eb"
     },
     {
       "path": "fascicolo-dpo.html",
@@ -35,8 +35,8 @@
     },
     {
       "path": "functions/core.js",
-      "bytes": 101564,
-      "sha256": "20e28e3713416551dc0afad8c75293577c4ba0cb540755ffa3f8c516ce07149e"
+      "bytes": 101613,
+      "sha256": "e674fee4d9ec52afc9ad488e376a514599775591bd43c98f4a4f2e5cac8a7781"
     },
     {
       "path": "index.html",

@@ -1,6 +1,6 @@
 {
   "format": "LEVI_DEVELOPMENT_EVIDENCE_V2",
-  "generatedAt": "2026-09-13T20:27:30.228Z",
+  "generatedAt": "2026-09-13T20:35:36.335Z",
   "evidence": [
     {
       "id": "access",
@@ -9,7 +9,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: technical report outcomes, evidence requirements and authorization.\nPASS: active/revoked/versioned accounts; year isolation; preference limits; appeal dates; frozen lists.",
       "outcome": "PASS",
-      "testedAt": "2026-09-13T20:27:19.546Z",
+      "testedAt": "2026-09-13T20:35:24.321Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -20,7 +20,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: named credential mode cannot be admitted by checking documentary flags.\nPASS: actual anonymous pool, issuance limits, independent review, authorization, suspension/resume, stale-evidence rejection. All data and documentary claims are synthetic.\nPASS: Rome time boundaries/DST, split sessions, October/November isolation, per-election publications and freeze.\nPASS: sealed vote round trip, tamper/wrong-key rejection, no cleartext identity, repeat submission, closing race and live result embargo.\nPASS: technician denied migration; migration blocked between elections, lossless verified migration and idempotent retry.\nPASS: Commission receives aggregate projections only; original pairings cannot affect the response; counts, groups and blank totals preserved; architectural limitations remain explicit.",
       "outcome": "PASS",
-      "testedAt": "2026-09-13T20:27:19.656Z",
+      "testedAt": "2026-09-13T20:35:24.425Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -31,7 +31,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: 205 records across pages; no duplicates; cutoff preserved; interrupted export rejected; 12 unconfirmed test fields.",
       "outcome": "PASS",
-      "testedAt": "2026-09-13T20:27:19.813Z",
+      "testedAt": "2026-09-13T20:35:24.581Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -42,7 +42,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: distinct October/November acts and dates in Word; PDF appendix generation with embedded font.",
       "outcome": "PASS",
-      "testedAt": "2026-09-13T20:27:19.889Z",
+      "testedAt": "2026-09-13T20:35:24.659Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -53,7 +53,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: memory auth, no tracking integrations, one backend, no fallback on outage, no cookies sent by API and volatile test log.",
       "outcome": "PASS",
-      "testedAt": "2026-09-13T20:27:20.017Z",
+      "testedAt": "2026-09-13T20:35:24.788Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -64,7 +64,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: actual technical PDF includes admission, source version, configuration hash and architectural limitation.",
       "outcome": "PASS",
-      "testedAt": "2026-09-13T20:27:20.094Z",
+      "testedAt": "2026-09-13T20:35:24.876Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -75,7 +75,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: actual DPO PDF and ZIP, ten entries with matching SHA-256, missing evidence remains unverified, interrupted export creates no archive.",
       "outcome": "PASS",
-      "testedAt": "2026-09-13T20:27:20.253Z",
+      "testedAt": "2026-09-13T20:35:25.015Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -86,7 +86,7 @@
       "expected": "Nessun ERR_REQUIRE_ESM.",
       "observed": "Import riuscito: v22.23.2",
       "outcome": "PASS",
-      "testedAt": "2026-09-13T20:27:20.957Z",
+      "testedAt": "2026-09-13T20:35:25.703Z",
       "operator": "Verifica automatica di sviluppo"
     },
     {
@@ -96,7 +96,7 @@
       "expected": "Nessuna segnalazione nota nel perimetro npm.",
       "observed": "{\"info\":0,\"low\":0,\"moderate\":0,\"high\":0,\"critical\":0,\"total\":0}",
       "outcome": "PASS",
-      "testedAt": "2026-09-13T20:27:30.225Z",
+      "testedAt": "2026-09-13T20:35:36.329Z",
       "operator": "Verifica automatica di sviluppo",
       "limitation": "Non copre SDK remoti, librerie vendorizzate, configurazione cloud o vulnerabilità non note."
     }
@@ -108,7 +108,7 @@
     },
     {
       "path": "functions/core.js",
-      "sha256": "20e28e3713416551dc0afad8c75293577c4ba0cb540755ffa3f8c516ce07149e"
+      "sha256": "e674fee4d9ec52afc9ad488e376a514599775591bd43c98f4a4f2e5cac8a7781"
     },
     {
       "path": "api/call.js",
@@ -156,7 +156,7 @@
     },
     {
       "path": "scripts/check-consultations.cjs",
-      "sha256": "12210fbd80fd3262e7dff0b72b27dc00e770a9003e224bf303afdea3f0a86a26"
+      "sha256": "903c7fff5089c4166993a931d06cd6e164f751ab24f38622480f2501b94d147f"
     },
     {
       "path": "scripts/check-technical-export.cjs",

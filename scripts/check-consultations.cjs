@@ -78,6 +78,7 @@ async function check(){
  const testReport=await report();
  await api.setRegularityControl(commission({control:'technicalTestPassed',value:true,note:'TEST',reportId:testReport}));
  await assert.rejects(authorize(),e=>e.code==='failed-precondition');
+ const recorded=stores.get(path('audit_tecnico',testReport));recorded.report.softwareVersion='OLD-VERSION';await assert.rejects(propose(testReport),e=>e.code==='failed-precondition');recorded.report.softwareVersion=env.VERCEL_GIT_COMMIT_SHA;
  await propose(testReport);
  await assert.rejects(api.advanceVotingReview(commission({action:'VERIFY',...proof})),e=>e.code==='permission-denied');
  await verify();await authorize();

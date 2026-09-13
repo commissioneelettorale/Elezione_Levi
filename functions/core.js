@@ -1358,7 +1358,7 @@ exports.advanceVotingReview=async request=>{
       const reportId=String(request.data?.reportId||'');
       if(!/^[A-Za-z0-9_-]{1,128}$/.test(reportId))throw new HttpsError('invalid-argument','ID del collaudo obbligatorio.');
       const reportSnap=await tx.get(yearlyCollection('audit_tecnico',year).doc(reportId)),report=reportSnap.data()||{};
-      if(report.event!=='COLLAUDO'||report.result!=='PROVE_DICHIARATE_SUPERATE'||report.release?.commit!==binding.commit||report.configurationSha256!==binding.configurationSha256||(report.credentialRevision||null)!==binding.credentialRevision)throw new HttpsError('failed-precondition','Servono tutte le prove dichiarate superate su questa versione e configurazione, comprese distribuzione dei codici, log e ripristino.');
+      if(report.event!=='COLLAUDO'||report.result!=='PROVE_DICHIARATE_SUPERATE'||report.release?.commit!==binding.commit||report.report?.softwareVersion!==binding.commit||report.configurationSha256!==binding.configurationSha256||(report.credentialRevision||null)!==binding.credentialRevision)throw new HttpsError('failed-precondition','Servono tutte le prove dichiarate superate su questa versione e configurazione, comprese distribuzione dei codici, log e ripristino.');
       review={...binding,stage:'PROPOSED',proposal:evidence,reportId,reportAuthor:{id:report.technicianAccountId,name:report.technicianName},incidentId:state.blockingEventId||null};
     }else{
       if(action!=='REJECT'&&(previous.commit!==binding.commit||previous.configurationSha256!==binding.configurationSha256||previous.credentialRevision!==binding.credentialRevision))throw new HttpsError('failed-precondition','Versione o configurazione cambiata. Presentare una nuova proposta.');
