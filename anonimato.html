@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Protezione del voto | Primo Levi</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f3f5f7;color:#111;font:16px/1.6 system-ui,sans-serif}header,main,footer{max-width:1000px;margin:auto;padding:24px}header{display:flex;gap:20px;align-items:center}header img{width:76px;height:76px;object-fit:contain}header a{color:#111;font-weight:700}h1{font-size:clamp(1.8rem,4vw,2.6rem);line-height:1.2;letter-spacing:-.03em}h2{font-size:1.3rem;line-height:1.35}p{margin:.8em 0}.intro{font-size:1.1rem;color:#374151}.card{padding:24px;margin-bottom:20px;background:white;border:1px solid #cbd5e1;border-radius:18px}.status{display:flex;gap:12px;align-items:flex-start;padding:14px 0}.dot{width:12px;height:12px;border-radius:50%;margin-top:7px;flex-shrink:0;background:#13764b}.red{background:#b91c1c}.label{font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;font-weight:750;color:#475569}.steps{display:grid;grid-template-columns:1fr 1fr;gap:16px}.step{padding:20px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:14px}.step b{display:block}.notice{border-left:5px solid #b45309;background:#fffbeb;padding:16px}.button{display:inline-block;border:1px solid #334155;border-radius:10px;padding:10px 16px;background:#fff;color:#111;font:inherit;font-weight:650;cursor:pointer;text-decoration:none}a{color:#173e83;text-underline-offset:3px}li{margin-bottom:8px}footer{font-size:.85rem;color:#475569}summary{cursor:pointer;font-weight:700}a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid #2563eb;outline-offset:4px}@media(max-width:640px){header,main,footer{padding:18px}.card{padding:18px}.steps{grid-template-columns:1fr}}@media print{body{background:#fff}header,main,footer{max-width:none;padding:8px}.button{display:none}.card,.step{break-inside:avoid}.card{border-radius:0}.steps{display:block}}
+  </style>
+</head>
+<body>
+  <header><img src="levi.png" alt="Logo Primo Levi"><div><div class="label">Commissione elettorale · Area tecnica</div><a href="./">Piattaforma elettorale Primo Levi</a></div></header>
+  <main>
+    <h1>Proteggere il voto, anche dagli amministratori</h1>
+    <p class="intro">Stato effettivo della piattaforma e soluzione architetturale necessaria per una separazione più forte fra identità e scelta elettorale.</p>
+    <section class="card" aria-labelledby="current">
+      <div class="label">Stato del software · 13 settembre 2026</div>
+      <h2>Modalità in presenza con codici non nominativi</h2><p>Questa versione aggiunge un archivio di credenziali casuali senza nomi o collegamenti al registro degli aventi diritto. Il seggio deve identificare le persone e far estrarre cedolini chiusi mescolati, senza creare un elenco codice-nome. Collaudo, verifica indipendente e autorizzazione documentata precedono l’apertura. IP, tempi, piccoli gruppi, copie e privilegi cloud restano oggetto di valutazione; il server vede le scelte e detiene la chiave. Non è una garanzia di anonimato assoluto.</p><p><a href="fascicolo-dpo.html">Architettura completa e fascicolo DPO</a> · <a href="docs/19_FASCICOLO_DPO_E_RIPRESA.md">Procedura di ammissione e ripresa</a>. La roadmap crittografica sottostante descrive misure ulteriori non integrate.</p><h2 id="current">Protezione rafforzata, anonimato strutturale non ancora dimostrato</h2>
+      <div class="status"><span class="dot" role="img" aria-label="Misura implementata"></span><div><b>Risultati aggregati per tutte le aree.</b> Anche la Commissione riceve conteggi ricostruiti, senza le combinazioni originali di preferenze delle singole schede. I totali continuano ad alimentare scrutinio, attribuzione dei seggi e verbali.</div></div>
+      <div class="status"><span class="dot" role="img" aria-label="Misura implementata"></span><div><b>Cifratura delle nuove schede nel database.</b> Nome, token e timestamp applicativo non sono inseriti nella scheda. La presenza di schede pregresse ancora in chiaro va verificata nel collaudo autenticato.</div></div>
+      <div class="status"><span class="dot red" role="img" aria-label="Limite da risolvere"></span><div><b>Il server vede ancora identità e scelta e possiede la chiave.</b> Transazioni, log e metadati del fornitore possono offrire elementi di correlazione. Il singolo documento senza nome non basta a eliminare questo rischio.</div></div>
+      <p class="notice"><b>Il deposito di voti reali è bloccato dal server.</b> Si applica la condizione prevista dai §§ 7.15 e 8.22 dell’Allegato A. La sola conferma dei controlli non rimuove questo blocco. <b>Non è una certificazione di anonimato assoluto.</b> I controlli verdi riguardano le singole misure indicate. Una dichiarazione o un pulsante non possono trasformare in verificata una garanzia non realizzata nell’architettura.</p>
+    </section>
+    <section class="card" aria-labelledby="target">
+      <div class="label">Soluzione da integrare e collaudare</div>
+      <h2 id="target">Un motore di voto verificabile con poteri separati</h2>
+      <div class="steps">
+        <div class="step"><b>1. Cifratura nel dispositivo</b>La scelta viene cifrata prima di lasciare la cabina. Il backend riceve una scheda cifrata e prove della sua validità, senza dover conoscere le preferenze.</div>
+        <div class="step"><b>2. Autorizzazione separata</b>Il controllo degli aventi diritto è distinto dalla raccolta delle schede. Credenziali non collegabili e gestione dei metadati devono impedire che identificazione e deposito ricostruiscano il voto.</div>
+        <div class="step"><b>3. Più custodi delle chiavi</b>Lo scrutinio richiede soggetti indipendenti. Nessun solo amministratore del sito deve poter decifrare le schede. Le chiavi di scrutinio non risiedono nel service account Firebase.</div>
+        <div class="step"><b>4. Verifica dei soli risultati</b>Si verificano le prove crittografiche e si decifrano soltanto i totali. Per schede che richiedono un diverso scrutinio serve un protocollo di mescolamento verificabile, non un semplice riordino dei record.</div>
+      </div>
+      <p><a href="https://vote.heliosvoting.org/faq" rel="noopener noreferrer">Helios descrive cifratura nel browser, scrutinio dei totali e custodi multipli</a>. È un riferimento architetturale: in questa piattaforma non è stato installato né attivato un motore Helios.</p>
+      <p>Le <a href="https://datatracker.ietf.org/doc/html/rfc9474" rel="noopener noreferrer">firme cieche descritte dalla RFC 9474</a> possono contribuire a separare autorizzazione e credenziale usata per votare. Sono una componente crittografica, non un sistema elettorale completo. Le cautele su metadati e gruppi di anonimato sono illustrate nella <a href="https://datatracker.ietf.org/doc/html/rfc9576" rel="noopener noreferrer">RFC 9576</a>.</p>
+    </section>
+    <section class="card" aria-labelledby="acceptance">
+      <h2 id="acceptance">Verifiche prima dell’integrazione</h2>
+      <ol>
+        <li><b>Modellare le cinque consultazioni:</b> aventi diritto, classi, liste, candidati, schede bianche, limite delle preferenze e divieto di voto disgiunto.</li>
+        <li><b>Individuare gestore e custodi indipendenti:</b> accessi, incompatibilità dei privilegi, quorum di scrutinio, custodia e recupero delle chiavi devono essere documentati.</li>
+        <li><b>Verificare il protocollo e l’installazione:</b> schede malformate, duplicati, revoche, interruzioni, perdita di un custode, integrità delle prove e risultati con pochissimi votanti.</li>
+        <li><b>Collaudare i conteggi con dati fittizi:</b> confrontare il risultato crittograficamente verificato con un conteggio indipendente, prima di collegarlo agli attuali algoritmi di seggi ed ex aequo.</li>
+        <li><b>Verificare gli atti scolastici e privacy:</b> la validità elettorale, il rapporto con il fornitore e la gestione dei dati non derivano dalla sola scelta del software.</li>
+      </ol>
+      <p>Le pagine organizzative, i calendari, gli atti e i verbali del sito possono essere mantenuti. Il percorso di emissione delle credenziali, deposito del voto e scrutinio deve invece essere sostituito e collaudato: cambiare soltanto una variabile Vercel non realizza questa separazione.</p>
+      <p class="notice">Un dispositivo compromesso, l’accordo fra tutti i custodi o risultati unanimi in un gruppo molto piccolo restano rischi da valutare. Le garanzie devono sempre indicare contro quali soggetti e in quali condizioni sono dimostrate.</p>
+    </section>
+    <section class="card" aria-labelledby="evidence">
+      <h2 id="evidence">Valutazione tecnica disponibile nel collaudo</h2>
+      <p>In Commissione → Collaudo e nell’Area assistente tecnico è disponibile l’esportazione della valutazione attuale, con data del server e impronta SHA-256. I nuovi checkpoint conservano il limite architetturale insieme agli esiti dichiarati dal tecnico. L’impronta permette di confrontare il documento; non è una firma digitale o una certificazione.</p>
+      <div><a class="button" href="docs/17_PERCORSO_ANONIMATO_VERIFICABILE.md">Requisiti di integrazione</a> <button class="button" onclick="window.print()">Stampa questa pagina</button></div>
+    </section>
+  </main>
+  <footer>ITSCG Primo Levi di Seregno · Documentazione tecnica di supporto. Conservare agli atti le valutazioni e le decisioni dell’Istituto. · <a href="note-legali.html">Privacy e note legali</a></footer>
+</body>
+</html>

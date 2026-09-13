@@ -1,0 +1,194 @@
+{
+  "format": "LEVI_DEVELOPMENT_EVIDENCE_V2",
+  "generatedAt": "2026-09-13T20:27:30.228Z",
+  "evidence": [
+    {
+      "id": "access",
+      "requirement": "Accessi revocati, ruoli/anno, preferenze, congelamento e completezza dei rapporti.",
+      "method": "Esecuzione del codice in scripts/check-hardening.cjs con dati fittizi; dipendenze Firebase simulate dove necessario.",
+      "expected": "Asserzioni completate senza errori.",
+      "observed": "PASS: technical report outcomes, evidence requirements and authorization.\nPASS: active/revoked/versioned accounts; year isolation; preference limits; appeal dates; frozen lists.",
+      "outcome": "PASS",
+      "testedAt": "2026-09-13T20:27:19.546Z",
+      "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
+      "node": "v24.19.0"
+    },
+    {
+      "id": "voting",
+      "requirement": "Lotti, ammissione, indipendenza, sospensione/ripresa, anonimizzazione applicativa, doppio voto, tempi e ricevuta.",
+      "method": "Esecuzione del codice in scripts/check-consultations.cjs con dati fittizi; dipendenze Firebase simulate dove necessario.",
+      "expected": "Asserzioni completate senza errori.",
+      "observed": "PASS: named credential mode cannot be admitted by checking documentary flags.\nPASS: actual anonymous pool, issuance limits, independent review, authorization, suspension/resume, stale-evidence rejection. All data and documentary claims are synthetic.\nPASS: Rome time boundaries/DST, split sessions, October/November isolation, per-election publications and freeze.\nPASS: sealed vote round trip, tamper/wrong-key rejection, no cleartext identity, repeat submission, closing race and live result embargo.\nPASS: technician denied migration; migration blocked between elections, lossless verified migration and idempotent retry.\nPASS: Commission receives aggregate projections only; original pairings cannot affect the response; counts, groups and blank totals preserved; architectural limitations remain explicit.",
+      "outcome": "PASS",
+      "testedAt": "2026-09-13T20:27:19.656Z",
+      "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
+      "node": "v24.19.0"
+    },
+    {
+      "id": "pagination",
+      "requirement": "205 registrazioni, paginazione completa e interruzione senza esportazione parziale.",
+      "method": "Esecuzione del codice in scripts/check-technical-export.cjs con dati fittizi; dipendenze Firebase simulate dove necessario.",
+      "expected": "Asserzioni completate senza errori.",
+      "observed": "PASS: 205 records across pages; no duplicates; cutoff preserved; interrupted export rejected; 12 unconfirmed test fields.",
+      "outcome": "PASS",
+      "testedAt": "2026-09-13T20:27:19.813Z",
+      "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
+      "node": "v24.19.0"
+    },
+    {
+      "id": "acts",
+      "requirement": "Atti e orari diversi nei verbali di ottobre e novembre.",
+      "method": "Esecuzione del codice in scripts/check-consultation-documents.cjs con dati fittizi; dipendenze Firebase simulate dove necessario.",
+      "expected": "Asserzioni completate senza errori.",
+      "observed": "PASS: distinct October/November acts and dates in Word; PDF appendix generation with embedded font.",
+      "outcome": "PASS",
+      "testedAt": "2026-09-13T20:27:19.889Z",
+      "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
+      "node": "v24.19.0"
+    },
+    {
+      "id": "browser-source",
+      "requirement": "Sorgente della persistenza, API senza cookie né inoltro del voto a servizi alternativi.",
+      "method": "Esecuzione del codice in scripts/check-privacy-surface.cjs con dati fittizi; dipendenze Firebase simulate dove necessario.",
+      "expected": "Asserzioni completate senza errori.",
+      "observed": "PASS: memory auth, no tracking integrations, one backend, no fallback on outage, no cookies sent by API and volatile test log.",
+      "outcome": "PASS",
+      "testedAt": "2026-09-13T20:27:20.017Z",
+      "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
+      "node": "v24.19.0"
+    },
+    {
+      "id": "technical-pdf",
+      "requirement": "PDF effettivo con identificativi, ammissione ed evidenze non inventate.",
+      "method": "Esecuzione del codice in scripts/check-legal-evidence.cjs con dati fittizi; dipendenze Firebase simulate dove necessario.",
+      "expected": "Asserzioni completate senza errori.",
+      "observed": "PASS: actual technical PDF includes admission, source version, configuration hash and architectural limitation.",
+      "outcome": "PASS",
+      "testedAt": "2026-09-13T20:27:20.094Z",
+      "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
+      "node": "v24.19.0"
+    },
+    {
+      "id": "dpo-archive",
+      "requirement": "PDF/ZIP effettivi, manifest verificabile, dati mancanti e fallimento dell’esportazione incompleta.",
+      "method": "Esecuzione del codice in scripts/check-dpo-dossier.cjs con dati fittizi; dipendenze Firebase simulate dove necessario.",
+      "expected": "Asserzioni completate senza errori.",
+      "observed": "PASS: actual DPO PDF and ZIP, ten entries with matching SHA-256, missing evidence remains unverified, interrupted export creates no archive.",
+      "outcome": "PASS",
+      "testedAt": "2026-09-13T20:27:20.253Z",
+      "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
+      "node": "v24.19.0"
+    },
+    {
+      "id": "node22-cold-import",
+      "requirement": "Avvio CommonJS del backend nel runtime Node 22 senza require ESM sperimentale.",
+      "method": "Import reale di functions/core e api/call, nessuna richiesta al database.",
+      "expected": "Nessun ERR_REQUIRE_ESM.",
+      "observed": "Import riuscito: v22.23.2",
+      "outcome": "PASS",
+      "testedAt": "2026-09-13T20:27:20.957Z",
+      "operator": "Verifica automatica di sviluppo"
+    },
+    {
+      "id": "dependencies",
+      "requirement": "Segnalazioni note nel lockfile npm delle dipendenze Production.",
+      "method": "npm audit --omit=dev --json",
+      "expected": "Nessuna segnalazione nota nel perimetro npm.",
+      "observed": "{\"info\":0,\"low\":0,\"moderate\":0,\"high\":0,\"critical\":0,\"total\":0}",
+      "outcome": "PASS",
+      "testedAt": "2026-09-13T20:27:30.225Z",
+      "operator": "Verifica automatica di sviluppo",
+      "limitation": "Non copre SDK remoti, librerie vendorizzate, configurazione cloud o vulnerabilità non note."
+    }
+  ],
+  "source": [
+    {
+      "path": "index.html",
+      "sha256": "56429ccc6817a8b5fdc692df673d896228a2af2f0258510f536b47ea1dc0c5c3"
+    },
+    {
+      "path": "functions/core.js",
+      "sha256": "20e28e3713416551dc0afad8c75293577c4ba0cb540755ffa3f8c516ce07149e"
+    },
+    {
+      "path": "api/call.js",
+      "sha256": "8d98d675ca7fd4593c9a631c19778955a42fefcf619ee38c0fae0f80469e70e9"
+    },
+    {
+      "path": "firestore.rules",
+      "sha256": "d7a84a1f30d7e3485b67ba286bfce804190d8b892c773ac6c42839310d0873b7"
+    },
+    {
+      "path": "vercel.json",
+      "sha256": "da273e6d28d33b29225a45f6a095d457a058d66d95c658450f135595e6f73f1a"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "3a97b80db42089f7c6f864c74dd5ea9a30a5c3c725d2a4e686e09c5635b1d2cd"
+    },
+    {
+      "path": "lib/ballot-vault.js",
+      "sha256": "ac026a9e9f26e00b6f1910db48077a965886c60a52e5e69c8553d09e49879667"
+    },
+    {
+      "path": "lib/dpo-dossier.js",
+      "sha256": "a7f1094847211135e3a61d62efdb26452ab65c9e33179a0f1bb1db9f78ffec7f"
+    },
+    {
+      "path": "lib/election-policy.js",
+      "sha256": "bedd0292c4e4cb96626b622b761a26f0b454895f4efc326e6186053bf9843d8a"
+    },
+    {
+      "path": "lib/legal-readiness.js",
+      "sha256": "11f5415617c1fd738bc3ba6d3768a743d291b1944151ddfa5498e7cb9e29f87e"
+    },
+    {
+      "path": "lib/privacy-review-ui.js",
+      "sha256": "ad29a58b98cb111f2929e52d799a91d8510814a16f98fd40e23444bc39f60845"
+    },
+    {
+      "path": "lib/voting-admission.js",
+      "sha256": "54926007f93b770f17d7eb8c1d9ecbe02f512d90040c82f1e636a6da76a4bc31"
+    },
+    {
+      "path": "scripts/check-hardening.cjs",
+      "sha256": "a6f651e652cc934c4fdd92f415e84e60f99a30037fddd81b268d3c284cba2142"
+    },
+    {
+      "path": "scripts/check-consultations.cjs",
+      "sha256": "12210fbd80fd3262e7dff0b72b27dc00e770a9003e224bf303afdea3f0a86a26"
+    },
+    {
+      "path": "scripts/check-technical-export.cjs",
+      "sha256": "2e592d02b9d42709553983dbcf3fdc83cc3424bd6c836c14fc37e4680c703d6e"
+    },
+    {
+      "path": "scripts/check-consultation-documents.cjs",
+      "sha256": "f2da85d1e5c7975b1b127450f48ca73551c10ca290c1a89ce2946f0f5bdd6ffe"
+    },
+    {
+      "path": "scripts/check-privacy-surface.cjs",
+      "sha256": "354bcf744d46373edd7933f12fe0d4065373be94646d55107694b7a9739c76ad"
+    },
+    {
+      "path": "scripts/check-legal-evidence.cjs",
+      "sha256": "adff446961ee70a44920ee541a938f2ac1eacd7287e9edace53c586cde1214d1"
+    },
+    {
+      "path": "scripts/check-dpo-dossier.cjs",
+      "sha256": "f0c281219250df87819b51b2e09c2563e1cae247b5b2b666d516203940a1dcc3"
+    },
+    {
+      "path": "scripts/verify-release.cjs",
+      "sha256": "41135324fe9e0f18d6745ccfc1d038574cfff4ec800b3da80eab9edec8c040e2"
+    }
+  ],
+  "notVerified": [
+    "Browser reale e dispositivi della scuola: browser di prova non disponibile in questo ambiente.",
+    "Firebase Rules distribuite, IAM/MFA e log dei provider Production.",
+    "Backup, ripristino reale, custodi e conservazione scolastica.",
+    "Distribuzione fisica dei codici, non correlabilità dell’intera infrastruttura e verifica indipendente.",
+    "Validità degli atti, nomine, DPIA e parere DPO."
+  ],
+  "privacy": "Nessun accesso a voti reali, creazione di credenziali reali, migrazione o apertura elettorale durante queste prove."
+}

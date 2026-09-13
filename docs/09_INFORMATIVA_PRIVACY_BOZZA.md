@@ -8,7 +8,7 @@ ITSCG Primo Levi di Seregno — dati di contatto istituzionali da inserire.
 
 ## DPO
 
-Nominativo/contatti DPO: ______________________________
+Vargiu Scuola S.r.l. — dpo@vargiuscuola.it. Estremi designazione: da acquisire agli atti.
 
 ## Finalità
 

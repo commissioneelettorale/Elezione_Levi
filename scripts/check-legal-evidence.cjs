@@ -1,0 +1,10 @@
+'use strict';
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const html=fs.readFileSync('index.html','utf8');
+const cut=(a,b)=>{const from=html.indexOf(a),to=html.indexOf(b,from);assert.ok(from>=0&&to>from);return html.slice(from,to);};
+const {jsPDF}=require('../vendor/jspdf.umd.min.js');let saved;
+function Pdf(options){const doc=new jsPDF(options);doc.save=()=>{saved=Buffer.from(doc.output('arraybuffer'));};return doc;}
+const logs=[{id:'SYNTHETIC-OPENING',event:'OPENING',result:'ATTENZIONE',technicianName:'Tecnico di prova',station:'Laboratorio di prova',phase:'BEFORE',at:'2026-09-13T09:00:00Z',admission:'BLOCCATO_REQUISITO_ESSENZIALE',release:{policyVersion:'LEVI_ALLEGATO_A_2026_V1',commit:'a'.repeat(40)},configurationSha256:'b'.repeat(64),privacyAssessment:{structuralAnonymityVerified:false,limitation:'Prova fittizia: identità e scelta non separate strutturalmente.'}}];
+const context={window:{jspdf:{jsPDF:Pdf}},auth:{currentUser:{}},currentTechnicalData:{name:'Tecnico di prova'},configElezioni:{annoScolastico:'2026/2027',assistenteTecnico:{nome:'Tecnico di prova',postazione:'Laboratorio di prova',orari:'09:00–11:00',contatto:'segreteria@example.test'}},fetchCompleteTechnicalLog:async()=>({logs,snapshotUntil:'2026-09-13T10:00:00Z'}),document:{baseURI:'https://example.test/'},URL,Date,fetch:async()=>({ok:true,json:async()=>JSON.parse(fs.readFileSync('vendor/pdf-fonts.json','utf8'))}),showNotification:(title,message,type)=>{assert.notEqual(type,'error',title+': '+message);}};
+vm.createContext(context);vm.runInContext(cut('        window.downloadTechnicalMinutes =','        window.logoutTechnical'),context);
+(async()=>{await context.window.downloadTechnicalMinutes();assert.ok(saved?.length>10000);if(process.env.LEVI_DOCUMENT_TEST_DIR)fs.writeFileSync(process.env.LEVI_DOCUMENT_TEST_DIR+'/verbale-allegato-a.pdf',saved);console.log('PASS: actual technical PDF includes admission, source version, configuration hash and architectural limitation.');})().catch(e=>{console.error(e);process.exitCode=1;});

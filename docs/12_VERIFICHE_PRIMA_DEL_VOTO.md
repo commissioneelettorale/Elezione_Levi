@@ -1,3 +1,5 @@
+> **Aggiornamento V2 — 13 settembre 2026:** il precedente blocco generale V1 è sostituito dal processo in presenza con credenziali non nominative, collaudo, verifica indipendente e autorizzazione registrata. Il processo nominativo resta escluso. I riferimenti successivi al blocco V1 descrivono quella valutazione precedente. Fare riferimento alla [procedura corrente](19_FASCICOLO_DPO_E_RIPRESA.md) e al Fascicolo DPO. Non sono dichiarati anonimato assoluto o cifratura end-to-end.
+
 # Verifiche prima dell'uso elettorale
 
 Riferimento tecnico: Nota MIM 3803 del 30 giugno 2026, Allegato tecnico, sezioni 1–9. L'ambito è quello delle attività collegiali deliberative a distanza dell'art. 44 CCNL: non costituisce autorizzazione generale per le elezioni dei rappresentanti. Acquisire agli atti la verifica della base giuridica applicabile alla specifica elezione, l'O.M. 215/1991 e successive modifiche, le istruzioni annuali e gli atti della scuola.
@@ -53,3 +55,8 @@ Fonti: [Allegato tecnico 2026](https://www.tecnicadellascuola.it/wp-content/uplo
 Nell’area Assistente tecnico e nel Collaudo della Commissione è disponibile il modulo con dodici prove, versione del software, riferimento al fascicolo ed evidenze. Le prove non eseguite restano “Non verificata”. La registrazione crea un nuovo evento; per una rettifica registrare un nuovo rapporto richiamando nelle osservazioni l’ID precedente. La conferma del collaudo in Regolarità richiede l’ID di un rapporto con tutte le prove dichiarate superate e un’annotazione della Commissione: non verifica automaticamente la veridicità delle evidenze o la conformità giuridica. Le conferme precedenti a questo aggiornamento devono essere riesaminate.
 
 L’esportazione JSON contiene un’impronta SHA-256 del payload serializzato in UTF-8 con JSON.stringify. Se WebCrypto non è disponibile l’esportazione con impronta viene interrotta. L’impronta consente il confronto d’integrità con una copia attendibile; non costituisce firma digitale, marca temporale o conservazione a norma.
+
+
+## Aggiornamento Allegato A — 13 settembre 2026
+
+Il processo nominativo resta bloccato. La versione V2 aggiunge credenziali non nominative in presenza e una sequenza vincolata di collaudo, verifica indipendente e autorizzazione della Commissione. Non basta una singola conferma. Vedere la [procedura corrente](19_FASCICOLO_DPO_E_RIPRESA.md), che documenta condizioni operative e rischi residui; le misure crittografiche ulteriori non sono dichiarate implementate.

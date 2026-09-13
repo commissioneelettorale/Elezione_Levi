@@ -4,7 +4,7 @@ let record={active:true,role:'COMMISSIONE'}, oldConfig={}, reg={}, writes=0;
 class HttpsError extends Error { constructor(code,message){super(message);this.code=code;} }
 const ref={collection(){return this},doc(){return this},async get(){return {exists:true,data:()=>record}}};
 const db={collection:()=>ref,runTransaction:async fn=>{let n=0;return fn({get:async()=>({exists:true,data:()=>++n===1?oldConfig:reg}),set:()=>{writes++}})}};
-const context={exports:{},require:n=>n==='crypto'?require(n):n==='firebase-functions/v2/https'?{HttpsError}:n==='firebase-admin/app'?{getApps:()=>[{}]}:n==='firebase-admin/firestore'?{getFirestore:()=>db,FieldValue:{serverTimestamp:()=>0}}:{getAuth:()=>({})},console,Date,Buffer,Intl,Set,Map,process:{env:{}}};
+const context={exports:{},require:n=>n.startsWith('../lib/')?require(n):n==='crypto'?require(n):n==='firebase-functions/v2/https'?{HttpsError}:n==='firebase-admin/app'?{getApps:()=>[{}]}:n==='firebase-admin/firestore'?{getFirestore:()=>db,FieldValue:{serverTimestamp:()=>0}}:{getAuth:()=>({})},console,Date,Buffer,Intl,Set,Map,process:{env:{}}};
 vm.createContext(context);vm.runInContext(fs.readFileSync('functions/core.js','utf8')+'\nexports.test={requireAuth,rejectExtraPreferences,assertAppealDeadlineElapsed,romeToday,validateTechnicalReport,TECHNICAL_TEST_IDS};',context);
 const t=context.exports.test,request={auth:{uid:'test',token:{role:'COMMISSIONE',staffYear:'2026/2027',staffAccountId:'test'}},data:{annoScolastico:'2026/2027'}};
 (async()=>{
@@ -20,9 +20,9 @@ await assert.rejects(context.exports.saveElectionConfig({...request,data:{annoSc
 const report={softwareVersion:'commit-test',evidenceRef:'TEST-001',testEnvironment:'ISOLATED_TEST',tests:Object.fromEntries(t.TECHNICAL_TEST_IDS.map(id=>[id,{outcome:'NOT_TESTED',evidence:''}]))};
 assert.equal(t.validateTechnicalReport(report).result,'NON_COMPLETO');
 report.tests.identity={outcome:'PASS',evidence:''};assert.throws(()=>t.validateTechnicalReport(report));
-for(const id of t.TECHNICAL_TEST_IDS) report.tests[id]={outcome:'PASS',evidence:'Test con dati fittizi'};
+for(const id of t.TECHNICAL_TEST_IDS) report.tests[id]={outcome:'PASS',evidence:'Test con dati fittizi',method:'Simulazione',expected:'Esito previsto',observed:'Esito previsto',testedAt:new Date().toISOString()};
 assert.equal(t.validateTechnicalReport(report).result,'PROVE_DICHIARATE_SUPERATE');
-report.tests.anonymity={outcome:'FAIL',evidence:'Separazione non dimostrata'};assert.equal(t.validateTechnicalReport(report).result,'NON_SUPERATO');
+report.tests.anonymity={...report.tests.anonymity,outcome:'FAIL',evidence:'Separazione non dimostrata'};assert.equal(t.validateTechnicalReport(report).result,'NON_SUPERATO');
 report.tests.anonymity.outcome='INVALID';assert.throws(()=>t.validateTechnicalReport(report));
 assert.throws(()=>t.validateTechnicalReport({...report,testEnvironment:'PRODUCTION'}));
 await assert.rejects(context.exports.recordTechnicalTestReport({data:report}),e=>e.code==='unauthenticated');

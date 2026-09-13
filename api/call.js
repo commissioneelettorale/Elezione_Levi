@@ -1,13 +1,24 @@
 'use strict';
 
 const { getAuth } = require('firebase-admin/auth');
+const crypto = require('node:crypto');
 
 const ALLOWED_FUNCTIONS = new Set([
+  "getPublicServiceStatus",
+  "getVoterSessionStatus",
+  "getVotingReview",
+  "getVotingReviewEvents",
+  "getAnonymousParticipation",
+  "advanceVotingReview",
+  "createAnonymousCredentials",
+  "getDpoReviewProfile",
+  "saveDpoReviewProfile",
   "validateVoterToken",
   "castVote",
   "commissionLogin",
   "technicalLogin",
   "getTechnicalStatus",
+  "resolveTechnicalIssue",
   "recordTechnicalCheckpoint",
   "recordTechnicalTestReport",
   "getTechnicalLogs",
@@ -37,6 +48,7 @@ const ALLOWED_FUNCTIONS = new Set([
 // riduce i burst sulla singola istanza senza condividere indirizzi o credenziali.
 const STAFF_LOGIN_FUNCTIONS = new Set(['commissionLogin', 'technicalLogin', 'managementLogin']);
 const loginAttempts = new Map();
+const rateLimitSecret = crypto.randomBytes(32);
 const LOGIN_WINDOW_MS = 5 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 12;
 
@@ -48,7 +60,8 @@ function clientAddress(req) {
 function rateLimitStaffLogin(req, functionName) {
   if (!STAFF_LOGIN_FUNCTIONS.has(functionName)) return null;
   const now = Date.now();
-  const key = `${functionName}:${clientAddress(req)}`;
+  // Secret rotates with the instance; never persist the address or this identifier.
+  const key = crypto.createHmac('sha256', rateLimitSecret).update(`${functionName}:${clientAddress(req)}`).digest('hex');
   const previous = loginAttempts.get(key);
   const entry = previous && now - previous.startedAt < LOGIN_WINDOW_MS
     ? previous
@@ -60,6 +73,7 @@ function rateLimitStaffLogin(req, functionName) {
     for (const [storedKey, stored] of loginAttempts) {
       if (now - stored.startedAt >= LOGIN_WINDOW_MS) loginAttempts.delete(storedKey);
     }
+    if (loginAttempts.size > 10000) loginAttempts.delete(loginAttempts.keys().next().value);
   }
   if (entry.count > LOGIN_MAX_ATTEMPTS) {
     return Math.max(1, Math.ceil((LOGIN_WINDOW_MS - (now - entry.startedAt)) / 1000));
@@ -203,7 +217,9 @@ module.exports = async function handler(req, res) {
     return sendJson(res, 200, { data: result });
   } catch (error) {
     const code = normalizeFirebaseCode(error);
-    console.error('[api/call]', functionName, code, error?.message || error);
+    // Error messages from SDKs can contain document paths or request values.
+    // Keep only allowlisted operation and status; no body, token, vote or credential.
+    console.error('[api/call]', functionName, code);
 
     const clientVisibleCodes = new Set([
       'invalid-argument',

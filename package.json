@@ -6,10 +6,15 @@
     "node": "22.x"
   },
   "dependencies": {
-    "firebase-admin": "14.3.0",
+    "firebase-admin": "14.4.0",
     "firebase-functions": "7.3.2"
   },
   "scripts": {
     "postinstall": "node scripts/fix-jwks-esm.cjs"
+  },
+  "overrides": {
+    "gaxios@6.7.1": {
+      "uuid": "11.1.1"
+    }
   }
 }

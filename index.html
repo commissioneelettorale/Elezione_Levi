@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https:; connect-src 'self' https://elezione-levi.vercel.app https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; frame-src 'none'; child-src 'none'; media-src 'none'; form-action 'self'; upgrade-insecure-requests">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' https://elezione-levi.vercel.app https://*.googleapis.com https://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; frame-src 'none'; child-src 'none'; media-src 'none'; form-action 'self'; upgrade-insecure-requests">
     <meta name="referrer" content="no-referrer">
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
     <meta http-equiv="Pragma" content="no-cache">
@@ -12,6 +12,8 @@
     <title>Piattaforma Elettorale Unificata - ITSCG Primo Levi</title>
     
     <!-- Tailwind CSS per styling moderno e reattivo -->
+    <script src="lib/election-policy.js"></script>
+    <script src="lib/legal-readiness.js"></script>
     <script src="vendor/tailwindcss.js"></script>
     <!-- SheetJS per importazione dei registri Excel -->
     <script src="vendor/xlsx.full.min.js"></script>
@@ -22,6 +24,8 @@
     <script src="vendor/jspdf.plugin.autotable.min.js"></script>
     <!-- JSZip per l'esportazione dell'archivio storico scolastico in formato ZIP -->
     <script src="vendor/jszip.min.js"></script>
+    <script src="lib/dpo-dossier.js"></script>
+    <script src="lib/privacy-review-ui.js"></script>
 
     <style>
         html {
@@ -60,6 +64,9 @@
         #adminUsername, #adminPwd { color: #000 !important; }
         #adminUsername::placeholder, #adminPwd::placeholder { color: #334155 !important; opacity: 1; }
 
+        :focus-visible { outline: 3px solid #111827; outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-100px; z-index:100; padding:1rem; background:white; color:black; }
+        .skip-link:focus { top:1rem; }
         .hidden { display: none !important; }
         .bg-gradient-header { background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%); }
         
@@ -134,6 +141,8 @@
     </style>
 </head>
 <body class="flex flex-col justify-between relative min-h-screen">
+    <a href="#app-container" class="skip-link">Vai al contenuto</a>
+    <noscript><p>Per gli accessi è necessario JavaScript. <a href="note-legali.html">Informazioni legali e assistenza</a>.</p></noscript>
 
     <div id="privacy-shield" role="alert" aria-live="assertive">
         <div class="privacy-card">
@@ -158,7 +167,7 @@
                 <img src="levi.png" 
                      id="school-logo" 
                      alt="Logo ITSCG Primo Levi" 
-                     onerror="this.src='https://placehold.co/100x100/1e3a8a/ffffff?text=LEVI'"
+                     onerror="this.onerror=null;this.style.visibility='hidden'"
                      class="h-14 w-14 rounded-xl shadow-md border border-yellow-400 object-contain p-1 bg-white transition-all hover:scale-105"/>
                 <div>
                     <h1 class="text-lg md:text-xl font-black tracking-tight uppercase leading-tight">Piattaforma Elettorale Unificata</h1>
@@ -198,13 +207,15 @@
         </div>
     </header>
 
+    <div class="bg-slate-100 text-black border-b border-slate-300 p-3 text-center text-xs"><span id="public-voting-status">Verifica dello stato di ammissione…</span> <a href="note-legali.html" class="underline">Stato e informazioni per gli utenti</a> · <a href="fascicolo-dpo.html" class="underline">Architettura e protezione dei dati</a></div>
+
     <div id="test-mode-banner" class="hidden sticky top-0 z-40 bg-amber-400 text-slate-950 border-b-2 border-amber-600 shadow-md">
         <div class="container mx-auto px-4 py-2 text-center text-xs md:text-sm font-black uppercase tracking-wide">
             MODALITÀ DI PROVA / COLLAUDO ATTIVA — NESSUN VOTO DI PROVA VIENE REGISTRATO NELLE URNE REALI
         </div>
     </div>
 
-    <main class="flex-grow container mx-auto p-4 md:p-6 w-full max-w-7xl z-10 flex items-center justify-center" id="app-container">
+    <main class="flex-grow container mx-auto p-4 md:p-6 w-full max-w-7xl z-10 flex items-center justify-center" id="app-container" tabindex="-1">
         <!-- Contenuto dinamico iniettato via Javascript -->
     </main>
 
@@ -213,7 +224,7 @@
             <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div class="flex items-center space-x-2 text-blue-900">
                     <i data-lucide="scale" class="w-5 h-5 text-yellow-500"></i>
-                    <h3 class="text-base font-bold text-slate-900">Informativa Ministeriale & Norme Vigenti</h3>
+                    <h3 class="text-base font-bold text-slate-900">Norme, Commissione e informazioni legali</h3>
                 </div>
                 <button onclick="window.closeInformativaModal()" class="text-slate-400 hover:text-slate-600">
                     <i data-lucide="x" class="w-5 h-5"></i>
@@ -233,13 +244,13 @@
                 </div>
                 <div class="bg-emerald-50/70 p-3 rounded-xl border border-emerald-100 space-y-1">
                     <h4 class="font-bold text-emerald-900 flex items-center"><i data-lucide="zap" class="w-4 h-4 mr-1.5"></i> Principi digitali:</h4>
-                    <p class="text-[11px]">Accessi differenziati, registrazione degli eventi, aggiornamento live dei risultati, separazione tra credenziale e scheda, workflow di convalida e conservazione organizzata per anno scolastico.</p>
+                    <p class="text-[11px]">Accessi differenziati, registrazione degli eventi, risultati aggregati dopo la chiusura, protezione delle schede, workflow di convalida e conservazione organizzata per anno scolastico.</p>
                 </div>
                 <div class="bg-blue-50 border border-blue-100 p-3 rounded-xl text-[11px] text-blue-950">
                     <b>Nota:</b> l'impronta SHA-256 e il workflow digitale attestano integrità e passaggi interni della piattaforma; non equivalgono, da soli, a una firma digitale qualificata o a un servizio di conservazione a norma.
                 </div>
                 <div class="bg-slate-100 border border-slate-200 p-3 rounded-xl text-[11px] text-slate-800">
-                    <b>Prevalenza degli atti ufficiali:</b> calendario, nomina della Commissione, designazione dell’assistente tecnico e della postazione, regolamento, circolare/nota MIM-USR 2026, verbali, DPIA e decisioni del Dirigente restano gli atti di riferimento. La piattaforma raccoglie evidenze tecniche e organizzative e non sostituisce il DPO, il collaudo sottoscritto o la conservazione documentale dell’Istituto.
+                    <a href="note-legali.html" class="underline font-bold">Informativa privacy, cookie, diritti e limiti del servizio</a><br><b>Prevalenza degli atti ufficiali:</b> calendario, nomina della Commissione, designazione dell’assistente tecnico e della postazione, regolamento, circolare/nota MIM-USR 2026, verbali, DPIA e decisioni del Dirigente restano gli atti di riferimento. La piattaforma raccoglie evidenze tecniche e organizzative e non sostituisce il DPO, il collaudo sottoscritto o la conservazione documentale dell’Istituto.
                 </div>
                 <div class="pt-2 border-t border-slate-100">
                     <h4 class="font-bold text-slate-900 mb-2 flex items-center gap-1.5"><i data-lucide="shield-check" class="w-4 h-4 text-blue-950"></i> Commissione Elettorale di Presidio:</h4>
@@ -351,15 +362,15 @@
     <footer class="bg-slate-900 text-slate-400 p-4 text-center text-[10px] border-t border-slate-800 z-10">
         <div class="container mx-auto space-y-1">
             <p class="font-bold text-slate-300">Sistema Elettorale Digitale ITSCG "Primo Levi" Seregno</p>
-            <p>Sistema sottoposto a controlli tecnici secondo Allegato MIM 2026 • Idoneità finale subordinata a collaudo, verifiche privacy/DPO e documentazione dei fornitori</p>
+            <p><a href="note-legali.html" class="underline text-white">Privacy, cookie e note legali</a> · <a href="note-legali.html#assistenza" class="underline text-white">Accessibilità e assistenza</a> · <a href="anonimato.html" class="underline text-white">Protezione del voto</a></p>
+            <p>Preparazione e collaudo • Uso elettorale subordinato alle verifiche documentate dell’Allegato A</p>
         </div>
     </footer>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { initializeAuth, inMemoryPersistence, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, query, getDocs, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-functions.js";
 
         const appId = 'iis-levi-electoral-v3';
         
@@ -370,83 +381,59 @@
             storageBucket: "votazioni-levi.firebasestorage.app",
             messagingSenderId: "36801299062",
             appId: "1:36801299062:web:d29c94bb8a9f33c82a5557",
-            measurementId: "G-KYGPC6ZLTJ"
         };
 
         const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const functions = getFunctions(app, "europe-west1");
+        const auth = initializeAuth(app, { persistence: inMemoryPersistence });
+        const db = getFirestore(app); // Cache Firestore in memoria: nessuna persistenza offline abilitata.
+        // Rimuove solo la vecchia credenziale di questa app, non dati di altri siti/progetti.
+        async function clearLegacyAuthPersistence(){
+            const key='firebase:authUser:'+firebaseConfig.apiKey+':[DEFAULT]';
+            try { localStorage.removeItem(key); sessionStorage.removeItem(key); } catch (_) {}
+            try {
+                if(!indexedDB.databases)return;
+                const databases=await indexedDB.databases();
+                if(!databases.some(d=>d.name==='firebaseLocalStorageDb'))return;
+                const request=indexedDB.open('firebaseLocalStorageDb');
+                request.onsuccess=()=>{const legacy=request.result;
+                    if(!legacy.objectStoreNames.contains('firebaseLocalStorage')){legacy.close();return;}
+                    const transaction=legacy.transaction('firebaseLocalStorage','readwrite');
+                    transaction.objectStore('firebaseLocalStorage').delete(key);
+                    transaction.oncomplete=()=>legacy.close();transaction.onerror=()=>legacy.close();
+                };
+            }catch (_){}
+        }
+        clearLegacyAuthPersistence();
 
         // Nessun segreto amministrativo è incorporato nel browser.
 
-        const FIREBASE_API = Object.freeze({
-            validateVoterToken: httpsCallable(functions, 'validateVoterToken'),
-            castVote: httpsCallable(functions, 'castVote'),
-            commissionLogin: httpsCallable(functions, 'commissionLogin'),
-            technicalLogin: httpsCallable(functions, 'technicalLogin'),
-            getTechnicalStatus: httpsCallable(functions, 'getTechnicalStatus'),
-            recordTechnicalCheckpoint: httpsCallable(functions, 'recordTechnicalCheckpoint'),
-            recordTechnicalTestReport: httpsCallable(functions, 'recordTechnicalTestReport'),
-            getTechnicalLogs: httpsCallable(functions, 'getTechnicalLogs'),
-            changeCommissionPassword: httpsCallable(functions, 'changeCommissionPassword'),
-            managementLogin: httpsCallable(functions, 'managementLogin'),
-            referentLogin: httpsCallable(functions, 'referentLogin'),
-            getAnonymousBallots: httpsCallable(functions, 'getAnonymousBallots'),
-            createStaffAccount: httpsCallable(functions, 'createStaffAccount'),
-            getStaffAccounts: httpsCallable(functions, 'getStaffAccounts'),
-            setStaffAccountActive: httpsCallable(functions, 'setStaffAccountActive'),
-            saveElectionConfig: httpsCallable(functions, 'saveElectionConfig'),
-            ensureReferentKeys: httpsCallable(functions, 'ensureReferentKeys'),
-            getSecurityStatus: httpsCallable(functions, 'getSecurityStatus'),
-            getRegularityState: httpsCallable(functions, 'getRegularityState'),
-            setRegularityControl: httpsCallable(functions, 'setRegularityControl'),
-            recordResultsPublication: httpsCallable(functions, 'recordResultsPublication'),
-            fileElectoralAppeal: httpsCallable(functions, 'fileElectoralAppeal'),
-            resolveElectoralAppeal: httpsCallable(functions, 'resolveElectoralAppeal'),
-            recordElectoralIncident: httpsCallable(functions, 'recordElectoralIncident'),
-            setEmergencySuspension: httpsCallable(functions, 'setEmergencySuspension'),
-            closeElectoralProcedure: httpsCallable(functions, 'closeElectoralProcedure'),
-            destructiveAction: httpsCallable(functions, 'destructiveAction')
-        });
-        // Backend principale Vercel; Firebase Functions resta il fallback tecnico.
+        // Un solo backend: una indisponibilità non devia credenziali o voti su servizi storici.
         const VERCEL_BACKEND_URL = 'https://elezione-levi.vercel.app/api/call';
         const SECURE_API = new Proxy({}, {
             get: (_, functionName) => async (data = {}) => {
-                const fallback = FIREBASE_API[functionName];
                 const headers = { 'Content-Type': 'application/json' };
-                if (auth.currentUser) {
-                    const idToken = await auth.currentUser.getIdToken();
-                    headers.Authorization = 'Bearer ' + idToken;
+                if (!['validateVoterToken','castVote','getVoterSessionStatus','getPublicServiceStatus'].includes(String(functionName)) && auth.currentUser) headers.Authorization = 'Bearer ' + await auth.currentUser.getIdToken();
+                const response = await fetch(VERCEL_BACKEND_URL, {
+                    method: 'POST', headers, cache: 'no-store', credentials: 'omit',
+                    body: JSON.stringify({ name: String(functionName), data })
+                });
+                let payload;
+                try { payload = await response.json(); }
+                catch (_) { throw new Error('Risposta del servizio non valida. Nessun invio automatico ad altri server.'); }
+                if (!response.ok || payload.error || !Object.prototype.hasOwnProperty.call(payload,'data')) {
+                    const err = new Error(payload?.error?.message || 'Operazione non completata.');
+                    err.code = payload?.error?.code || 'internal'; throw err;
                 }
-                try {
-                    const response = await fetch(VERCEL_BACKEND_URL, {
-                        method: 'POST',
-                        headers,
-                        cache: 'no-store',
-                        body: JSON.stringify({ name: String(functionName), data })
-                    });
-                    let payload = {};
-                    try { payload = await response.json(); } catch (_) {}
-                    if (!response.ok || payload.error) {
-                        const err = new Error(payload?.error?.message || 'Operazione non completata.');
-                        err.code = payload?.error?.code || (response.status === 401 ? 'unauthenticated' : 'internal');
-                        throw err;
-                    }
-                    return { data: payload.data };
-                } catch (vercelError) {
-                    const code = String(vercelError?.code || '');
-                    const msg = String(vercelError?.message || '');
-                    const technicalFailure =
-                        /unavailable|internal|network-request-failed/i.test(code) ||
-                        /failed to fetch|network|cors|temporaneamente non disponibile/i.test(msg);
-                    if (technicalFailure && typeof fallback === 'function') {
-                        return await fallback(data);
-                    }
-                    throw vercelError;
-                }
+                return { data: payload.data };
             }
         });
+        const isAnonymousVoteMode=()=>configElezioni.privacyMode==='PRESENTIAL_UNLINKED_V1';
+        const anonymousParticipation=async()=>isAnonymousVoteMode()?(await SECURE_API.getAnonymousParticipation({annoScolastico:configElezioni.annoScolastico})).data:null;
+        window.openPrivacyReview=()=>LeviPrivacyReview.show();
+        LeviPrivacyReview.configure({api:SECURE_API,config:()=>configElezioni,logs:()=>fetchCompleteTechnicalLog(),notify:showNotification,
+            saveMode:async()=>{const next={...configElezioni,privacyMode:'PRESENTIAL_UNLINKED_V1'};await SECURE_API.saveElectionConfig({config:next,annoScolastico:next.annoScolastico});configElezioni=next;window.configElezioni=next;}
+        });
+        SECURE_API.getPublicServiceStatus().then(r=>{const node=document.getElementById('public-voting-status');if(node)node.textContent=r.data.secretVotingEnabled?'Ammissione registrata. Il voto segue le fasce orarie della consultazione.':r.data.serviceState==='SUSPENDED'?'Votazione sospesa: attendere le indicazioni della Commissione.':'Preparazione e collaudo: il voto reale richiede il completamento delle verifiche.';}).catch(()=>{const node=document.getElementById('public-voting-status');if(node)node.textContent='Stato del servizio non verificabile: riprovare tra poco.';});
         let secureVotingSession = null;
         const SESSION_IDLE_MS = 15 * 60 * 1000;
         let idleTimer = null;
@@ -460,6 +447,7 @@
             modalitaProva: false,
             bloccaSmartphoneReali: true,
             mimCompliance: {},
+            consultazioni: {},
             tipologiaElezioni: "Elezioni Organi Collegiali d'Istituto + Rappresentanti di Classe + Consulta",
             consiglioAttivo: true,
             consultaAttiva: true,
@@ -798,7 +786,7 @@
             `).join('');
             const technicalBox = document.getElementById('technical-assistant-modal');
             const technical = configElezioni.assistenteTecnico || {};
-            if (technicalBox) technicalBox.innerHTML = `<b class="block text-amber-950">Area tecnica di supporto</b><span class="block mt-1"><strong>${technical.nome || 'Da designare'}</strong> — ${technical.ruolo || 'Assistente tecnico di riferimento'}</span><span class="block mt-1 text-amber-900">Postazione: ${technical.postazione || 'Postazione PC laboratoriale designata dall’Istituto'}</span><span class="block mt-1 text-[10px] text-slate-600">Supporto tecnico della Commissione, non componente dell’organo elettorale e senza accesso a voti o risultati.</span>`;
+            if (technicalBox) technicalBox.innerHTML = `<b class="block text-amber-950">Area tecnica di supporto</b><span class="block mt-1"><strong>${technicalEscape(technical.nome || 'Da designare')}</strong> — ${technicalEscape(technical.ruolo || 'Assistente tecnico di riferimento')}</span><span class="block mt-1 text-amber-900">Postazione: ${technicalEscape(technical.postazione || 'Postazione PC laboratoriale designata dall’Istituto')}<br>Orari: ${technicalEscape(technical.orari||'Da comunicare')}<br>Contatto: ${technicalEscape(technical.contatto||'mbtd430001@istruzione.it')}</span><span class="block mt-1 text-[10px] text-slate-600">Supporto tecnico della Commissione, non componente dell’organo elettorale e senza accesso a voti o risultati.</span>`;
 
             modal.classList.remove('hidden');
             lucide.createIcons();
@@ -993,30 +981,67 @@
             return new Date(yyyy, mm - 1, dd, hh, min, 0);
         }
 
-        function votingWindowStatus() {
-            const start = parseElectionDate(configElezioni.calendario?.votingStartDate, configElezioni.calendario?.votingStartTime);
-            const end = parseElectionDate(configElezioni.calendario?.votingEndDate, configElezioni.calendario?.votingEndTime);
-            if (!start && !end) return {configured:false, open:true};
-            const now = Date.now();
-            if (start && now < start.getTime()) return {configured:true, open:false, reason:'before', start};
-            if (end && now > end.getTime()) return {configured:true, open:false, reason:'after', end};
-            return {configured:true, open:true, start, end};
+        function votingWindowStatus(key) {
+            if(configElezioni.modalitaProva) return {configured:true,open:true,reason:'test'};
+            const phase=key?LeviElectionPolicy.phase(configElezioni,key):LeviElectionPolicy.globalPhase(configElezioni);
+            return {configured:true,open:phase==='OPEN',reason:phase==='BEFORE'?'before':phase==='PAUSED'?'pause':phase==='UNCONFIGURED'?'unconfigured':'after'};
         }
+        function consultationKey(section) {return ({classe_st:'classeStudente',classe_ge:'classeGenitore'})[section]||section;}
+        function consultationScheduleText(key) {
+            const p=LeviElectionPolicy.profile(configElezioni,key);
+            if(p.dedicated===true) return (p.windows||[]).map(w=>`${String(w.date||'').split('-').reverse().join('/')} dalle ${w.from} alle ${w.to}`).join(' · ');
+            const c=configElezioni.calendario||{};
+            return `${c.votingStartDate||'Da definire'} ${c.votingStartTime||''} - ${c.votingEndDate||''} ${c.votingEndTime||''} (calendario generale)`;
+        }
+        function consultationSummaryHTML() {
+            return LeviElectionPolicy.enabled(configElezioni).map(key=>`<div class="py-2 border-b border-slate-100 last:border-0"><b>${technicalEscape(LeviElectionPolicy.ELECTIONS[key].label)}</b><br>${technicalEscape(consultationScheduleText(key))}</div>`).join('');
+        }
+        let selectedConsultation='consiglio';
+        function renderConsultationSettings() {
+            const key=selectedConsultation,p=LeviElectionPolicy.profile(configElezioni,key);
+            const slots=Array.from({length:6},(_,i)=>p.windows?.[i]||{});
+            const acts=Array.from({length:6},(_,i)=>p.acts?.[i]||{});
+            return `<div id="consultation-settings" class="bg-white border border-indigo-200 rounded-2xl p-5 mt-4 text-black">
+                <h4 class="font-black text-sm">Consultazioni: calendari e atti distinti</h4>
+                <label class="block text-xs mt-3">Filtra per elezione<select onchange="window.selectConsultation(this.value)" class="w-full border rounded-xl p-3 mt-1 text-black">${Object.entries(LeviElectionPolicy.ELECTIONS).map(([id,e])=>`<option value="${id}" ${id===key?'selected':''}>${technicalEscape(e.label)}</option>`).join('')}</select></label>
+                <p class="text-xs mt-2 text-slate-600">Ogni consultazione conserva i propri riferimenti MIM, USR/UST e d’Istituto. Sono riportati nei verbali della relativa elezione. Inserire date e protocolli effettivamente adottati, senza usare quelli di un’altra consultazione.</p>
+                ${key==='consulta'?'<p class="text-xs p-3 bg-amber-50 rounded-xl mt-2">La Consulta segue il mandato biennale. Verificare se nell’anno siano previste elezioni di rinnovo, suppletive o surroghe; il mese non determina da solo la procedura.</p>':''}
+                <form onsubmit="event.preventDefault();window.saveConsultationSettings(this)" class="space-y-4 mt-4">
+                    <div class="grid md:grid-cols-2 gap-3"><label class="text-xs">Periodo organizzativo<select name="period" class="w-full border rounded-lg p-2"><option value="OTTOBRE" ${p.period==='OTTOBRE'?'selected':''}>Ottobre</option><option value="NOVEMBRE" ${p.period==='NOVEMBRE'?'selected':''}>Novembre</option><option value="ALTRO" ${!p.period||p.period==='ALTRO'?'selected':''}>Altro / da definire</option></select></label><label class="text-xs">Tipo di procedura<select name="kind" class="w-full border rounded-lg p-2">${['DA_VERIFICARE','RINNOVO','SUPPLETIVE'].map(kind=>`<option value="${kind}" ${(p.kind||'DA_VERIFICARE')===kind?'selected':''}>${kind.replace('_',' ')}</option>`).join('')}</select></label></div>
+                    <label class="flex gap-2 text-xs"><input type="checkbox" name="dedicated" ${p.dedicated===true?'checked':''}> Usa calendario e atti dedicati a questa elezione</label>
+                    <div><b class="text-xs">Fasce di voto (ora italiana)</b><p class="text-xs text-slate-600 mb-2">Una riga per giornata: ad esempio domenica e lunedì hanno due fasce separate. Lascia vuote le righe inutilizzate.</p>${slots.map((w,i)=>`<div class="grid grid-cols-3 gap-2 mb-2"><label class="text-xs">Data<input name="date${i}" type="date" value="${technicalEscape(w.date||'')}" class="w-full border rounded-lg p-2"></label><label class="text-xs">Dalle ore<input name="from${i}" type="time" value="${technicalEscape(w.from||'')}" class="w-full border rounded-lg p-2"></label><label class="text-xs">Alle ore<input name="to${i}" type="time" value="${technicalEscape(w.to||'')}" class="w-full border rounded-lg p-2"></label></div>`).join('')}</div>
+                    <div><b class="text-xs">Atti pertinenti a questa consultazione</b>${acts.map((a,i)=>`<fieldset class="border rounded-xl p-3 mt-2"><legend class="text-xs">Atto ${i+1}</legend><div class="grid md:grid-cols-3 gap-2"><input name="authority${i}" value="${technicalEscape(a.authority||'')}" placeholder="Ente: MIM / USR / UST / Istituto" aria-label="Ente atto ${i+1}" class="p-2 border rounded-lg text-xs"><input name="protocol${i}" value="${technicalEscape(a.protocol||'')}" placeholder="Protocollo / numero" aria-label="Protocollo atto ${i+1}" class="p-2 border rounded-lg text-xs"><input name="actDate${i}" type="date" value="${technicalEscape(a.date||'')}" aria-label="Data atto ${i+1}" class="p-2 border rounded-lg text-xs"></div><input name="subject${i}" value="${technicalEscape(a.subject||'')}" placeholder="Oggetto e indicazioni applicabili" aria-label="Oggetto atto ${i+1}" class="w-full p-2 border rounded-lg text-xs mt-2"><input name="url${i}" type="url" value="${technicalEscape(a.url||'')}" placeholder="https:// indirizzo dell’atto ufficiale" aria-label="Link atto ${i+1}" class="w-full p-2 border rounded-lg text-xs mt-2"></fieldset>`).join('')}</div>
+                    <div class="grid md:grid-cols-2 gap-3"><label class="text-xs">Pubblicazione esiti: data<input type="date" name="releaseDate" value="${technicalEscape(p.releaseDate||'')}" class="w-full p-2 border rounded-lg"></label><label class="text-xs">Dalle ore<input type="time" name="releaseTime" value="${technicalEscape(p.releaseTime||'')}" class="w-full p-2 border rounded-lg"></label></div>
+                    <label class="flex gap-2 text-xs"><input type="checkbox" name="frozen" ${p.frozen?'checked':''}> Congela definitivamente calendario, atti, schede e liste di questa consultazione</label>
+                    <label class="flex gap-2 text-xs"><input type="checkbox" name="finalized" ${p.finalized?'checked':''}> Scrutinio di questa consultazione verificato dalla Commissione (dopo l’ultima chiusura)</label>
+                    <button class="bg-indigo-800 text-white px-4 py-3 rounded-xl text-xs font-bold" type="submit">Salva questa consultazione</button><span role="status" data-schedule-status class="block text-xs"></span>
+                </form>
+            </div>`;
+        }
+        window.selectConsultation=key=>{selectedConsultation=key;const box=document.getElementById('consultation-settings');if(box)box.outerHTML=renderConsultationSettings();};
+        window.saveConsultationSettings=async form=>{
+            const button=form.querySelector('button[type="submit"]'),status=form.querySelector('[data-schedule-status]'),data=new FormData(form),key=selectedConsultation;
+            const profile={dedicated:data.has('dedicated'),period:data.get('period'),kind:data.get('kind'),windows:[],acts:[],releaseDate:data.get('releaseDate'),releaseTime:data.get('releaseTime'),frozen:data.has('frozen'),finalized:data.has('finalized')};
+            for(let i=0;i<6;i++)if(data.get('date'+i)||data.get('from'+i)||data.get('to'+i))profile.windows.push({date:data.get('date'+i),from:data.get('from'+i),to:data.get('to'+i)});
+            for(let i=0;i<6;i++)if(data.get('protocol'+i)||data.get('authority'+i)||data.get('subject'+i)||data.get('actDate'+i)||data.get('url'+i))profile.acts.push({authority:data.get('authority'+i).trim(),protocol:data.get('protocol'+i).trim(),date:data.get('actDate'+i),subject:data.get('subject'+i).trim(),url:data.get('url'+i).trim()});
+            try {LeviElectionPolicy.validateProfile(profile);button.disabled=true;status.textContent='Salvataggio...';const next={...configElezioni,consultazioni:{...(configElezioni.consultazioni||{}),[key]:profile}};await SECURE_API.saveElectionConfig({config:next,annoScolastico:next.annoScolastico});configElezioni=next;window.configElezioni=next;status.textContent='Calendario e atti salvati. I verbali useranno i riferimenti di questa consultazione.';}
+            catch(error){status.textContent=error.message||'Salvataggio non riuscito.';}finally{button.disabled=false;}
+        };
 
         function renderStudentLogin(container) {
             const publicTechnical = configElezioni.assistenteTecnico || {};
             container.innerHTML = `
                 <div class="w-full max-w-md mx-auto bg-white/95 backdrop-blur-md p-8 rounded-2xl shadow-2xl border border-slate-200 text-center animate-fade-in mt-4 font-semibold">
                     <div class="mb-6 flex flex-col items-center">
-                        <img src="levi.png" alt="Primo Levi Logo" onerror="this.src='https://placehold.co/100x100/1e3a8a/ffffff?text=LEVI'" class="w-16 h-16 object-contain mb-4">
+                        <img src="levi.png" alt="Primo Levi Logo" onerror="this.onerror=null;this.style.visibility='hidden'" class="w-16 h-16 object-contain mb-4">
                         <h2 class="text-xl font-black text-slate-800">Entra in Cabina Elettorale</h2>
                         <p class="text-slate-500 text-xs mt-1">Digita il codice segreto (Token) esclusivamente dalla postazione autorizzata predisposta per la votazione.</p>
                         <p class="text-[10px] text-blue-900 bg-blue-50 px-2 py-0.5 rounded mt-2 font-bold">Anno Scolastico Attivo: A.S. ${configElezioni.annoScolastico}</p>
-                        <p class="text-[10px] text-slate-500 mt-2 font-semibold">Votazioni: ${configElezioni.calendario?.votingStartDate || 'XX/10/2026'} ${configElezioni.calendario?.votingStartTime || 'XX:XX'} → ${configElezioni.calendario?.votingEndDate || 'XX/10/2026'} ${configElezioni.calendario?.votingEndTime || 'XX:XX'}</p>
-                        <div class="w-full mt-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-left text-[10px] text-amber-950"><b>Commissione • Area tecnica:</b> ${technicalEscape(publicTechnical.nome || 'Da designare')}<br><span class="text-slate-600">Postazione: ${technicalEscape(publicTechnical.postazione || 'Postazione PC laboratoriale designata dall’Istituto')}</span></div>
+                        <div class="text-[10px] text-slate-600 mt-2 text-left w-full">${consultationSummaryHTML()}<p class="mt-1">Orari Europe/Rome. Accesso consentito solo nelle fasce della propria elezione.</p></div>
+                        <div class="w-full mt-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-left text-[10px] text-amber-950"><b>Commissione • Area tecnica:</b> ${technicalEscape(publicTechnical.nome || 'Da designare')}<br><span class="text-slate-600">Postazione: ${technicalEscape(publicTechnical.postazione || 'Postazione PC laboratoriale designata dall’Istituto')}<br>Orari: ${technicalEscape(publicTechnical.orari||'Da comunicare dalla scuola')}<br>Contatto: ${technicalEscape(publicTechnical.contatto||'mbtd430001@istruzione.it')}</span></div>
                     </div>
                     <div class="space-y-4">
-                        <input type="text" id="tokenInput" placeholder="ES: STU123" class="w-full p-4 text-center text-2xl font-mono border-2 border-slate-200 rounded-xl uppercase tracking-wider focus:border-blue-600 outline-none font-bold">
+                        <input type="text" id="tokenInput" placeholder="Codice del cedolino" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="80" class="w-full p-4 text-center text-2xl font-mono border-2 border-slate-200 rounded-xl uppercase tracking-wider focus:border-blue-600 outline-none font-bold">
                         <button id="loginBtn" onclick="handleStudentLogin()" class="w-full bg-blue-900 hover:bg-blue-850 text-white font-extrabold py-3.5 rounded-xl shadow-md transition-all text-sm flex items-center justify-center space-x-2">
                             <i data-lucide="key" class="w-4 h-4"></i> <span>Accedi alla Votazione</span>
                         </button>
@@ -1073,7 +1098,7 @@
             let eligibleElectionsCount = 0;
             let alreadyVotedCount = 0;
             
-            if (configElezioni.consiglioAttivo && currentUserData.tipo !== 'STUDENTE') {
+            if (configElezioni.consiglioAttivo && votingWindowStatus('consiglio').open && currentUserData.tipo !== 'STUDENTE') {
                 eligibleElectionsCount++;
                 if (currentUserData.voted_consiglio) { alreadyVotedCount++; } else {
                     let status = cartVotes.consiglio ? 'Compilata nel carrello' : 'Da compilare';
@@ -1092,7 +1117,7 @@
                 }
             }
 
-            if (configElezioni.rappresentantiIstitutoAttivo && currentUserData.tipo === 'STUDENTE') {
+            if (configElezioni.rappresentantiIstitutoAttivo && votingWindowStatus('istituto').open && currentUserData.tipo === 'STUDENTE') {
                 eligibleElectionsCount++;
                 if (currentUserData.voted_istituto) { alreadyVotedCount++; } else {
                     let status = cartVotes.istituto ? 'Compilata nel carrello' : 'Da compilare';
@@ -1111,7 +1136,7 @@
                 }
             }
 
-            if (configElezioni.consultaAttiva && currentUserData.tipo === 'STUDENTE') {
+            if (configElezioni.consultaAttiva && votingWindowStatus('consulta').open && currentUserData.tipo === 'STUDENTE') {
                 eligibleElectionsCount++;
                 if (currentUserData.voted_consulta) { alreadyVotedCount++; } else {
                     let status = cartVotes.consulta ? 'Compilata nel carrello' : 'Da compilare';
@@ -1130,7 +1155,7 @@
                 }
             }
 
-            if (configElezioni.rappresentantiClasseStudentiAttivo && currentUserData.tipo === 'STUDENTE') {
+            if (configElezioni.rappresentantiClasseStudentiAttivo && votingWindowStatus('classeStudente').open && currentUserData.tipo === 'STUDENTE') {
                 eligibleElectionsCount++;
                 if (currentUserData.voted_classe_studente) { alreadyVotedCount++; } else {
                     let status = cartVotes.classeStudente ? 'Compilata nel carrello' : 'Da compilare';
@@ -1149,7 +1174,7 @@
                 }
             }
 
-            if (configElezioni.rappresentantiClasseGenitoriAttivo && currentUserData.tipo === 'GENITORE') {
+            if (configElezioni.rappresentantiClasseGenitoriAttivo && votingWindowStatus('classeGenitore').open && currentUserData.tipo === 'GENITORE') {
                 eligibleElectionsCount++;
                 if (currentUserData.voted_classe_genitore) { alreadyVotedCount++; } else {
                     let status = cartVotes.classeGenitore ? 'Compilata nel carrello' : 'Da compilare';
@@ -1219,7 +1244,7 @@
         function getCardHeaderHTML(title) {
             return `
                 <div class="flex flex-col items-center mb-6 text-center border-b border-slate-100 pb-4 font-semibold">
-                    <img src="levi.png" onerror="this.src='https://placehold.co/100x100/1e3a8a/ffffff?text=LEVI'" class="h-12 w-auto mb-2 object-contain" />
+                    <img src="levi.png" onerror="this.onerror=null;this.style.visibility='hidden'" class="h-12 w-auto mb-2 object-contain" />
                     <span class="text-[10px] uppercase tracking-widest text-slate-400 font-extrabold">ITSCG PRIMO LEVI DI SEREGNO</span>
                     <h2 class="text-lg font-black text-slate-800 mt-1 uppercase">${title}</h2>
                 </div>
@@ -1635,7 +1660,7 @@
         function renderRiepilogo(container) {
             let rowsHTML = '';
             
-            if (configElezioni.consiglioAttivo && currentUserData.tipo !== 'STUDENTE' && !currentUserData.voted_consiglio) {
+            if (configElezioni.consiglioAttivo && votingWindowStatus('consiglio').open && currentUserData.tipo !== 'STUDENTE' && !currentUserData.voted_consiglio) {
                 let text = "Non compilata (Astenuto)";
                 if (cartVotes.consiglio) {
                     const subListe = configElezioni.listeConsiglio[currentUserData.tipo] || {};
@@ -1658,7 +1683,7 @@
                 `;
             }
 
-            if (configElezioni.rappresentantiIstitutoAttivo && currentUserData.tipo === 'STUDENTE' && !currentUserData.voted_istituto) {
+            if (configElezioni.rappresentantiIstitutoAttivo && votingWindowStatus('istituto').open && currentUserData.tipo === 'STUDENTE' && !currentUserData.voted_istituto) {
                 let text = "Non compilata (Astenuto)";
                 if (cartVotes.istituto) {
                     text = `Voto Lista: ${configElezioni.listeIstituto[cartVotes.istituto.lista]?.nome || cartVotes.istituto.lista}`;
@@ -1680,7 +1705,7 @@
                 `;
             }
 
-            if (configElezioni.consultaAttiva && currentUserData.tipo === 'STUDENTE' && !currentUserData.voted_consulta) {
+            if (configElezioni.consultaAttiva && votingWindowStatus('consulta').open && currentUserData.tipo === 'STUDENTE' && !currentUserData.voted_consulta) {
                 let text = "Non compilata (Astenuto)";
                 if (cartVotes.consulta) {
                     text = `Voto Lista: ${configElezioni.listeConsulta[cartVotes.consulta.lista]?.nome || cartVotes.consulta.lista}`;
@@ -1702,7 +1727,7 @@
                 `;
             }
 
-            if (configElezioni.rappresentantiClasseStudentiAttivo && currentUserData.tipo === 'STUDENTE' && !currentUserData.voted_classe_studente) {
+            if (configElezioni.rappresentantiClasseStudentiAttivo && votingWindowStatus('classeStudente').open && currentUserData.tipo === 'STUDENTE' && !currentUserData.voted_classe_studente) {
                 let text = "Non compilata (Astenuto)";
                 if (cartVotes.classeStudente) {
                     if (cartVotes.classeStudente.isBianca) {
@@ -1727,7 +1752,7 @@
                 `;
             }
 
-            if (configElezioni.rappresentantiClasseGenitoriAttivo && currentUserData.tipo === 'GENITORE' && !currentUserData.voted_classe_genitore) {
+            if (configElezioni.rappresentantiClasseGenitoriAttivo && votingWindowStatus('classeGenitore').open && currentUserData.tipo === 'GENITORE' && !currentUserData.voted_classe_genitore) {
                 let text = "Non compilata (Astenuto)";
                 if (cartVotes.classeGenitore) {
                     if (cartVotes.classeGenitore.isBianca) {
@@ -1789,18 +1814,24 @@
                     res={data:{fullyCompleted:true,testMode:true}};
                     showNotification('Voto di prova completato','Percorso verificato. Nessuna scheda è stata scritta nelle urne reali.','success');
                 } else {
-                    res=await SECURE_API.castVote(payload);
+                    try {res=await SECURE_API.castVote(payload);}
+                    catch(sendError){
+                        let status;try{status=(await SECURE_API.getVoterSessionStatus({sessionId:secureVotingSession,annoScolastico:configElezioni.annoScolastico})).data;}catch(_){throw new Error('Esito non verificabile: non richiedere un altro codice. Conserva la pagina e riprova quando torna la connessione, oppure segnala il problema al seggio senza mostrare le scelte.');}
+                        if(status.status==='COMMITTED')res={data:status};
+                        else if(status.status==='PENDING')throw new Error('La sessione non risulta completata. Puoi riprovare l’invio con la stessa sessione entro la scadenza.');
+                        else throw new Error('Sessione scaduta o non riconosciuta. Accedi nuovamente con lo stesso codice: il sistema mantiene le schede già depositate.');
+                    }
                 }
                 secureVotingSession=null; currentUserData=null; cartVotes={consiglio:null,istituto:null,consulta:null,classeStudente:null,classeGenitore:null};
                 showPage('success', !!res.data.fullyCompleted);
-            } catch(err){ console.error(err); showNotification('Voto non registrato',err.message||'Operazione non completata. Nessun voto è stato confermato.','error'); btn.innerHTML=`<i data-lucide="send" class="w-4 h-4"></i> <span>Invia nell'Urna Elettronica</span>`; btn.disabled=false; lucide.createIcons(); }
+            } catch(err){ showNotification('Verifica esito del voto',err.message||'Esito da verificare con la stessa credenziale.','error'); btn.innerHTML=`<i data-lucide="send" class="w-4 h-4"></i> <span>Invia nell'Urna Elettronica</span>`; btn.disabled=false; lucide.createIcons(); }
         };
 
         function renderSuccess(container, isFullyCompleted = true) {
             const titleText = isFullyCompleted ? "Scheda Registrata!" : "Voto Parziale Registrato!";
             const descText = isFullyCompleted 
-                ? "Il tuo voto è stato depositato in modo anonimo nell'urna digitale d'Istituto."
-                : "Le schede che hai compilato sono state salvate con successo nell'urna cloud. Potrai accedere nuovamente in cabina usando lo stesso identico Token per completare le altre schede elettorali.";
+                ? "Il tuo voto è stato registrato nell'urna digitale, con il contenuto protetto e senza il tuo nominativo nella scheda."
+                : "Le schede compilate sono state registrate. Conserva il tuo codice personale: potrai usarlo nelle fasce previste per le altre consultazioni ancora da votare.";
 
             container.innerHTML = `
                 <div class="bg-white p-8 rounded-2xl shadow-xl border border-emerald-100 max-w-md mx-auto text-center animate-fade-in mt-10 font-semibold">
@@ -1857,7 +1888,7 @@
             try {
                 const res = await SECURE_API.getAnonymousBallots({ collection: colName, annoScolastico: configElezioni.annoScolastico });
                 return Array.isArray(res.data.ballots) ? res.data.ballots : [];
-            } catch(e) { console.error('Lettura urna negata:',e); return []; }
+            } catch(e) { showNotification('Urna non disponibile','Lettura non completata. Nessun risultato può essere considerato verificato: '+(e.message||'Riprovare.'),'error'); throw e; }
         }
 
         async function renderClassMasterDashboard(container) {
@@ -2185,14 +2216,11 @@
             return null;
         }
 
-        function readElectionTestLog() {
-            try { return JSON.parse(localStorage.getItem('levi-election-test-log') || '[]'); }
-            catch(e) { return []; }
-        }
-
-        function writeElectionTestLog(rows) {
-            try { localStorage.setItem('levi-election-test-log', JSON.stringify(rows.slice(-50))); } catch(e) {}
-        }
+        let electionTestLog = [];
+        // Solo rimozione del registro delle versioni precedenti, senza leggerlo.
+        try { localStorage.removeItem('levi-election-test-log'); } catch (_) {}
+        function readElectionTestLog() { return electionTestLog.map(row=>({...row})); }
+        function writeElectionTestLog(rows) { electionTestLog=rows.slice(-50).map(row=>({...row})); }
 
 
         const MIM_PRODUCTION_CONTROLS = Object.freeze({
@@ -2214,10 +2242,11 @@
 
         function mimProductionMissing() {
             const state = mimComplianceState();
-            return Object.keys(MIM_PRODUCTION_CONTROLS).filter(k => state[k] !== true);
+            return Object.keys(MIM_PRODUCTION_CONTROLS).filter(k => !['metadataUnlinkabilityReviewed','structuralSeparationReviewed'].includes(k) && state[k] !== true);
         }
 
         window.updateMimComplianceControl = async function(control, value) {
+            if(['metadataUnlinkabilityReviewed','structuralSeparationReviewed'].includes(control))return window.openPrivacyReview();
             if (!Object.prototype.hasOwnProperty.call(MIM_PRODUCTION_CONTROLS, control)) return;
             if (!auth.currentUser) return showNotification('Autenticazione richiesta','Accedere come Commissione.','error');
             const previous = { ...(configElezioni.mimCompliance || {}) };
@@ -2296,7 +2325,7 @@
                             <h4 class="font-black text-slate-900 text-sm mb-3">Diagnostica tecnica reale</h4>
                             <p class="text-xs text-slate-600 mb-3">Controlla il backend Vercel, il collegamento Firebase e lo stato di sicurezza senza inserire voti.</p>
                             <div class="flex flex-wrap gap-2"><button onclick="runElectionTechnicalCheck()" class="px-4 py-2 rounded-xl bg-blue-900 hover:bg-blue-950 text-white text-xs font-black">ESEGUI TEST BACKEND / FIREBASE</button><button onclick="window.showPage('technicalLogin')" class="px-4 py-2 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-xs font-black">APRI AREA ASSISTENTE TECNICO</button><button onclick="window.downloadTechnicalMinutes()" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-black">SCARICA VERBALE TECNICO</button></div>
-                            <div id="technical-check-result" class="mt-3 text-xs"></div><div class="mt-4">${renderTechnicalEvidenceForm()}</div>
+                            <div id="technical-check-result" class="mt-3 text-xs"></div><button onclick="window.refreshCommissionDiagnostics()" class="mt-3 px-4 py-3 rounded-xl bg-slate-900 text-white text-xs font-bold">Verifica problemi e soluzioni</button><div id="commission-diagnostics" class="grid md:grid-cols-2 gap-3 mt-4" aria-live="polite"></div><div class="mt-4">${renderTechnicalEvidenceForm()}</div>
                             <div class="mt-4 p-3 rounded-xl bg-slate-50 border text-[11px] text-slate-700 leading-relaxed">
                                 <b>TEST PRIVACY CABINA:</b> entra in una scheda di prova, premi “Cabina protetta”, prova cambio scheda/finestra, Ctrl/Cmd+P, menu contestuale e PrintScreen.
                                 La pagina deve oscurarsi. Per fotografie con un secondo dispositivo resta obbligatoria una misura organizzativa/fisica.
@@ -2307,18 +2336,18 @@
                     <div class="bg-white rounded-2xl border p-5">
                         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                             <div>
-                                <h4 class="font-black text-slate-900 text-sm">Registro locale prove</h4>
-                                <p class="text-xs text-slate-500">Memorizza solo data, tipo elettore, classe e tipologie di scheda testate; non memorizza preferenze.</p>
+                                <h4 class="font-black text-slate-900 text-sm">Registro prove della sessione</h4>
+                                <p class="text-xs text-slate-500">Contiene solo dati delle prove in memoria: si svuota ricaricando o chiudendo la pagina. Non contiene preferenze e non sostituisce il rapporto di collaudo registrato.</p>
                             </div>
                             <button onclick="clearElectionTestLog()" class="px-3 py-2 rounded-xl border border-red-200 text-red-700 hover:bg-red-50 text-xs font-black">AZZERA REGISTRO PROVE</button>
                         </div>
-                        <div class="mt-3 text-xs text-slate-700">Prove completate su questo dispositivo: <b>${log.length}</b>${last ? ` — ultima: ${new Date(last.at).toLocaleString('it-IT')}` : ''}</div>
+                        <div class="mt-3 text-xs text-slate-700">Prove completate in questa sessione: <b>${log.length}</b>${last ? ` — ultima: ${new Date(last.at).toLocaleString('it-IT')}` : ''}</div>
                     </div>
 
                     <div class="bg-white rounded-2xl border-2 border-blue-200 p-5">
-                        <div class="flex items-start justify-between gap-4 mb-3"><div><h4 class="font-black text-blue-950 text-sm">Gate MIM 2026 — documentazione e ambiente reale</h4><p class="text-[10px] text-slate-500 mt-1">Una voce va confermata solo dopo verifica documentale/tecnica reale. Il codice non sostituisce DPO, atti dell’Istituto o documentazione dei fornitori.</p></div><span class="text-[10px] font-black px-2 py-1 rounded ${mimProductionMissing().length ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}">${mimProductionMissing().length ? mimProductionMissing().length + ' MANCANTI' : 'COMPLETO'}</span></div>
+                        <div class="flex items-start justify-between gap-4 mb-3"><div><h4 class="font-black text-blue-950 text-sm">Gate MIM 2026 — documentazione e ambiente reale</h4><p class="text-[10px] text-slate-500 mt-1">Una voce va confermata solo dopo verifica documentale/tecnica reale. La separazione identità-voto resta non verificata e non può essere confermata con una spunta. Gli altri esiti richiedono documenti nel fascicolo.</p></div><span class="text-[10px] font-black px-2 py-1 rounded ${mimProductionMissing().length ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}">${mimProductionMissing().length ? mimProductionMissing().length + ' MANCANTI' : 'COMPLETO'}</span></div>
                         <div class="grid md:grid-cols-2 gap-2">
-                            ${Object.entries(MIM_PRODUCTION_CONTROLS).map(([k,label]) => `<label class="flex gap-2 items-start p-3 rounded-xl border ${mimComplianceState()[k]===true?'bg-emerald-50 border-emerald-200':'bg-slate-50'}"><input type="checkbox" class="mt-0.5" ${mimComplianceState()[k]===true?'checked':''} onchange="updateMimComplianceControl('${k}',this.checked)"><span class="text-[10px] font-bold text-slate-800">${label}</span></label>`).join('')}
+                            ${Object.entries(MIM_PRODUCTION_CONTROLS).map(([k,label]) => `<label class="flex gap-2 items-start p-3 rounded-xl border ${mimComplianceState()[k]===true&&!['metadataUnlinkabilityReviewed','structuralSeparationReviewed'].includes(k)?'bg-emerald-50 border-emerald-200':'bg-slate-50'}"><input type="checkbox" class="mt-0.5" ${['metadataUnlinkabilityReviewed','structuralSeparationReviewed'].includes(k)?'disabled title="Gestito nel Fascicolo DPO / gestione blocchi"':(mimComplianceState()[k]===true?'checked':'')} onchange="updateMimComplianceControl('${k}',this.checked)"><span class="text-[10px] font-bold text-slate-800">${label}</span></label>`).join('')}
                         </div>
                     </div>
 
@@ -2385,7 +2414,7 @@
         };
 
         window.clearElectionTestLog = function() {
-            try { localStorage.removeItem('levi-election-test-log'); } catch(e) {}
+            electionTestLog = [];
             renderCollaudoTab(document.getElementById('admin-tab-content'));
             showNotification('Registro prove azzerato','Sono stati eliminati solo i log locali di collaudo.','success');
         };
@@ -2436,13 +2465,13 @@
                         <div class="text-[10px] uppercase tracking-[.2em] text-blue-200 font-black">Gestione semplificata</div>
                         <h3 class="text-2xl font-black mt-1">Apertura votazioni</h3>
                         <p class="text-sm text-slate-300 mt-2">I controlli obbligatori restano attivi, ma l'apertura si gestisce da questa sola schermata.</p>
-                        <div class="mt-4 bg-white/10 rounded-2xl p-4 text-sm"><b>Stato:</b> ${w.open?'APERTE':(w.reason==='before'?'NON ANCORA APERTE':'CHIUSE')}<br><span class="text-xs text-slate-300">${configElezioni.calendario?.votingStartDate||'—'} ${configElezioni.calendario?.votingStartTime||''} → ${configElezioni.calendario?.votingEndDate||'—'} ${configElezioni.calendario?.votingEndTime||''}</span></div>
+                        <div class="mt-4 bg-white text-black rounded-2xl p-4 text-sm"><b>Stato generale:</b> ${w.open?'FASCE DI VOTO APERTE':(w.reason==='before'?'NON ANCORA APERTE':w.reason==='pause'?'IN ATTESA DELLA PROSSIMA FASCIA':w.reason==='unconfigured'?'CALENDARIO DA CONFIGURARE':'CHIUSE')}<div class="text-xs mt-2">${consultationSummaryHTML()}</div></div>
                     </div>
                     <div id="opening-status-box"></div>
                     <div class="grid md:grid-cols-3 gap-4">
                         <button onclick="refreshOpeningStatus()" class="p-5 rounded-2xl bg-blue-50 border-2 border-blue-200 hover:bg-blue-100 text-blue-950 text-left"><div class="text-2xl mb-2">①</div><div class="font-black">VERIFICA</div><div class="text-[10px] mt-1">Ti dice solo cosa manca.</div></button>
-                        <button onclick="openElectionNow()" class="p-5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-left shadow-lg"><div class="text-2xl mb-2">②</div><div class="font-black">APRI ORA</div><div class="text-[10px] mt-1">Disattiva la prova e apre subito.</div></button>
-                        <button onclick="closeElectionNow()" class="p-5 rounded-2xl bg-red-600 hover:bg-red-700 text-white text-left shadow-lg"><div class="text-2xl mb-2">③</div><div class="font-black">CHIUDI ORA</div><div class="text-[10px] mt-1">Blocca immediatamente nuovi voti.</div></button>
+                        <button onclick="openElectionNow()" class="p-5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-left shadow-lg"><div class="text-2xl mb-2">②</div><div class="font-black">${Object.values(configElezioni.consultazioni||{}).some(p=>p.dedicated)?'VERIFICA APERTURA PROGRAMMATA':'APRI ORA'}</div><div class="text-[10px] mt-1">Rispetta gli orari dedicati, se configurati.</div></button>
+                        <button onclick="closeElectionNow()" class="p-5 rounded-2xl bg-red-600 hover:bg-red-700 text-white text-left shadow-lg"><div class="text-2xl mb-2">③</div><div class="font-black">${Object.values(configElezioni.consultazioni||{}).some(p=>p.dedicated)?'SOSPENDI VOTAZIONI':'CHIUDI ORA'}</div><div class="text-[10px] mt-1">Blocca immediatamente nuovi voti.</div></button>
                     </div>
                     <div class="bg-white border rounded-2xl p-5"><label class="text-xs font-black">Durata automatica dopo “APRI ORA”</label><select id="quickOpeningHours" class="mt-2 w-full md:w-52 p-3 border rounded-xl font-bold"><option value="1">1 ora</option><option value="2">2 ore</option><option value="4" selected>4 ore</option><option value="6">6 ore</option><option value="8">8 ore</option></select><p class="text-[10px] text-slate-500 mt-2">Le date dettagliate restano modificabili nella Configurazione.</p></div>
                 </div>`;
@@ -2453,6 +2482,7 @@
             if(!auth.currentUser) return showNotification('Accesso richiesto','Accedere come Commissione.','error');
             const readiness=await verifyProductionReadiness();
             if(!readiness.ok){ await refreshOpeningStatus(); return showNotification('Apertura bloccata','Completa solo gli elementi indicati nel riquadro giallo.','error'); }
+            if(Object.values(configElezioni.consultazioni||{}).some(p=>p.dedicated)) return showNotification('Calendari dedicati','Le elezioni si aprono automaticamente nelle fasce configurate per ciascuna consultazione.','info');
             if(!confirm('Confermi l’apertura immediata delle votazioni reali?')) return;
             const hours=Math.min(8,Math.max(1,parseInt(document.getElementById('quickOpeningHours')?.value||'4')));
             const now=new Date(), end=new Date(now.getTime()+hours*3600000);
@@ -2470,6 +2500,11 @@
         window.closeElectionNow = async function() {
             if(!auth.currentUser) return showNotification('Accesso richiesto','Accedere come Commissione.','error');
             if(!confirm('Confermi la chiusura immediata delle votazioni?')) return;
+            if(Object.values(configElezioni.consultazioni||{}).some(p=>p.dedicated)) {
+                const reason=prompt('Motivo della sospensione immediata (le fasce programmate restano conservate):');
+                if(!reason)return;
+                try {await SECURE_API.setEmergencySuspension({annoScolastico:configElezioni.annoScolastico,suspended:true,reason});showNotification('Voto sospeso','Nuovi invii bloccati. Registrare la ripresa dalla sezione Regolarità.','success');}catch(error){showNotification('Sospensione non riuscita',error.message,'error');}return;
+            }
             const t=romeParts(new Date(Date.now()-60000));
             configElezioni.calendario={...(configElezioni.calendario||{}),votingEndDate:t.date,votingEndTime:t.time};
             try {
@@ -2641,6 +2676,8 @@
                             <p class="text-[9px] text-slate-600 mb-3">Indicare l’assistente tecnico di riferimento e la postazione PC laboratoriale. Il ruolo è separato dalla Commissione, non firma le nomine e non accede ai voti.</p>
                             <input id="cfgTechnicalName" value="${String(technicalAssistant.nome||'').replace(/"/g,'&quot;')}" onchange="window.updateTechnicalAssistantField('nome', this.value)" class="w-full p-2 border rounded-lg text-[10px] font-bold" placeholder="Nome e cognome dell’assistente tecnico">
                             <input id="cfgTechnicalStation" value="${String(technicalAssistant.postazione||'').replace(/"/g,'&quot;')}" onchange="window.updateTechnicalAssistantField('postazione', this.value)" class="w-full p-2 border rounded-lg text-[10px] font-bold mt-2" placeholder="Postazione PC laboratoriale designata">
+                            <label class="block text-xs mt-2">Orari della postazione assistita<input value="${technicalEscape(technicalAssistant.orari||'')}" onchange="window.updateTechnicalAssistantField('orari',this.value)" class="w-full p-2 border rounded-lg text-black" placeholder="Giorno e fascia oraria effettivamente garantiti"></label>
+                            <label class="block text-xs mt-2">Recapito istituzionale per assistenza<input value="${technicalEscape(technicalAssistant.contatto||'')}" onchange="window.updateTechnicalAssistantField('contatto',this.value)" class="w-full p-2 border rounded-lg text-black" placeholder="Email o telefono istituzionale; nessun recapito privato"></label>
                             <div class="text-[9px] text-amber-900 mt-2"><b>Ruolo registrato:</b> Assistente tecnico di riferimento (supporto tecnico, non componente della Commissione).</div>
                         </div>
                         <div class="mt-6 pt-6 border-t border-slate-100">
@@ -2668,7 +2705,7 @@
                                 <label class="flex items-center gap-2 border rounded-lg p-2 bg-emerald-50"><input id="cfgCommissionFinalized" type="checkbox" ${configElezioni.commissionFinalized === true ? 'checked' : ''} class="w-4 h-4"><span class="font-bold text-emerald-900">Scrutinio verificato dalla Commissione e pronto alla pubblicazione</span></label>
                             </div>
                             <div class="mt-4 bg-purple-50 border border-purple-200 rounded-2xl p-4">
-                                <h5 class="text-[10px] font-black uppercase tracking-wider text-purple-900 flex items-center gap-1.5"><i data-lucide="file-search" class="w-4 h-4"></i> Riferimento circolare annuale / atto territoriale</h5>
+                                <h5 class="text-[10px] font-black uppercase tracking-wider text-purple-900 flex items-center gap-1.5"><i data-lucide="file-search" class="w-4 h-4"></i> Riferimento generale (solo consultazioni senza atti dedicati)</h5>
                                 <p class="text-[9px] text-purple-800 mt-1">Inserire il riferimento effettivo della circolare MIM/USR dell'anno di riferimento. Per il 2026/2027 il campo resta modificabile fino alla pubblicazione dell'atto annuale.</p>
                                 <div class="grid grid-cols-2 gap-2 mt-3 text-[10px]">
                                     <input id="cfgCircNumero" value="${configElezioni.riferimentoCircolare?.numero || ''}" class="p-2 border rounded-lg font-bold" placeholder="Numero / protocollo">
@@ -2678,7 +2715,7 @@
                                 <input id="cfgCircUrl" value="${configElezioni.riferimentoCircolare?.url || ''}" class="w-full p-2 border rounded-lg font-bold mt-2" placeholder="URL ufficiale (MIM/USR)">
                                 <textarea id="cfgCircNote" class="w-full p-2 border rounded-lg text-[10px] mt-2 min-h-[60px]" placeholder="Note / scadenze richiamate dalla circolare">${configElezioni.riferimentoCircolare?.note || ''}</textarea>
                             </div>
-                            <button onclick="window.saveElectionScheduleAndMessage()" class="mt-3 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold py-2.5 px-4 rounded-xl text-xs shadow-md">Salva calendario, tipologia e messaggio</button>
+                            <button onclick="window.saveElectionScheduleAndMessage()" class="mt-3 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold py-2.5 px-4 rounded-xl text-xs shadow-md">Salva calendario, tipologia e messaggio</button>${renderConsultationSettings()}
                             <div class="mt-4 bg-blue-50 border border-blue-100 rounded-2xl p-4 text-[10px]"><b class="text-blue-950">Workflow documentale:</b> Docenti → Commissione → sblocco verbali → Segreteria in sola lettura. Stato attuale: <strong>${configElezioni.workflowDigitale?.verbaliUnlocked ? 'SBLOCCATO' : 'BLOCCATO'}</strong>.</div>
                         </div>
                         <div class="mt-6 pt-6 border-t border-slate-100 font-semibold text-xs">
@@ -2716,7 +2753,7 @@
         window.addCommissioneMember = function() { configElezioni.commissione.push({ nome: "Nuovo Membro", ruolo: "Componente" }); renderActiveAdminTab(); };
         window.updateTechnicalAssistantField = function(field, value) {
             configElezioni.assistenteTecnico = configElezioni.assistenteTecnico || { nome: 'Da designare', ruolo: 'Assistente tecnico di riferimento', postazione: 'Postazione PC laboratoriale designata dall’Istituto' };
-            if (field === 'nome' || field === 'postazione') configElezioni.assistenteTecnico[field] = String(value || '').trim().slice(0, 160);
+            if (['nome','postazione','orari','contatto'].includes(field)) configElezioni.assistenteTecnico[field] = String(value || '').trim().slice(0, 160);
         };
 
         window.openConfirmWipe = function() { document.getElementById('custom-confirm-modal').classList.remove('hidden'); };
@@ -2834,8 +2871,9 @@
                     }
                 });
 
-                let totalGenerated = tokensData.length;
-                let totalVoted = tokensData.filter(t => t.hasVoted).length;
+                const anonSummary=await anonymousParticipation();if(anonSummary)stats=anonSummary.stats;
+                let totalGenerated = anonSummary?anonSummary.totalEligible:tokensData.length;
+                let totalVoted = anonSummary?anonSummary.totalParticipated:tokensData.filter(t => t.hasVoted).length;
                 let globalPercent = totalGenerated > 0 ? ((totalVoted / totalGenerated) * 100).toFixed(1) : "0.0";
 
                 let affluenzaContent = `
@@ -2846,7 +2884,7 @@
                         <thead>
                             <tr>
                                 <th>Componente Scolastica</th>
-                                <th>Credenziali Rilasciate (Token)</th>
+                                <th>${isAnonymousVoteMode()?'Aventi diritto':'Credenziali Rilasciate (Token)'}</th>
                                 <th>Voti Espressi ed Acquisiti</th>
                                 <th>Percentuale Affluenza</th>
                             </tr>
@@ -3304,7 +3342,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                     </thead>
                     <tbody>
                         ${tokensData.map((t) => {
-                            let statusGlobalText = t.hasVoted ? 'VOTO CONCLUSO' : 'NON UTILIZZATO / PARZIALE';
+                            let statusGlobalText = isAnonymousVoteMode()?'PARTECIPAZIONE NON NOMINATIVA':t.hasVoted ? 'VOTO CONCLUSO' : 'NON UTILIZZATO / PARZIALE';
                             let globalBadgeClass = t.hasVoted ? 'badge badge-green' : 'badge badge-red';
 
                             let singleBallotsInfo = [];
@@ -3313,7 +3351,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                             if (t.voted_consulta) singleBallotsInfo.push("Consulta");
                             if (t.voted_classe_studente) singleBallotsInfo.push("Classe Studente");
                             if (t.voted_classe_genitore) singleBallotsInfo.push("Classe Genitore");
-                            let singleVotesStr = singleBallotsInfo.length > 0 ? singleBallotsInfo.join(', ') : "Nessuno";
+                            let singleVotesStr = isAnonymousVoteMode()?'Non associati al nome':singleBallotsInfo.length > 0 ? singleBallotsInfo.join(', ') : "Nessuno";
 
                             return `
                                 <tr class="token-row" 
@@ -3570,11 +3608,12 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             renderListeTab(document.getElementById('admin-tab-content'));
         };
 
-        function renderRegisterTab(componentType, container) {
+        async function renderRegisterTab(componentType, container) {
             const filteredTokens = activeTokensList.filter(t => t.tipo === componentType);
             
             const total = filteredTokens.length;
-            const voted = filteredTokens.filter(t => t.hasVoted).length;
+            let anonSummary;try{anonSummary=await anonymousParticipation();}catch(e){container.innerHTML='<p class="text-black p-4">Riepilogo non disponibile: riprovare.</p>';return;}
+            const voted = anonSummary?anonSummary.stats[componentType].voted:filteredTokens.filter(t => t.hasVoted).length;
             const remaining = total - voted;
 
             const isClassBased = (componentType === 'STUDENTE' || componentType === 'GENITORE');
@@ -3664,7 +3703,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                         <div>
                             <span class="text-[9px] bg-blue-900 text-white font-black px-2 py-0.5 rounded uppercase">REGISTRO ELETTORALE</span>
                             <h3 class="text-base font-extrabold text-slate-800 mt-0.5">Componente: ${componentType}</h3>
-                            <p class="text-[11px] text-slate-500">Gestione credenziali, codici cabina e sblocco asincrono granulare delle singole votazioni.</p>
+                            <p class="text-[11px] text-slate-500">${isAnonymousVoteMode()?'Registro degli aventi diritto. I nuovi codici e la partecipazione non sono associati ai nominativi. I conteggi indicano almeno una scheda depositata.':'Gestione del registro elettorale e delle credenziali storiche.'}</p>
                         </div>
                         <div class="flex gap-2">
                             <button onclick="purgeComponentTokens('${componentType}')" class="bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 px-3 rounded-lg text-[10px] flex items-center gap-1.5">
@@ -3705,9 +3744,9 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                                 <table class="w-full text-left border-collapse" id="registerTokensTable">
                                     <thead>
                                         <tr class="bg-slate-50 text-[9px] uppercase text-slate-400 font-bold border-b border-slate-100">
-                                            <th class="p-2.5">Elettore / Token</th>
+                                            <th class="p-2.5">${isAnonymousVoteMode()?'Elettore / ID registro':'Elettore / Token'}</th>
                                             ${isClassBased ? `<th class="p-2.5">Classe</th>` : ''}
-                                            <th class="p-2.5">Stato Votazioni (Clicca per Sbloccare)</th>
+                                            <th class="p-2.5">${isAnonymousVoteMode()?'Partecipazione separata':'Stato storico delle votazioni'}</th>
                                             <th class="p-2.5 text-center">Azioni</th>
                                         </tr>
                                     </thead>
@@ -3760,17 +3799,17 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                                                     ${isClassBased ? `<td class="p-2.5 uppercase font-semibold text-slate-600">${t.classe} (${t.indirizzo || 'GEN'})</td>` : ''}
                                                     <td class="p-2.5 font-semibold">
                                                         <div class="flex flex-wrap">
-                                                            ${detailStatusHTML}
+                                                            ${isAnonymousVoteMode()?'Partecipazione non associata al nome':detailStatusHTML}
                                                         </div>
                                                         <div class="mt-1">
-                                                            ${t.hasVoted 
+                                                            ${isAnonymousVoteMode() ? '<span class="text-black text-[9px]">Consultare l’affluenza aggregata</span>' : t.hasVoted
                                                                 ? `<span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-extrabold uppercase text-[8px] tracking-wider">CONCLUSO</span>` 
                                                                 : `<span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-extrabold uppercase text-[8px] tracking-wider">PARZIALE / APERTO</span>`
                                                             }
                                                         </div>
                                                     </td>
                                                     <td class="p-2.5 text-center flex items-center justify-center gap-2 mt-1.5">
-                                                        <button onclick="window.resetEntireToken('${t.id}')" title="Ripristina Completo" class="text-indigo-650 hover:text-indigo-800"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i></button>
+                                                        ${isAnonymousVoteMode()?'':`<button onclick="window.resetEntireToken('${t.id}')" title="Ripristina Completo" class="text-indigo-650 hover:text-indigo-800"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i></button>`}
                                                         <button onclick="window.deleteSingleToken('${t.id}')" title="Elimina" class="text-red-600 hover:text-red-850"><i data-lucide="trash" class="w-3.5 h-3.5"></i></button>
                                                     </td>
                                                 </tr>
@@ -3869,6 +3908,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
         };
 
         window.generateClassTokensPDF = async function(componentType, mode = 'SINGLE') {
+            if(isAnonymousVoteMode())return window.openPrivacyReview();
             try {
                 let filteredTokens = [];
                 let selectedClass = '';
@@ -3912,7 +3952,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 doc.setFont("helvetica", "normal");
                 doc.setFontSize(9);
                 doc.text(`Registro Consegna e Ricevute Credenziali - ${titleLabel}`, 15, 22);
-                doc.text("Anonimato e Segretezza Costituzionale Garantiti", 15, 28);
+                doc.text("Credenziali personali - Consegna riservata e documentata", 15, 28);
                 doc.text("Sede Unica: Via Briantina 68 - Cod. Meccanografico: MBTD430001", 15, 34);
 
                 doc.setTextColor(30, 41, 59);
@@ -4521,7 +4561,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                         <div>
                             <span class="text-[9px] bg-blue-900 text-white font-black px-2 py-0.5 rounded uppercase">SCRUTINIO</span>
                             <h3 class="text-base font-extrabold text-slate-800 mt-0.5">${titleLabel}</h3>
-                            <p class="text-[11px] text-slate-500">Sistema di conteggio elettronico con validazione proporzionale.</p>
+                            <p class="text-[11px] text-slate-500">Conteggi aggregati: le righe ricevute sono ricostruzioni dei totali, non schede individuali originali. Le combinazioni di preferenze non sono esposte.</p>
                         </div>
                         <div class="flex flex-wrap gap-2">
                             <button onclick="window.downloadVerbaleVotiPDF('${currentScrutinioSection}', '${currentScrutinioSubComponent}')" class="bg-slate-800 hover:bg-slate-700 text-white font-extrabold py-2 px-3 rounded-xl text-xs flex items-center gap-1.5 shadow">
@@ -4554,7 +4594,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                     <div class="grid lg:grid-cols-12 gap-6">
                         <div class="lg:col-span-5 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                             <div class="flex justify-between items-center mb-3 pb-1 border-b">
-                                <h4 class="text-xs font-black text-slate-800 uppercase">📁 Registro Urna Cloud</h4>
+                                <h4 class="text-xs font-black text-slate-800 uppercase">📁 Conteggi aggregati dell’urna</h4>
                                 <span class="text-[9px] px-2 py-0.5 rounded font-black bg-blue-100 text-blue-900">Sola Lettura</span>
                             </div>
                             <div class="space-y-3 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
@@ -4842,6 +4882,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 doc.text(`Assistente tecnico: ${technicalAssistant.nome || 'Da designare'}`, 15, technicalY + 7);
                 doc.text(`Postazione PC laboratoriale: ${technicalAssistant.postazione || 'Da designare'}`, 15, technicalY + 14);
 
+                await appendConsultationPdf(doc,section);
                 doc.save(`Verbale_Voti_${section}_Primo_Levi_${(configElezioni.annoScolastico).replace('/', '_')}.pdf`);
                 showNotification("Esportato", "Scaricamento del registro completato.", "success");
             } catch (err) {
@@ -4982,6 +5023,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 doc.text(`Assistente tecnico: ${technicalAssistant.nome || 'Da designare'}`, 15, technicalLineY + 8);
                 doc.text(`Postazione PC laboratoriale: ${technicalAssistant.postazione || 'Da designare'}`, 15, technicalLineY + 16);
 
+                await appendConsultationPdf(doc,section);
                 doc.save(`Verbale_Proclamazione_${section}_Primo_Levi_${(configElezioni.annoScolastico).replace('/', '_')}.pdf`);
                 showNotification("Esportato", "Scaricamento del verbale completato.", "success");
             } catch (err) {
@@ -5013,8 +5055,9 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 }
             });
 
-            let globalGen = activeTokensList.length;
-            let globalVoted = activeTokensList.filter(t => t.hasVoted).length;
+            let anonSummary;try{anonSummary=await anonymousParticipation();}catch(e){container.innerHTML='<p class="text-black p-4">Affluenza non disponibile: riprovare.</p>';return;}if(anonSummary)stats=anonSummary.stats;
+            let globalGen = anonSummary?anonSummary.totalEligible:activeTokensList.length;
+            let globalVoted = anonSummary?anonSummary.totalParticipated:activeTokensList.filter(t => t.hasVoted).length;
             let globalPercent = globalGen > 0 ? ((globalVoted / globalGen) * 100).toFixed(1) : 0;
 
             let componentBlocksHTML = Object.entries(stats).map(([comp, val]) => {
@@ -5221,15 +5264,37 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 </div>`;
         }
 
-        function managementResultsAreReleased() {
-            const d = configElezioni.calendario?.resultsReleaseDate || '';
-            const t = configElezioni.calendario?.resultsReleaseTime || '';
-            if (!d || d.includes('XX') || !/^\d{2}\/\d{2}\/\d{4}$/.test(d) || !/^\d{2}:\d{2}$/.test(t)) return false;
-            const [dd, mm, yyyy] = d.split('/').map(Number);
-            const [hh, min] = t.split(':').map(Number);
-            if (configElezioni.commissionFinalized !== true) return false;
-            const release = new Date(yyyy, mm - 1, dd, hh, min, 0);
-            return Date.now() >= release.getTime();
+        function managementResultsAreReleased(key) {
+            return key ? LeviElectionPolicy.phase(configElezioni,key)==='RELEASED' : LeviElectionPolicy.globalPhase(configElezioni)==='RELEASED';
+        }
+
+        async function appendConsultationPdf(doc,section) {
+            const key=consultationKey(section),p=LeviElectionPolicy.profile(configElezioni,key);
+            const response=await fetch(new URL('vendor/pdf-fonts.json',document.baseURI));
+            if(!response.ok) throw new Error('Font del verbale non disponibile.');
+            const fonts=await response.json();
+            for(const style of ['normal','bold']) {doc.addFileToVFS('LeviSans-'+style+'.ttf',fonts[style]);doc.addFont('LeviSans-'+style+'.ttf','LeviSans',style);}
+            doc.addPage();let y=20;
+            const write=(text,bold=false)=>{
+                doc.setFont('LeviSans',bold?'bold':'normal');doc.setFontSize(bold?11:9);doc.setTextColor(0,0,0);
+                const clean=String(text||'Da definire').replace(/[‘’]/g,"'").replace(/[–—]/g,'-');
+                for(const line of doc.splitTextToSize(clean,180)){if(y>276){doc.addPage();y=20;}doc.text(line,15,y);y+=5;}y+=4;
+            };
+            write('ALLEGATO AL VERBALE: CALENDARIO E ATTI DELLA CONSULTAZIONE',true);
+            write(LeviElectionPolicy.ELECTIONS[key]?.label||section,true);
+            write('Anno scolastico '+configElezioni.annoScolastico+' · Orari Europe/Rome');
+            write(consultationScheduleText(key));
+            if(p.dedicated) {
+                write('Periodo: '+(p.period||'da definire')+' · Procedura: '+(p.kind||'da verificare'));
+                write('Atti pertinenti',true);
+                for(const a of p.acts||[]) write([a.authority,'Prot. '+a.protocol,a.date,a.subject,a.url].filter(Boolean).join(' | '));
+                write('Finestra esiti: '+(p.releaseDate||'da definire')+' '+(p.releaseTime||'')+'; convalida Commissione: '+(p.finalized?'registrata':'da completare'));
+            } else {
+                const a=configElezioni.riferimentoCircolare||{};
+                write('Riferimento generale: '+[a.numero,a.data,a.oggetto,a.url].filter(Boolean).join(' | '));
+                write('Non è stato ancora configurato un fascicolo dedicato a questa consultazione. Verificare la pertinenza degli atti prima della sottoscrizione.');
+            }
+            write('Gli estremi sono quelli registrati dalla Commissione. Il documento richiede verifica, sottoscrizione, protocollo e conservazione secondo le procedure dell’Istituto.');
         }
 
 
@@ -5314,9 +5379,42 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                     : key === 'testMode'
                         ? (value === true ? 'Usare esclusivamente dataset di prova fino al collaudo formale.' : 'Modalità reale configurata.')
                         : (value === null ? 'Verifica separata richiesta nel collaudo: questo controllo non è misurato automaticamente.' : (ok ? 'Risposta verificata dal backend.' : 'Verifica non superata. Informare la Commissione.'));
-                return `<div class="p-3 rounded-2xl border ${ok ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}"><div class="flex items-start gap-2"><span class="text-sm font-black ${ok ? 'text-emerald-700' : 'text-red-700'}">${ok ? '✓' : (value === null ? '?' : '✕')}</span><div><b class="text-[10px] ${ok ? 'text-emerald-950' : 'text-red-950'}">${technicalEscape(technicalControlLabel(key))}</b><p class="text-[9px] text-slate-600 mt-1">${technicalEscape(detail)}</p></div></div></div>`;
+                const action=key==='regularityMissing'?'regularity':key==='testMode'?'configure':value===null?'report':'recheck';
+                return `<div class="p-3 rounded-2xl border ${ok ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}"><div class="flex items-start gap-2"><span class="inline-block rounded-full w-3 h-3 shrink-0 mt-1 ${ok?'bg-emerald-600':'bg-red-600'}" role="img" aria-label="${ok?'Verificato':'Da verificare'}"></span><div><b class="text-[10px] ${ok ? 'text-emerald-950' : 'text-red-950'}">${technicalEscape(technicalControlLabel(key))}</b><p class="text-[9px] text-slate-600 mt-1">${technicalEscape(detail)}</p>${ok?'':`<button onclick="window.resolveDiagnostic('${action}',this)" class="mt-2 px-3 py-2 rounded-lg bg-red-700 text-white text-xs font-bold">Risolvi</button>`}</div></div></div>`;
             }).join('');
         }
+
+        function diagnosticCards(diagnostics) {
+            return (diagnostics||[]).map(d=>`<div class="p-4 rounded-xl border ${d.ok?'bg-emerald-50 border-emerald-200':'bg-red-50 border-red-200'}"><div class="flex gap-2 items-start"><span class="inline-block w-3 h-3 shrink-0 rounded-full mt-1 ${d.ok?'bg-emerald-600':'bg-red-600'}" role="img" aria-label="${d.ok?'Verificato':'Intervento richiesto'}"></span><div><b class="text-xs text-black">${technicalEscape(d.label)}</b><p class="text-xs mt-2 text-slate-700">${technicalEscape(d.detail)}</p>${d.ok?'':`<button onclick="window.resolveDiagnostic('${technicalEscape(d.action)}',this)" class="mt-3 px-3 py-2 rounded-lg bg-red-700 text-white text-xs font-bold">Risolvi</button>`}</div></div></div>`).join('');
+        }
+        window.refreshCommissionDiagnostics=async()=>{
+            const box=document.getElementById('commission-diagnostics');if(!box)return;
+            box.textContent='Verifica in corso...';
+            try {const response=await SECURE_API.getTechnicalStatus({annoScolastico:configElezioni.annoScolastico});currentTechnicalStatus=response.data;box.innerHTML=diagnosticCards(currentTechnicalStatus.diagnostics);}
+            catch(e){box.innerHTML=`<div class="text-red-800 text-xs">${technicalEscape(e.message)} <button onclick="window.refreshCommissionDiagnostics()" class="underline">Riprova</button></div>`;}
+        };
+        window.resolveDiagnostic=async(action,button)=>{
+            if(action==='privacyArchitecture')return window.openPrivacyReview();
+            if(action==='configure'||action==='regularity') {
+                if(currentTechnicalData)return showNotification('Intervento della Commissione','La Commissione deve completare '+(action==='configure'?'calendari, atti e modalità di voto in Configurazione.':'le verifiche documentate in Regolarità.'),'info');
+                return window.switchAdminTab(action==='configure'?'config':'regolarita');
+            }
+            if(action==='report') {
+                const form=document.getElementById('technical-evidence-form');
+                if(form){const details=form.closest('details');if(details)details.open=true;form.scrollIntoView({behavior:'smooth'});}
+                return showNotification('Prove da documentare','Compilare e salvare il rapporto di collaudo. La Commissione potrà richiamarne l’ID in Regolarità; il sistema non conferma prove mai eseguite.','info');
+            }
+            if(action==='review')return window.open('docs/16_CONSULTAZIONI_E_PROTEZIONE_SCHEDE.md','_blank','noopener');
+            if(action==='protectDatabase'&&currentTechnicalStatus?.role!=='COMMISSIONE')return showNotification('Intervento della Commissione','La cifratura delle schede pregresse si avvia dalla Commissione, nella scheda Collaudo.','info');
+            if(button){button.disabled=true;button.textContent='Risoluzione in corso...';}
+            try {
+                let total=0,more=false;
+                do {const r=await SECURE_API.resolveTechnicalIssue({annoScolastico:configElezioni.annoScolastico,action});total+=r.data?.processed||0;more=r.data?.more===true;if(button)button.textContent=total?'Schede protette: '+total:'Controllo in corso...';}while(more);
+                if(currentTechnicalData)await window.refreshTechnicalDashboard();else await window.refreshCommissionDiagnostics();
+                showNotification('Controllo completato',action==='protectDatabase'?total+' schede pregresse cifrate e verificate. Le copie storiche esterne richiedono gestione separata.':'Controlli aggiornati: vedere gli esiti effettivi.','success');
+            }catch(e){showNotification('Intervento non completato',e.message||'Riprovare il controllo.','error');}
+            finally {if(button){button.disabled=false;button.textContent='Risolvi';}}
+        };
 
         function technicalLogRows(logs) {
             return (logs || []).map(log => `<tr class="border-t border-slate-100"><td class="p-2.5 font-black">${technicalEscape(log.event)}<div class="font-mono text-[9px] mt-1">ID: ${technicalEscape(log.id)}</div></td><td class="p-2.5">${technicalEscape(log.technicianName)}</td><td class="p-2.5">${technicalEscape(log.station)}</td><td class="p-2.5">${technicalEscape(log.phase)}</td><td class="p-2.5">${technicalEscape(log.result)}</td><td class="p-2.5">${technicalEscape(log.at ? new Date(log.at).toLocaleString('it-IT') : '—')}</td><td class="p-2.5 max-w-[220px]">${technicalEscape(log.note || '—')}</td></tr>`).join('') || '<tr><td colspan="7" class="p-8 text-center text-slate-400">Nessun checkpoint registrato.</td></tr>';
@@ -5337,29 +5435,52 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             cloudSecurity:'Regole distribuite, accessi cloud e gestione incidenti'
         });
         const TECHNICAL_OUTCOME_LABELS = Object.freeze({PASS:'Superata',FAIL:'Non superata',ISSUES:'Con anomalie',NOT_TESTED:'Non verificata'});
+        function renderPrivacyGuidance() {
+            return `<div class="bg-white border border-slate-300 rounded-2xl p-5 text-black mt-4"><h4 class="text-sm font-black">Protezione del voto: garanzie e percorso necessario</h4><p class="text-xs mt-2 leading-relaxed">Le schede cifrate sono protette nel database e tutte le aree, compresa la Commissione, ricevono soltanto risultati aggregati. Il deposito di voti reali è bloccato finché il requisito essenziale di segretezza dell’Allegato A non è dimostrato. La separazione dell’identità dal contenuto anche rispetto al gestore del server richiede un diverso motore crittografico e custodi indipendenti delle chiavi.</p><div class="flex flex-wrap gap-2 mt-3"><a href="anonimato.html" target="_blank" rel="noopener noreferrer" class="px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold">Leggi la soluzione architetturale</a><button onclick="window.downloadPrivacyAssessment()" class="px-3 py-2 rounded-xl border border-slate-400 text-xs font-bold">Scarica valutazione tecnica attuale</button></div><p class="text-xs text-slate-600 mt-3">La valutazione riporta anche i limiti non risolti e non è una certificazione di anonimato assoluto.</p></div>`;
+        }
+        window.downloadLegalReadiness=async()=>{
+            try {
+                const r=await SECURE_API.getRegularityState({annoScolastico:configElezioni.annoScolastico});
+                if(!r.data?.legalAssessment)throw new Error('Matrice non disponibile.');
+                const payload={year:configElezioni.annoScolastico,assessment:r.data.legalAssessment};
+                const envelope={format:'LEVI_ALLEGATO_A_EVIDENZE_V1',hashScope:'UTF-8 JSON.stringify(payload)',sha256:await sha256Text(JSON.stringify(payload)),payload};
+                const url=URL.createObjectURL(new Blob([JSON.stringify(envelope,null,2)],{type:'application/json'}));
+                const a=document.createElement('a');a.href=url;a.download='Matrice_Allegato_A_'+String(payload.year).replace('/','_')+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
+            }catch(e){showNotification('Matrice non esportata',e.message||'Riprovare.','error');}
+        };
+        window.downloadPrivacyAssessment=async()=>{
+            try {
+                const r=await SECURE_API.getTechnicalStatus({annoScolastico:configElezioni.annoScolastico});
+                if(!r.data?.privacyAssessment)throw new Error('Valutazione non disponibile: aggiornare la pagina dopo il deploy.');
+                const payload={year:r.data.year,privacyAssessment:r.data.privacyAssessment};
+                const envelope={format:'LEVI_PRIVACY_ASSESSMENT_V1',hashScope:'UTF-8 JSON.stringify(payload)',sha256:await sha256Text(JSON.stringify(payload)),payload};
+                const url=URL.createObjectURL(new Blob([JSON.stringify(envelope,null,2)],{type:'application/json'}));
+                const a=document.createElement('a');a.href=url;a.download='Valutazione_riservatezza_'+String(payload.year).replace('/','_')+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
+            }catch(e){showNotification('Valutazione non esportata',e.message||'Riprovare.','error');}
+        };
         function renderTechnicalEvidenceForm() {
             return `<details class="bg-white rounded-2xl border border-slate-200 p-5">
                 <summary class="cursor-pointer text-sm font-black text-black">Compila e registra il verbale di collaudo</summary>
                 <p class="text-xs text-slate-700 mt-3">Registra gli esiti delle prove eseguite dal tecnico su dati fittizi in ambiente separato. Per ogni prova indicare il documento o l’evidenza conservata dalla scuola. Nessun esito viene confermato automaticamente.</p>
-                <form onsubmit="event.preventDefault(); window.saveTechnicalTestReport(this)" class="space-y-4 mt-4 text-black">
+                <form id="technical-evidence-form" onsubmit="event.preventDefault(); window.saveTechnicalTestReport(this)" class="space-y-4 mt-4 text-black">
                     <div class="grid md:grid-cols-2 gap-3">
                         <label class="text-xs font-bold">Versione software / commit<input name="softwareVersion" required maxlength="160" class="mt-1 w-full border rounded-xl p-3 text-black" placeholder="Versione effettivamente collaudata"></label>
                         <label class="text-xs font-bold">Estremi verbale / fascicolo<input name="evidenceRef" required maxlength="300" class="mt-1 w-full border rounded-xl p-3 text-black" placeholder="Riferimento al documento conservato agli atti"></label>
                     </div>
-                    ${Object.entries(TECHNICAL_TEST_LABELS).map(([id,label])=>`<fieldset class="border rounded-xl p-3"><legend class="px-1 text-xs font-bold">${technicalEscape(label)}</legend><div class="grid md:grid-cols-[180px_1fr] gap-2"><select aria-label="Esito: ${technicalEscape(label)}" name="outcome_${id}" class="border rounded-lg p-2 text-xs text-black"><option value="NOT_TESTED">Non verificata</option><option value="PASS">Superata</option><option value="ISSUES">Con anomalie</option><option value="FAIL">Non superata</option></select><input name="evidence_${id}" maxlength="600" aria-label="Evidenza: ${technicalEscape(label)}" class="border rounded-lg p-2 text-xs text-black" placeholder="Evidenza, prova osservata, anomalia o riferimento allegato"></div></fieldset>`).join('')}
+                    ${Object.entries(TECHNICAL_TEST_LABELS).map(([id,label])=>`<fieldset class="border rounded-xl p-3"><legend class="px-1 text-xs font-bold">${technicalEscape(label)}</legend><div class="grid md:grid-cols-[180px_1fr] gap-2"><select aria-label="Esito: ${technicalEscape(label)}" name="outcome_${id}" class="border rounded-lg p-2 text-xs text-black"><option value="NOT_TESTED">Non verificata</option><option value="PASS">Superata</option><option value="ISSUES">Con anomalie</option><option value="FAIL">Non superata</option></select><input name="evidence_${id}" maxlength="600" aria-label="Evidenza: ${technicalEscape(label)}" class="border rounded-lg p-2 text-xs text-black" placeholder="Riferimento al documento di evidenza"></div><div class="grid md:grid-cols-2 gap-2 mt-2"><input name="method_${id}" maxlength="500" aria-label="Metodo ${technicalEscape(label)}" class="border rounded-lg p-2 text-xs text-black" placeholder="Metodo: operazioni eseguite"><input name="expected_${id}" maxlength="500" aria-label="Atteso ${technicalEscape(label)}" class="border rounded-lg p-2 text-xs text-black" placeholder="Risultato atteso"><input name="observed_${id}" maxlength="600" aria-label="Osservato ${technicalEscape(label)}" class="border rounded-lg p-2 text-xs text-black" placeholder="Risultato effettivamente osservato"><label class="text-xs">Data e ora della prova<input name="testedAt_${id}" type="datetime-local" class="border rounded-lg p-2 text-xs text-black w-full"></label></div></fieldset>`).join('')}
                     <label class="block text-xs font-bold">Osservazioni e azioni correttive<textarea name="note" maxlength="1000" class="mt-1 w-full border rounded-xl p-3 text-black" placeholder="Non inserire password, token, nominativi degli elettori o preferenze"></textarea></label>
                     <label class="flex gap-2 text-xs"><input name="testEnvironment" type="checkbox" required><span>Le prove sono state eseguite in ambiente separato con dati fittizi. Gli esiti descrivono soltanto ciò che è stato effettivamente verificato.</span></label>
-                    <p class="text-xs text-amber-950 bg-amber-50 border border-amber-200 rounded-xl p-3">La separazione irreversibile identità-voto deve essere dimostrata con una verifica architetturale indipendente. Se manca tale evidenza, lasciare la prova “Non verificata”. Questo modulo non certifica la conformità e non abilita il voto.</p>
+                    <p class="text-xs text-amber-950 bg-amber-50 border border-amber-200 rounded-xl p-3">Verificare anche la distribuzione casuale dei codici, la separazione dal registro nominativo, i metadati e i rischi residui con un controllo indipendente. Se manca tale evidenza, lasciare la prova “Non verificata”. Questo modulo non certifica la conformità e non abilita il voto.</p>
                     <button type="submit" class="bg-amber-700 hover:bg-amber-800 text-white font-bold px-4 py-3 rounded-xl text-xs">Registra gli esiti con il mio nome</button>
                     <p class="text-xs" role="status" data-report-status></p>
                 </form>
-            </details>`;
+            </details>${renderPrivacyGuidance()}`;
         }
         window.saveTechnicalTestReport = async function(form) {
             const button=form.querySelector('button[type="submit"]'), status=form.querySelector('[data-report-status]');
             if(button.disabled) return;
             const data=new FormData(form), tests={};
-            for(const id of Object.keys(TECHNICAL_TEST_LABELS)) tests[id]={outcome:data.get('outcome_'+id),evidence:data.get('evidence_'+id)};
+            for(const id of Object.keys(TECHNICAL_TEST_LABELS)) tests[id]={outcome:data.get('outcome_'+id),evidence:data.get('evidence_'+id),method:data.get('method_'+id),expected:data.get('expected_'+id),observed:data.get('observed_'+id),testedAt:data.get('testedAt_'+id)?new Date(data.get('testedAt_'+id)).toISOString():''};
             button.disabled=true;status.textContent='Registrazione in corso...';
             try {
                 const response=await SECURE_API.recordTechnicalTestReport({annoScolastico:configElezioni.annoScolastico, softwareVersion:data.get('softwareVersion'),evidenceRef:data.get('evidenceRef'),testEnvironment:data.has('testEnvironment')?'ISOLATED_TEST':'',tests,note:data.get('note')});
@@ -5412,7 +5533,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                         <button onclick="window.recordTechnicalCheckpoint('OPENING')" class="p-5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-left shadow-lg"><div class="text-2xl mb-2">①</div><div class="font-black">REGISTRA CHECKPOINT DI APERTURA</div><div class="text-[10px] mt-1">Esegue e salva il controllo della postazione e dei servizi prima dell’apertura.</div></button>
                         <button onclick="window.recordTechnicalCheckpoint('CLOSING')" class="p-5 rounded-2xl bg-slate-900 hover:bg-black text-white text-left shadow-lg"><div class="text-2xl mb-2">②</div><div class="font-black">REGISTRA CHECKPOINT DI CHIUSURA</div><div class="text-[10px] mt-1">Registra lo stato dei servizi e dei log alla chiusura.</div></button>
                     </div>
-                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><div class="flex flex-col md:flex-row justify-between gap-3 items-start md:items-center"><div><h3 class="text-sm font-black text-slate-900">Verbale tecnico</h3><p class="text-[10px] text-slate-500 mt-1">PDF con nominativo del tecnico, postazione, fase, esito e timestamp dei checkpoint disponibili.</p></div><button onclick="window.downloadTechnicalMinutes()" class="bg-amber-700 hover:bg-amber-800 text-white px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2"><i data-lucide="file-down" class="w-4 h-4"></i> Scarica verbale PDF</button><button onclick="window.downloadTechnicalEvidence()" class="bg-slate-900 text-white px-4 py-2.5 rounded-xl text-xs font-black">Esporta tutte le evidenze JSON</button></div></div>
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><div class="flex flex-col md:flex-row justify-between gap-3 items-start md:items-center"><div><button onclick="window.openPrivacyReview()" class="mb-3 p-3 bg-slate-900 text-white rounded-lg">Fascicolo DPO / gestione blocchi</button><h3 class="text-sm font-black text-slate-900">Verbale tecnico</h3><p class="text-[10px] text-slate-500 mt-1">PDF con nominativo del tecnico, postazione, fase, esito e timestamp dei checkpoint disponibili.</p></div><button onclick="window.downloadTechnicalMinutes()" class="bg-amber-700 hover:bg-amber-800 text-white px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2"><i data-lucide="file-down" class="w-4 h-4"></i> Scarica verbale PDF</button><button onclick="window.downloadTechnicalEvidence()" class="bg-slate-900 text-white px-4 py-2.5 rounded-xl text-xs font-black">Esporta tutte le evidenze JSON</button></div></div>
                     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><div class="flex justify-between gap-3 items-center mb-3"><div><h3 class="text-sm font-black text-slate-900">Registro checkpoint tecnici</h3><p class="text-[10px] text-slate-500">Ultime 100 registrazioni tecniche. L’esportazione include tutti i checkpoint disponibili per l’anno; i log del fornitore cloud sono separati.</p></div><span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-[9px] font-black">A.S. ${technicalEscape(configElezioni.annoScolastico)}</span></div><div class="overflow-auto max-h-[520px] custom-scrollbar"><table class="w-full text-left text-[10px]"><thead class="sticky top-0 bg-slate-50"><tr><th class="p-2.5">Evento</th><th class="p-2.5">Tecnico</th><th class="p-2.5">Postazione</th><th class="p-2.5">Fase</th><th class="p-2.5">Esito</th><th class="p-2.5">Data/ora</th><th class="p-2.5">Note</th></tr></thead><tbody id="technical-log-body"><tr><td colspan="7" class="p-8 text-center text-slate-400">Caricamento...</td></tr></tbody></table></div></div>
                     <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-[10px] text-slate-600"><b>Per la Commissione:</b> valutare le anomalie prima dell’apertura; non ritardare la chiusura prevista. Registrare l’incidente nell’area Commissione e acquisire il verbale previsto dal piano di continuità. I log non contengono il contenuto delle schede.</div>
                 </div>`;
@@ -5434,7 +5555,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 currentTechnicalStatus = statusResponse.data || {};
                 currentTechnicalLogs = logsResponse.data?.logs || currentTechnicalStatus.recentEvents || [];
                 const controls = currentTechnicalStatus.controls || {};
-                summary.innerHTML = `<div class="flex flex-col lg:flex-row justify-between gap-4 items-start lg:items-center mb-4"><div><span class="text-[9px] uppercase tracking-wider text-amber-700 font-black">STATO SISTEMA</span><h3 class="text-xl font-black text-slate-900 mt-1">${technicalEscape(currentTechnicalStatus.phase || '—')}</h3><p class="text-[10px] text-slate-500">Backend e registri verificati per l’A.S. ${technicalEscape(currentTechnicalStatus.year || configElezioni.annoScolastico)}</p></div><div class="px-3 py-2 rounded-xl bg-emerald-100 text-emerald-900 text-[10px] font-black">${Object.entries(controls).every(([k,v]) => technicalControlState(k,v)) ? 'SISTEMA OPERATIVO' : 'VERIFICHE DA COMPLETARE'}</div></div><div class="grid md:grid-cols-2 lg:grid-cols-4 gap-3">${technicalStatusCards(controls)}</div>`;
+                summary.innerHTML = `<div class="flex flex-col lg:flex-row justify-between gap-4 items-start lg:items-center mb-4"><div><span class="text-[9px] uppercase tracking-wider text-amber-700 font-black">STATO SISTEMA</span><h3 class="text-xl font-black text-slate-900 mt-1">${technicalEscape(currentTechnicalStatus.phase || '—')}</h3><p class="text-[10px] text-slate-500">Backend e registri verificati per l’A.S. ${technicalEscape(currentTechnicalStatus.year || configElezioni.annoScolastico)}</p></div><div class="px-3 py-2 rounded-xl bg-emerald-100 text-emerald-900 text-[10px] font-black">${Object.entries(controls).every(([k,v]) => technicalControlState(k,v)) ? 'SISTEMA OPERATIVO' : 'VERIFICHE DA COMPLETARE'}</div></div><div class="grid md:grid-cols-2 lg:grid-cols-4 gap-3">${technicalStatusCards(controls)}</div><h4 class="font-bold mt-5 mb-3 text-black">Controlli e rimedi</h4><div class="grid md:grid-cols-2 gap-3">${diagnosticCards(currentTechnicalStatus.diagnostics)}</div>`;
                 if (body) body.innerHTML = technicalLogRows(currentTechnicalLogs);
                 const stamp = document.getElementById('technicalLastUpdate');
                 if (stamp) stamp.textContent = 'LIVE • ' + new Date().toLocaleTimeString('it-IT');
@@ -5498,6 +5619,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             write(`Anno scolastico: ${configElezioni.annoScolastico || '—'}`);
             write(`Assistente tecnico di riferimento: ${technicianDisplayName}`);
             write(`Postazione PC laboratoriale: ${assistant.postazione || 'Postazione PC laboratoriale designata dall’Istituto'}`);
+            write(`Orari assistenza: ${assistant.orari||'Da documentare'} | Contatto: ${assistant.contatto||'mbtd430001@istruzione.it'}`);
             write(`Ruolo: ${assistant.ruolo || 'supporto tecnico, non componente della Commissione'}`);
             write(`Documento generato: ${new Date().toLocaleString('it-IT',{timeZone:'Europe/Rome'}) + ' (Europe/Rome)'}`);
             write('I checkpoint documentano la verifica tecnica dei servizi e non contengono voti, preferenze, token o identificativi degli elettori.', 8, false, 7);
@@ -5510,10 +5632,17 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 write(`ID registrazione: ${log.id || '—'}`,8,false,2);
                 write(`Tecnico: ${log.technicianName || '—'} | Postazione: ${log.station || '—'} | Fase: ${log.phase || '—'}`, 8, false, 2);
                 if (log.note) write(`Nota: ${log.note}`, 8, false, 3);
+                write('Ammissione al voto reale: '+(log.admission||'NON ATTESTATA nella registrazione storica'),8,true,3);
+                if(log.release)write('Release registrata: '+(log.release.commit||'commit non attestato')+' | '+log.release.policyVersion,8,false,3);
+                if(log.configurationSha256)write('SHA-256 configurazione registrata: '+log.configurationSha256,8,false,3);
                 if(log.report) {
                     write(`Versione: ${log.report.softwareVersion} | Riferimento: ${log.report.evidenceRef}`,8,true,3);
                     write('Prove dichiarate dal tecnico in ambiente separato; documentazione da verificare agli atti.',8,false,3);
                     for(const test of log.report.tests) write(`${TECHNICAL_TEST_LABELS[test.id]||test.id}: ${TECHNICAL_OUTCOME_LABELS[test.outcome]||test.outcome}. ${test.evidence||'Nessuna evidenza registrata.'}`,8,false,3);
+                }
+                if(log.privacyAssessment) {
+                    write('Valutazione architetturale registrata dal backend: '+(log.privacyAssessment.structuralAnonymityVerified?'vedere evidenze di verifica':'separazione strutturale identità-voto NON VERIFICATA'),8,true,3);
+                    write(log.privacyAssessment.limitation||'Consultare il rapporto tecnico.',8,false,3);
                 }
             });
             write('Esito e sottoscrizione', 11, true, 4);
@@ -5637,7 +5766,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                     <div class="grid md:grid-cols-2 lg:grid-cols-5 gap-3">${cards}</div>
                     <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm"><div class="flex justify-between items-center mb-4"><div><h3 class="text-sm font-black text-slate-800">Risultati per classe</h3><p class="text-[10px] text-slate-500">Solo dati aggregati: nessun abbinamento tra persona e scheda.</p></div><span class="text-[9px] bg-emerald-50 text-emerald-800 rounded-full px-2.5 py-1 font-black">LIVE</span></div><div class="overflow-auto max-h-[620px] custom-scrollbar"><table class="w-full text-left text-[10px]"><thead class="sticky top-0 bg-slate-50"><tr><th class="p-2.5">Classe</th><th class="p-2.5">Consultazione</th><th class="p-2.5 text-center">Votanti</th><th class="p-2.5 text-center">Bianche</th><th class="p-2.5 text-center">Valide</th><th class="p-2.5">Prime preferenze</th></tr></thead><tbody>${rowsHtml || '<tr><td colspan="6" class="p-8 text-center text-slate-400">Nessun voto ancora acquisito.</td></tr>'}</tbody></table></div></div>
                     ${renderManagementDocumentsSection()}
-                    <div class="bg-slate-950 text-slate-200 p-4 rounded-2xl text-[10px] grid md:grid-cols-3 gap-3"><div><b class="text-white">Avvio:</b> ${configElezioni.calendario?.votingStartDate || 'XX/10/2026'} • ${configElezioni.calendario?.votingStartTime || 'XX:XX'}</div><div><b class="text-white">Chiusura:</b> ${configElezioni.calendario?.votingEndDate || 'XX/10/2026'} • ${configElezioni.calendario?.votingEndTime || 'XX:XX'}</div><div><b class="text-white">Finestra esiti:</b> ${configElezioni.calendario?.resultsReleaseDate || 'XX/10/2026'} • ${configElezioni.calendario?.resultsReleaseTime || 'XX:XX'} ${managementResultsAreReleased() ? '• DISPONIBILI' : (configElezioni.commissionFinalized === true ? '• VALIDATI, IN ATTESA DI SBLOCCO' : '• SCRUTINIO DA VALIDARE')}</div></div>
+                    <div class="bg-white text-black p-4 rounded-2xl text-xs border"><b>Calendari per consultazione (ora italiana)</b>${consultationSummaryHTML()}<p class="mt-2">Gli esiti di ogni consultazione sono disponibili solo dopo la relativa chiusura, la convalida della Commissione e l’orario di pubblicazione.</p></div>
                 </div>`;
             lucide.createIcons();
             const stamp = document.getElementById('managementLastUpdate');
@@ -5806,7 +5935,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                         <div class="space-y-2">${roleCards.map(r=>`<div class="p-3 border rounded-2xl bg-white flex justify-between items-center"><div><b class="text-xs">${r[0]}</b><div class="text-[9px] text-slate-500">${r[1]}</div></div><i data-lucide="shield-check" class="w-5 h-5 text-emerald-600"></i></div>`).join('')}</div>
                     </div>
                     <div class="mt-6 grid sm:grid-cols-2 lg:grid-cols-5 gap-3"><div class="p-3 bg-blue-50 border border-blue-100 rounded-2xl"><div class="text-[9px] uppercase font-black text-blue-700">Dirigente</div><div id="managementCountDirigente" class="text-xl font-black text-blue-900">—</div></div><div class="p-3 bg-emerald-50 border border-emerald-100 rounded-2xl"><div class="text-[9px] uppercase font-black text-emerald-700">Vicepreside</div><div id="managementCountVice" class="text-xl font-black text-emerald-900">—</div></div><div class="p-3 bg-amber-50 border border-amber-100 rounded-2xl"><div class="text-[9px] uppercase font-black text-amber-700">DSGA</div><div id="managementCountDsga" class="text-xl font-black text-amber-900">—</div></div><div class="p-3 bg-rose-50 border border-rose-100 rounded-2xl"><div class="text-[9px] uppercase font-black text-rose-700">Segreteria</div><div id="managementCountSegreteria" class="text-xl font-black text-rose-900">—</div></div><div class="p-3 bg-slate-100 border border-slate-200 rounded-2xl"><div class="text-[9px] uppercase font-black text-slate-700">Assistente tecnico</div><div id="managementCountTechnical" class="text-xl font-black text-slate-900">—</div></div></div><div class="mt-6"><h4 class="text-xs font-black mb-3">Account creati</h4><div id="managementAccountsTable" class="overflow-auto border rounded-2xl"></div></div>
-                    <div class="mt-5 bg-amber-50 border border-amber-200 rounded-2xl p-4 text-[10px] text-amber-950"><b>Nota di sicurezza:</b> gli account gestionali sono autenticati e autorizzati lato server; le password non sono salvate in chiaro, le operazioni privilegiate sono sottoposte ad audit e ogni credenziale scade automaticamente al 31 agosto dell'anno scolastico di riferimento.<div class="mt-3 pt-3 border-t border-amber-200"><b>Motivazione normativa e organizzativa della scadenza:</b> l'O.M. 215/1991 disciplina la conclusione del procedimento elettorale prevedendo la proclamazione degli eletti e, all'art. 46, un termine di 5 giorni per i ricorsi contro i risultati e ulteriori 5 giorni per la relativa decisione; l'art. 48 collega la prima convocazione alla definizione degli eventuali ricorsi. La Nota MIM prot. 3803 del 30 giugno 2026 e il relativo Allegato tecnico rafforzano, per la gestione digitale del voto, i requisiti di controllo degli accessi, sicurezza, protezione dei dati e conservazione documentale. In coerenza anche con gli artt. 5 e 32 GDPR, una volta conclusa la consultazione, definita la fase dei reclami/ricorsi e completati gli adempimenti conclusivi, gli accessi operativi non devono restare attivi oltre il tempo necessario. La conservazione degli atti elettorali prosegue secondo le regole documentali applicabili, ma non richiede il mantenimento di credenziali operative attive. La scadenza riduce quindi il rischio di accessi successivi non più giustificati, applica il principio del minimo privilegio e separa la fase di gestione dalla successiva conservazione.</div></div>
+                    <div class="mt-5 bg-amber-50 border border-amber-200 rounded-2xl p-4 text-[10px] text-amber-950"><b>Nota di sicurezza:</b> gli account gestionali sono autenticati e autorizzati lato server; le password non sono salvate in chiaro, le operazioni privilegiate sono sottoposte ad audit e ogni credenziale scade automaticamente al 31 agosto dell'anno scolastico di riferimento.<div class="mt-3 pt-3 border-t border-amber-200"><b>Motivazione normativa e organizzativa della scadenza:</b> l'O.M. 215/1991 disciplina la conclusione del procedimento elettorale prevedendo la proclamazione degli eletti e, all'art. 46, un termine di 5 giorni per i ricorsi contro i risultati e ulteriori 5 giorni per la relativa decisione; l'art. 48 collega la prima convocazione alla definizione degli eventuali ricorsi. La Nota MIM prot. 3803 del 30 giugno 2026 riguarda le attività collegiali deliberative a distanza; il suo richiamo tecnico non autorizza da solo le elezioni digitali. La scadenza al 31 agosto è una scelta organizzativa del sistema da riesaminare per ogni incarico, non un termine imposto dall’ordinanza. In coerenza anche con gli artt. 5 e 32 GDPR, una volta conclusa la consultazione, definita la fase dei reclami/ricorsi e completati gli adempimenti conclusivi, gli accessi operativi non devono restare attivi oltre il tempo necessario. La conservazione degli atti elettorali prosegue secondo le regole documentali applicabili, ma non richiede il mantenimento di credenziali operative attive. La scadenza riduce quindi il rischio di accessi successivi non più giustificati, applica il principio del minimo privilegio e separa la fase di gestione dalla successiva conservazione.</div></div>
                 </div>`;
             lucide.createIcons();
             refreshManagementAccounts();
@@ -5911,15 +6040,18 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             </div>`;
         }
         const escapeRegularityText=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-        const REGULARITY_LABELS=Object.freeze({annualCircularRecorded:'Circolare MIM/USR annuale acquisita e protocollata',commissionAppointed:'Commissione elettorale formalmente nominata',voterRollFinal:'Elenchi elettorali definitivi e reclami sugli elenchi conclusi',candidateListsValidated:'Liste e candidature convalidate',ballotApproved:'Scheda elettorale approvata e congelata',privacyChecked:'Privacy/GDPR e minimizzazione verificati',technicalTestPassed:'Collaudo tecnico verbalizzato e superato',softwareFrozen:'Versione software/commit congelata',backupPlanReady:'Backup e ripristino verificati',incidentPlanReady:'Piano incidenti/sospensione/ripresa approvato',communicationPublished:'Comunicazioni agli elettori pubblicate',finalArchiveSealed:'Fascicolo finale sigillato con verbali/hash/evidenze',appealWindowClosed:'Termine reclami/ricorsi concluso e verificato'});
+        const REGULARITY_LABELS=Object.freeze({...LeviLegalReadiness.CONTROLS,annualCircularRecorded:'Circolare MIM/USR annuale acquisita e protocollata',commissionAppointed:'Commissione elettorale formalmente nominata',voterRollFinal:'Elenchi elettorali definitivi e reclami sugli elenchi conclusi',candidateListsValidated:'Liste e candidature convalidate',ballotApproved:'Scheda elettorale approvata e congelata',privacyChecked:'Privacy/GDPR e minimizzazione verificati',technicalTestPassed:'Collaudo tecnico verbalizzato e superato',softwareFrozen:'Versione software/commit congelata',backupPlanReady:'Backup e ripristino verificati',incidentPlanReady:'Piano incidenti/sospensione/ripresa approvato',communicationPublished:'Comunicazioni agli elettori pubblicate',finalArchiveSealed:'Fascicolo finale sigillato con verbali/hash/evidenze',appealWindowClosed:'Termine reclami/ricorsi concluso e verificato'});
+        let selectedPublication='';
+        window.selectPublication=key=>{selectedPublication=key;renderRegularityTab(document.getElementById('admin-tab-content'));};
         async function renderRegularityTab(container){
           container.innerHTML='<div class="bg-white rounded-3xl border p-6 font-bold">Verifica regolarità...</div>';
           try{const r=await SECURE_API.getRegularityState({annoScolastico:configElezioni.annoScolastico}),s=r.data?.state||{},appeals=r.data?.appeals||[],missing=r.data?.missing||[],ready=r.data?.readyForVoting===true;
+          const publication=selectedPublication?(s.publications?.[selectedPublication]||{}):s;
           const pre=Object.keys(REGULARITY_LABELS).filter(k=>!['finalArchiveSealed','appealWindowClosed'].includes(k));
           const card=k=>`<div class="p-3 rounded-2xl border ${s[k]?'bg-emerald-50 border-emerald-200':'bg-red-50 border-red-200'}"><div class="flex justify-between gap-2"><div><b class="text-[11px]">${s[k]?'✓':'✕'} ${REGULARITY_LABELS[k]}</b><div class="text-[9px] text-slate-500">${escapeRegularityText(s.notes?.[k]||'Nessuna annotazione.')}</div></div><button onclick="window.toggleRegularityControl('${k}',${!s[k]})" class="px-2 py-1 rounded-lg text-[9px] font-black ${s[k]?'bg-slate-200':'bg-emerald-700 text-white'}">${s[k]?'Revoca':'Conferma'}</button></div></div>`;
-          const rows=appeals.map(a=>`<tr class="border-t"><td class="p-2">${a.protocolRef||'—'}</td><td class="p-2">${a.subject||'—'}</td><td class="p-2 font-black">${a.status}</td><td class="p-2">${a.decisionRef||'—'}</td><td class="p-2">${a.status==='OPEN'?`<button onclick="window.resolveRegularityAppeal('${a.id}')" class="px-2 py-1 bg-emerald-700 text-white rounded-lg">Decisione</button>`:'Definito'}</td></tr>`).join('');
-          container.innerHTML=`<div class="w-full space-y-5 font-semibold"><div class="bg-white rounded-3xl shadow border p-6"><div class="flex justify-between gap-4"><div><span class="text-[9px] bg-blue-900 text-white px-2 py-1 rounded font-black">REGOLARITÀ PROCEDIMENTO</span><h3 class="text-xl font-black mt-2">A.S. ${configElezioni.annoScolastico}</h3><p class="text-[10px] text-slate-500">O.M. 215/1991 e s.m.i. · circolare annuale MIM/USR · Nota MIM 3803/2026 · GDPR/CAD/AgID. I controlli tecnici non sostituiscono gli atti formali. La Nota 3803/2026 riguarda le attività collegiali deliberative a distanza: la base giuridica delle elezioni va verificata separatamente. Consultare la <a href="docs/12_VERIFICHE_PRIMA_DEL_VOTO.md" target="_blank" rel="noopener" class="underline">checklist di verifica e le prove richieste</a>.</p></div><div class="p-3 rounded-2xl ${ready?'bg-emerald-100 text-emerald-900':'bg-red-100 text-red-900'}"><b>${ready?'APERTURA ABILITATA':'APERTURA BLOCCATA'}</b></div></div>${missing.length?`<div class="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-[10px]"><b>Mancano:</b> ${missing.map(k=>REGULARITY_LABELS[k]||k).join(' · ')}</div>`:''}<div class="mt-4 grid md:grid-cols-2 gap-3">${pre.map(card).join('')}</div><input id="regularityNote" placeholder="Obbligatorio per confermare: estremi della verifica, protocollo, verbale o delibera" class="mt-4 w-full p-2.5 border rounded-xl text-xs"></div>
-          <div class="grid lg:grid-cols-2 gap-5"><div class="bg-white rounded-3xl shadow border p-5 space-y-2"><b>Pubblicazione risultati / termini ricorsi</b><input id="regPubProtocol" placeholder="Protocollo/estremi pubblicazione" class="w-full p-2 border rounded-xl text-xs"><input id="regAppealDeadline" type="date" class="w-full p-2 border rounded-xl text-xs"><button onclick="window.recordRegularityPublication()" class="w-full p-2 bg-blue-900 text-white rounded-xl text-xs font-black">Registra pubblicazione</button><div class="text-[10px]">${s.resultsPublished?'Registrata: '+(s.resultsPublicationProtocol||''):'Non registrata'}</div></div><div class="bg-white rounded-3xl shadow border p-5 space-y-2"><b>Incidente / sospensione</b><input id="regIncidentTitle" placeholder="Titolo" class="w-full p-2 border rounded-xl text-xs"><input id="regIncidentProtocol" placeholder="Protocollo/verbale" class="w-full p-2 border rounded-xl text-xs"><textarea id="regIncidentDetails" placeholder="Descrizione, impatto, decisione" class="w-full p-2 border rounded-xl text-xs"></textarea><label class="text-[10px]"><input id="regIncidentSuspend" type="checkbox"> sospendi nuovi accessi al voto</label><button onclick="window.recordRegularityIncident()" class="w-full p-2 bg-amber-600 text-white rounded-xl text-xs font-black">Registra incidente</button><button onclick="window.resumeRegularityElection()" class="w-full p-2 bg-slate-100 rounded-xl text-xs font-black">Registra ripresa</button><div class="text-[10px] font-black">${s.emergencySuspended?'VOTAZIONE SOSPESA':'Nessuna sospensione attiva'}</div></div></div>
+          const rows=appeals.filter(a=>!selectedPublication||a.electionKey===selectedPublication).map(a=>`<tr class="border-t"><td class="p-2">${escapeRegularityText(a.protocolRef||'—')}<br><small>${escapeRegularityText(LeviElectionPolicy.ELECTIONS[a.electionKey]?.label||'Generale')}</small></td><td class="p-2">${escapeRegularityText(a.subject||'—')}</td><td class="p-2 font-black">${escapeRegularityText(a.status)}</td><td class="p-2">${escapeRegularityText(a.decisionRef||'—')}</td><td class="p-2">${a.status==='OPEN'?`<button onclick="window.resolveRegularityAppeal('${a.id}')" class="px-2 py-1 bg-emerald-700 text-white rounded-lg">Decisione</button>`:'Definito'}</td></tr>`).join('');
+          container.innerHTML=`<div class="w-full space-y-5 font-semibold"><div class="bg-white rounded-3xl shadow border p-6"><div class="flex justify-between gap-4"><div><span class="text-[9px] bg-blue-900 text-white px-2 py-1 rounded font-black">REGOLARITÀ PROCEDIMENTO</span><h3 class="text-xl font-black mt-2">A.S. ${configElezioni.annoScolastico}</h3><p class="text-[10px] text-slate-500">O.M. 215/1991 e s.m.i. · circolare annuale MIM/USR · Nota MIM 3803/2026 · GDPR/CAD/AgID. I controlli tecnici non sostituiscono gli atti formali. La Nota 3803/2026 riguarda le attività collegiali deliberative a distanza: la base giuridica delle elezioni va verificata separatamente. Consultare la <a href="docs/12_VERIFICHE_PRIMA_DEL_VOTO.md" target="_blank" rel="noopener" class="underline">checklist di verifica e le prove richieste</a>.</p></div><div class="p-3 rounded-2xl ${ready?'bg-emerald-100 text-emerald-900':'bg-red-100 text-red-900'}"><b>${ready?'APERTURA ABILITATA':'APERTURA BLOCCATA'}</b></div></div>${missing.length?`<div class="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-[10px]"><b>Mancano:</b> ${missing.map(k=>REGULARITY_LABELS[k]||LeviLegalReadiness.BLOCKER_LABELS[k]||k).join(' · ')}</div>`:''}<div class="mt-4 flex flex-wrap gap-2"><a href="note-legali.html" target="_blank" rel="noopener noreferrer" class="underline text-xs">Note legali e privacy</a><button onclick="window.openPrivacyReview()" class="px-3 py-2 bg-slate-900 text-white rounded-lg text-xs">Fascicolo DPO / gestione blocchi</button><button onclick="window.downloadLegalReadiness()" class="px-3 py-2 border rounded-lg text-xs">Scarica matrice requisiti ed evidenze</button></div><div class="mt-4 grid md:grid-cols-2 gap-3">${pre.map(card).join('')}</div><input id="regularityNote" placeholder="Indicare: consultazione, fonte/atto, protocollo, verificatore, data, evidenza e rischio residuo. Nessun dato degli elettori." class="mt-4 w-full p-2.5 border rounded-xl text-xs"></div>
+          <div class="grid lg:grid-cols-2 gap-5"><div class="bg-white rounded-3xl shadow border p-5 space-y-2"><b>Pubblicazione risultati / termini ricorsi</b><label class="block text-xs">Consultazione (vale anche per il registro ricorsi)<select onchange="window.selectPublication(this.value)" class="w-full p-2 border rounded-xl text-black"><option value="">Generale / storico senza profilo dedicato</option>${Object.entries(LeviElectionPolicy.ELECTIONS).map(([key,e])=>`<option value="${key}" ${selectedPublication===key?'selected':''}>${technicalEscape(e.label)}</option>`).join('')}</select></label><p class="text-xs text-slate-600">La pubblicazione di ottobre non chiude le consultazioni di novembre. Inserire il termine previsto dagli atti applicabili alla consultazione selezionata.</p><input id="regPubProtocol" placeholder="Protocollo/estremi pubblicazione" class="w-full p-2 border rounded-xl text-xs"><input id="regAppealDeadline" type="date" class="w-full p-2 border rounded-xl text-xs"><button onclick="window.recordRegularityPublication()" class="w-full p-2 bg-blue-900 text-white rounded-xl text-xs font-black">Registra pubblicazione</button><div class="text-[10px]">${publication.resultsPublished?'Registrata: '+escapeRegularityText(publication.resultsPublicationProtocol||'')+' · Termine ricorsi: '+escapeRegularityText(publication.appealDeadline||''):'Non registrata per questa consultazione'}</div></div><div class="bg-white rounded-3xl shadow border p-5 space-y-2"><b>Incidente / sospensione</b><input id="regIncidentTitle" placeholder="Titolo" class="w-full p-2 border rounded-xl text-xs"><input id="regIncidentProtocol" placeholder="Protocollo/verbale" class="w-full p-2 border rounded-xl text-xs"><textarea id="regIncidentDetails" placeholder="Descrizione, impatto, decisione" class="w-full p-2 border rounded-xl text-xs"></textarea><label class="text-[10px]"><input id="regIncidentSuspend" type="checkbox"> sospendi nuovi accessi al voto</label><button onclick="window.recordRegularityIncident()" class="w-full p-2 bg-amber-600 text-white rounded-xl text-xs font-black">Registra incidente</button><button onclick="window.resumeRegularityElection()" class="w-full p-2 bg-slate-100 rounded-xl text-xs font-black">Registra ripresa</button><div class="text-[10px] font-black">${s.emergencySuspended?'VOTAZIONE SOSPESA':'Nessuna sospensione attiva'}</div></div></div>
           <div class="bg-white rounded-3xl shadow border p-5"><b>Registro reclami / ricorsi</b><div class="grid md:grid-cols-[1fr_2fr_auto] gap-2 mt-2"><input id="regAppealProtocol" placeholder="Protocollo" class="p-2 border rounded-xl text-xs"><input id="regAppealSubject" placeholder="Oggetto sintetico (senza dati eccedenti)" class="p-2 border rounded-xl text-xs"><button onclick="window.fileRegularityAppeal()" class="px-4 bg-red-700 text-white rounded-xl text-xs font-black">Registra</button></div><div class="overflow-auto mt-3 border rounded-xl"><table class="w-full text-[10px]"><tbody>${rows||'<tr><td class="p-5 text-center">Nessun ricorso registrato.</td></tr>'}</tbody></table></div><div class="mt-2 text-[10px]"><b>Legal hold:</b> ${s.legalHold?'ATTIVO':'non attivo'}</div></div>
           <div class="bg-white rounded-3xl shadow border p-5"><b>Chiusura definitiva e conservazione</b><p class="text-[10px] text-slate-500">Richiede pubblicazione, termine ricorsi chiuso, nessun ricorso aperto e fascicolo sigillato. Revoca automaticamente Dirigente, Vicepreside, DSGA e Segreteria.</p><div class="grid md:grid-cols-2 gap-3 mt-3">${card('appealWindowClosed')}${card('finalArchiveSealed')}</div><div class="flex gap-2 mt-3"><input id="regClosureRef" placeholder="Estremi verbale/provvedimento di chiusura" class="flex-1 p-2 border rounded-xl text-xs"><button onclick="window.closeRegularityProcedure()" class="px-4 bg-slate-900 text-white rounded-xl text-xs font-black" ${s.procedureClosed?'disabled':''}>${s.procedureClosed?'CHIUSO':'Chiudi definitivamente'}</button></div></div></div>`;lucide.createIcons();}catch(e){container.innerHTML=`<div class="bg-white rounded-3xl border p-8 text-red-700 font-bold">Impossibile caricare la regolarità: ${e.message||'errore'}</div>`;}}
         window.toggleRegularityControl=async(control,value)=>{
@@ -5935,11 +6067,11 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 renderActiveAdminTab();
             }catch(e){showNotification('Controllo non aggiornato',e.message||'Errore','error');}
         };
-        window.recordRegularityPublication=async()=>{try{await SECURE_API.recordResultsPublication({annoScolastico:configElezioni.annoScolastico,protocolRef:document.getElementById('regPubProtocol').value.trim(),appealDeadline:document.getElementById('regAppealDeadline').value});renderActiveAdminTab();}catch(e){showNotification('Pubblicazione non registrata',e.message||'Errore','error');}};
-        window.fileRegularityAppeal=async()=>{try{await SECURE_API.fileElectoralAppeal({annoScolastico:configElezioni.annoScolastico,protocolRef:document.getElementById('regAppealProtocol').value.trim(),subject:document.getElementById('regAppealSubject').value.trim()});renderActiveAdminTab();}catch(e){showNotification('Ricorso non registrato',e.message||'Errore','error');}};
+        window.recordRegularityPublication=async()=>{try{await SECURE_API.recordResultsPublication({annoScolastico:configElezioni.annoScolastico,electionKey:selectedPublication,protocolRef:document.getElementById('regPubProtocol').value.trim(),appealDeadline:document.getElementById('regAppealDeadline').value});renderActiveAdminTab();}catch(e){showNotification('Pubblicazione non registrata',e.message||'Errore','error');}};
+        window.fileRegularityAppeal=async()=>{try{await SECURE_API.fileElectoralAppeal({annoScolastico:configElezioni.annoScolastico,electionKey:selectedPublication,protocolRef:document.getElementById('regAppealProtocol').value.trim(),subject:document.getElementById('regAppealSubject').value.trim()});renderActiveAdminTab();}catch(e){showNotification('Ricorso non registrato',e.message||'Errore','error');}};
         window.resolveRegularityAppeal=async id=>{const decisionRef=prompt('Protocollo/estremi della decisione:');if(!decisionRef)return;try{await SECURE_API.resolveElectoralAppeal({annoScolastico:configElezioni.annoScolastico,id,decisionRef});renderActiveAdminTab();}catch(e){showNotification('Decisione non registrata',e.message||'Errore','error');}};
         window.recordRegularityIncident=async()=>{try{await SECURE_API.recordElectoralIncident({annoScolastico:configElezioni.annoScolastico,title:document.getElementById('regIncidentTitle').value.trim(),protocolRef:document.getElementById('regIncidentProtocol').value.trim(),details:document.getElementById('regIncidentDetails').value.trim(),suspend:document.getElementById('regIncidentSuspend').checked});renderActiveAdminTab();}catch(e){showNotification('Incidente non registrato',e.message||'Errore','error');}};
-        window.resumeRegularityElection=async()=>{const reason=prompt('Motivazione e verbale di ripresa:');if(!reason)return;try{await SECURE_API.setEmergencySuspension({annoScolastico:configElezioni.annoScolastico,suspended:false,reason});renderActiveAdminTab();}catch(e){showNotification('Ripresa non registrata',e.message||'Errore','error');}};
+        window.resumeRegularityElection=()=>window.openPrivacyReview();
         window.closeRegularityProcedure=async()=>{const closureRef=document.getElementById('regClosureRef').value.trim();if(!closureRef)return showNotification('Dato mancante','Inserire gli estremi della chiusura.','error');if(!confirm('Confermare la chiusura definitiva e la revoca degli accessi gestionali?'))return;try{const r=await SECURE_API.closeElectoralProcedure({annoScolastico:configElezioni.annoScolastico,closureRef});showNotification('Procedimento chiuso',`Accessi revocati: ${r.data?.revokedManagementAccounts||0}`,'success');renderActiveAdminTab();}catch(e){showNotification('Chiusura non consentita',e.message||'Errore','error');}};
         async function renderDigitalWorkflowTab(container) {
             const w=workflowStatus();
@@ -5986,7 +6118,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
         };
         window.saveWorkflowStage=async function(stage){configElezioni.workflowDigitale=configElezioni.workflowDigitale||{};if(stage==='docenti')configElezioni.workflowDigitale.docentiApproved=!!document.getElementById('workflowDocentiCheck')?.checked;if(stage==='commissione')configElezioni.workflowDigitale.commissionApproved=!!document.getElementById('workflowCommissionCheck')?.checked;if(!(configElezioni.workflowDigitale.docentiApproved&&configElezioni.workflowDigitale.commissionApproved))configElezioni.workflowDigitale.verbaliUnlocked=false;await saveConfigToDB();renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));};
         window.unlockDigitalMinutes=async function(){configElezioni.workflowDigitale=configElezioni.workflowDigitale||{};const w=workflowStatus();if(!w.docentiApproved||!w.commissionApproved)return showNotification('Workflow bloccato','Servono entrambi i via libera: Docenti e Commissione.','error');if(!w.checklistComplete)return showNotification('Checklist incompleta','Completare tutti i controlli di chiusura prima dello sblocco.','error');configElezioni.workflowDigitale.verbaliUnlocked=true;configElezioni.workflowDigitale.releasedAt=new Date().toISOString();configElezioni.workflowDigitale.releasedBy=currentUserData?.nome||'Commissione Elettorale';await saveConfigToDB();showNotification('Verbali sbloccati','La Segreteria può ora consultare verbali e atti in sola lettura.','success');renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));};
-        window.generateDigitalAttestation=async function(){const payload=JSON.stringify({annoScolastico:configElezioni.annoScolastico,tipologiaElezioni:configElezioni.tipologiaElezioni,riferimentoCircolare:configElezioni.riferimentoCircolare,commissione:configElezioni.commissione,calendario:configElezioni.calendario,workflow:workflowStatus(),timestamp:new Date().toISOString()});const hash=await sha256Text(payload);configElezioni.workflowDigitale=configElezioni.workflowDigitale||{};configElezioni.workflowDigitale.digitalAttestationHash=hash;configElezioni.workflowDigitale.digitalAttestationAt=new Date().toISOString();await saveConfigToDB();showNotification('Attestazione generata','Impronta SHA-256 registrata per l\'anno scolastico selezionato.','success');renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));};
+        window.generateDigitalAttestation=async function(){const payload=JSON.stringify({annoScolastico:configElezioni.annoScolastico,tipologiaElezioni:configElezioni.tipologiaElezioni,riferimentoCircolare:configElezioni.riferimentoCircolare,consultazioni:configElezioni.consultazioni||{},commissione:configElezioni.commissione,calendario:configElezioni.calendario,workflow:workflowStatus(),timestamp:new Date().toISOString()});const hash=await sha256Text(payload);configElezioni.workflowDigitale=configElezioni.workflowDigitale||{};configElezioni.workflowDigitale.digitalAttestationHash=hash;configElezioni.workflowDigitale.digitalAttestationAt=new Date().toISOString();await saveConfigToDB();showNotification('Attestazione generata','Impronta SHA-256 registrata per l\'anno scolastico selezionato.','success');renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));};
         window.markDigitalArchiveReady=async function(){configElezioni.workflowDigitale=configElezioni.workflowDigitale||{};if(!workflowCanSecretarySeeDocuments())return showNotification('Archivio non pronto','Completare Docenti, Commissione e sblocco verbali.','error');if(!configElezioni.workflowDigitale.digitalAttestationHash)return showNotification('Attestazione mancante','Generare prima l\'impronta digitale.','error');configElezioni.workflowDigitale.archived=true;configElezioni.workflowDigitale.archivedAt=new Date().toISOString();configElezioni.workflowDigitale.archivedBy=currentUserData?.nome||'Commissione Elettorale';await saveConfigToDB();showNotification('Archivio registrato','Il fascicolo digitale dell\'A.S. è stato marcato come pronto per la conservazione agli atti.','success');renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));};
 
         function escapeXmlDocx(value) {
@@ -6035,7 +6167,9 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             body.push(docxParagraph(`VERBALE ELETTORALE DETTAGLIATO — ${d.title}`,true));
             body.push(docxParagraph(`Anno scolastico: ${configElezioni.annoScolastico||'________'} | Tipologia generale: ${configElezioni.tipologiaElezioni||'________'}`));
             body.push(docxParagraph(`Generato il: ${new Date().toLocaleString('it-IT')}`));
-            const circ=configElezioni.riferimentoCircolare||{};
+            const profile=LeviElectionPolicy.profile(configElezioni,consultationKey(section));
+            const firstAct=profile.acts?.[0];
+            const circ=profile.dedicated?(firstAct?{numero:firstAct.protocol,data:firstAct.date,oggetto:firstAct.subject,url:firstAct.url}:{}):(configElezioni.riferimentoCircolare||{});
             body.push(docxHeading('1. VISTI, VISTA, CONSIDERATO, TENUTO CONTO, ACCERTATA',1));
             body.push(docxParagraph('VISTO il D.Lgs. 16 aprile 1994, n. 297, in materia di istruzione e organi collegiali;'));
             body.push(docxParagraph('VISTA l’O.M. 15 luglio 1991, n. 215, e successive modificazioni e integrazioni, per quanto applicabile alla consultazione in oggetto;'));
@@ -6055,6 +6189,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 ['Linee guida AgID sul documento informatico','Formazione, gestione, integrità, metadati e conservazione.'],
                 ['Circolare/nota annuale MIM/USR',`${circ.numero||'________'} | ${circ.data||'________'} | ${circ.oggetto||'________'}`]
             ]));
+            if(profile.dedicated) body.push(docxTable([['Ente','Protocollo','Data','Oggetto e URL'],...(profile.acts||[]).map(a=>[a.authority,a.protocol,a.date,a.subject+' '+(a.url||'')])]));
             body.push(docxHeading('3. COMPOSIZIONE DEI SOGGETTI RESPONSABILI',1));
             const technicalAssistant = configElezioni.assistenteTecnico || {};
             body.push(docxTable([
@@ -6066,7 +6201,8 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             ]));
             body.push(docxHeading('4. CALENDARIO DELLA CONSULTAZIONE',1));
             const cal=configElezioni.calendario||{};
-            body.push(docxTable([['Fase','Data','Ora'],['Apertura votazioni',cal.votingStartDate||'________',cal.votingStartTime||'________'],['Chiusura votazioni',cal.votingEndDate||'________',cal.votingEndTime||'________'],['Finestra prevista esiti',cal.resultsReleaseDate||'________',cal.resultsReleaseTime||'________'],['Sblocco verbali',configElezioni.workflowDigitale?.releasedAt||'________',''] ]));
+            if(profile.dedicated) body.push(docxTable([['Giornata di voto (Europe/Rome)','Dalle ore','Alle ore'],...(profile.windows||[]).map(w=>[w.date,w.from,w.to]),['Pubblicazione esiti: '+(profile.releaseDate||'da definire'),profile.releaseTime||'','']]));
+            else body.push(docxTable([['Fase','Data','Ora'],['Apertura votazioni',cal.votingStartDate||'________',cal.votingStartTime||'________'],['Chiusura votazioni',cal.votingEndDate||'________',cal.votingEndTime||'________'],['Finestra prevista esiti',cal.resultsReleaseDate||'________',cal.resultsReleaseTime||'________'],['Sblocco verbali',configElezioni.workflowDigitale?.releasedAt||'________',''] ]));
             body.push(docxHeading('5. RISULTANZE DELLA CONSULTAZIONE',1));
             body.push(docxTable([['Indicatore','Valore'],['Schede acquisite',String(filtered.length)],['Schede bianche',String(whites)],['Schede valide',String(valid)],['Classi interessate',String(classes.length)],['Liste con voti',String(Object.keys(listCounts).length)]]));
             body.push(docxHeading('6. RISULTATI DETTAGLIATI',1));
@@ -6124,6 +6260,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             }
 
             onAuthStateChanged(auth, async (user) => {
+                if (!user) electionTestLog=[];
                 if (user) {
                     try {
                         await syncConfigFromDB();

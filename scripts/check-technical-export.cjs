@@ -5,7 +5,7 @@ const start=html.indexOf('        async function fetchCompleteTechnicalLog()');
 const end=html.indexOf('        window.downloadTechnicalEvidence',start);
 const events=Array.from({length:205},(_,i)=>({id:String(i),at:'2026-09-01T10:00:00.000Z'}));
 let calls=0,failAt=0;
-const sandbox={configElezioni:{annoScolastico:'2026/2027'},SECURE_API:{getTechnicalLogs:async request=>{
+const sandbox={window:{},configElezioni:{annoScolastico:'2026/2027'},SECURE_API:{getTechnicalLogs:async request=>{
  calls++;if(calls===failAt) throw new Error('Service unavailable');
  const offset=request.cursor?Number(request.cursor):0;
  if(offset) assert.equal(request.snapshotUntil,'2026-09-02T10:00:00.000Z');
