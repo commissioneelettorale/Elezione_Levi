@@ -10,12 +10,33 @@ service cloud.firestore {
       return signedIn() && request.auth.token.role == roleName;
     }
 
+    function activeStaff() {
+      let year = request.auth.token.staffYear.replace('/', '_');
+      let accounts = 'gestione_accessi_' + year;
+      let account = get(/databases/$(database)/documents/artifacts/iis-levi-electoral-v3/public/data/$(accounts)/$(request.auth.token.staffAccountId)).data;
+      return account.active != false && account.role == request.auth.token.role
+        && account.get('sessionVersion', 0) == request.auth.token.get('sessionVersion', 0)
+        && account.get('mustChangePassword', false) != true;
+    }
+
+    function editableRoll(collectionId) {
+      let year = request.auth.token.staffYear.replace('/', '_');
+      let settings = 'yearly_settings_' + year;
+      let regularity = 'regolarita_' + year;
+      let config = get(/databases/$(database)/documents/artifacts/iis-levi-electoral-v3/public/data/config/$(settings)).data;
+      let state = get(/databases/$(database)/documents/artifacts/iis-levi-electoral-v3/public/data/$(regularity)/state).data;
+      return collectionId == 'tokens_' + year
+        && config.votingStartsAtMs > request.time.toMillis()
+        && state.get('voterRollFinal', false) != true
+        && state.get('procedureClosed', false) != true;
+    }
+
     function isCommission() {
-      return roleIs('COMMISSIONE');
+      return roleIs('COMMISSIONE') && activeStaff() && request.auth.token.mustChangePassword != true;
     }
 
     function isInstitutionalStaff() {
-      return signedIn() && request.auth.token.role in [
+      return signedIn() && activeStaff() && request.auth.token.role in [
         'COMMISSIONE', 'DIRIGENTE', 'VICEPRESIDE', 'DSGA', 'SEGRETERIA'
       ];
     }
@@ -34,7 +55,7 @@ service cloud.firestore {
       allow read: if isCommission()
         && collectionId.matches('tokens_[0-9]{4}_[0-9]{4}');
 
-      allow create: if isCommission()
+      allow create: if isCommission() && editableRoll(collectionId)
         && collectionId.matches('tokens_[0-9]{4}_[0-9]{4}')
         && request.resource.data.keys().hasOnly([
           'nome', 'classe', 'indirizzo', 'tipo', 'hasVoted',
@@ -50,7 +71,7 @@ service cloud.firestore {
         && request.resource.data.voted_classe_genitore == false;
 
       // Solo correzioni anagrafiche, mai stato di voto/sessione.
-      allow update: if isCommission()
+      allow update: if isCommission() && editableRoll(collectionId)
         && collectionId.matches('tokens_[0-9]{4}_[0-9]{4}')
         && request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['nome','classe','indirizzo','tipo']);

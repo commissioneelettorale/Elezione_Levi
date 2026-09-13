@@ -87,7 +87,7 @@ function safeEqualHex(a, b) {
   return aa.length === bb.length && aa.length > 0 && crypto.timingSafeEqual(aa, bb);
 }
 
-function requireAuth(request, allowedRoles = []) {
+async function requireAuth(request, allowedRoles = []) {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Autenticazione richiesta.');
   const role = String(request.auth.token.role || '').toUpperCase();
   if (allowedRoles.length && !allowedRoles.includes(role)) {
@@ -103,6 +103,23 @@ function requireAuth(request, allowedRoles = []) {
   }
   if (role === 'COMMISSIONE' && request.auth.token.mustChangePassword === true) {
     throw new HttpsError('failed-precondition', 'Cambio password obbligatorio prima di utilizzare le funzioni della Commissione.');
+  }
+  if (ALLOWED_STAFF_ROLES.has(role)) {
+    const claims = request.auth.token;
+    const year = String(claims.staffYear || '');
+    const requestedYear = request.data?.annoScolastico || request.data?.config?.annoScolastico || year;
+    if (!/^20\d{2}\/20\d{2}$/.test(year) || requestedYear !== year || !claims.staffAccountId) {
+      throw new HttpsError('permission-denied', 'Sessione non valida per questo anno. Effettuare nuovamente il login.');
+    }
+    const snap = await yearlyCollection('gestione_accessi', year).doc(claims.staffAccountId).get();
+    const record = snap.exists ? snap.data() : null;
+    if (!record || record.active === false || normalize(record.role) !== role ||
+        Number(record.sessionVersion || 0) !== Number(claims.sessionVersion || 0)) {
+      throw new HttpsError('permission-denied', 'Accesso revocato. Effettuare nuovamente il login.');
+    }
+    if (record.mustChangePassword === true) throw new HttpsError('failed-precondition', 'Cambio password obbligatorio.');
+    const expiry = managementExpiryForRecord(record, year, role);
+    if (expiry && Date.now() >= expiry.getTime()) throw new HttpsError('permission-denied', 'Incarico scaduto.');
   }
   return { uid: request.auth.uid, role, claims: request.auth.token };
 }
@@ -334,6 +351,7 @@ async function authenticateStaff({ username, password, requestedRole, year }) {
     staffAccountId: docSnap.id,
     staffDisplayName: record.name || uname,
     staffYear: String(year || ''),
+    sessionVersion: Number(record.sessionVersion || 0),
     mustChangePassword: record.mustChangePassword === true,
     ...(expiresAt ? { staffExpiresAt: Math.floor(expiresAt.getTime() / 1000) } : {})
   };
@@ -359,6 +377,25 @@ function getListConfig(config, component, voterType) {
   return {};
 }
 
+function rejectExtraPreferences(ballot, prefix, max) {
+  for (const [key, value] of Object.entries(ballot)) {
+    if (key.startsWith(prefix) && /^\d+$/.test(key.slice(prefix.length)) &&
+        Number(key.slice(prefix.length)) > max && normalize(value)) {
+      throw new HttpsError('invalid-argument', 'Numero di preferenze superiore al limite della scheda.');
+    }
+  }
+}
+function romeToday() {
+  const parts = new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/Rome', year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  const p = Object.fromEntries(parts.map(x=>[x.type,x.value]));
+  return `${p.year}-${p.month}-${p.day}`;
+}
+function assertAppealDeadlineElapsed(state) {
+  if (!state.resultsPublished || !/^\d{4}-\d{2}-\d{2}$/.test(state.appealDeadline || '') || romeToday() <= state.appealDeadline) {
+    throw new HttpsError('failed-precondition', 'Il termine dei ricorsi non è ancora trascorso (ora italiana).');
+  }
+}
+
 function validateListBallot(ballot, config, component, voterType) {
   if (!ballot || typeof ballot !== 'object') return null;
   const lists = getListConfig(config, component, voterType);
@@ -372,6 +409,7 @@ function validateListBallot(ballot, config, component, voterType) {
     consulta: Number(config.maxPrefConsulta || 0)
   };
   const max = Math.max(0, Math.min(10, maxMap[component] || 0));
+  rejectExtraPreferences(ballot, 'p', max);
   const allowedCandidates = new Set((lists[listKey].candidati || []).map(canonicalName));
   const prefs = [];
   for (let i = 1; i <= max; i++) {
@@ -394,6 +432,7 @@ async function validateClassBallot(ballot, config, voterType, voterClass, year) 
   if (!ballot || typeof ballot !== 'object') return null;
   const isStudent = voterType === 'STUDENTE';
   const max = Math.max(1, Math.min(4, Number(isStudent ? config.maxPrefClasseStudenti : config.maxPrefClasseGenitori) || 1));
+  rejectExtraPreferences(ballot, 'candidate', max);
   const values = [];
   for (let i = 1; i <= max; i++) {
     const value = normalize(ballot[`candidate${i}`]);
@@ -415,6 +454,7 @@ async function validateClassBallot(ballot, config, voterType, voterClass, year) 
     const name = d.data()?.nome;
     if (name && normalize(name) !== 'ELETTORE ANONIMO') eligible.add(canonicalName(name));
   });
+  if (!eligible.size) throw new HttpsError('failed-precondition', 'Elenco eleggibili non disponibile: scheda non registrata.');
   if (eligible.size) {
     for (const value of values) {
       if (!eligible.has(canonicalName(value))) {
@@ -711,7 +751,7 @@ function technicalControlsOk(controls) {
 }
 
 exports.getTechnicalStatus = async (request) => {
-  const actor = requireAuth(request, ['ASSISTENTE_TECNICO', 'COMMISSIONE']);
+  const actor = await requireAuth(request, ['ASSISTENTE_TECNICO', 'COMMISSIONE']);
   const year = request.data?.annoScolastico || actor.claims?.staffYear;
   enforceTechnicalYear(actor, year);
   const config = await loadElectionConfig(year);
@@ -739,7 +779,7 @@ exports.getTechnicalStatus = async (request) => {
 };
 
 exports.recordTechnicalCheckpoint = async (request) => {
-  const actor = requireAuth(request, ['ASSISTENTE_TECNICO', 'COMMISSIONE']);
+  const actor = await requireAuth(request, ['ASSISTENTE_TECNICO', 'COMMISSIONE']);
   const year = request.data?.annoScolastico || actor.claims?.staffYear;
   enforceTechnicalYear(actor, year);
   const event = String(request.data?.event || '').trim().toUpperCase();
@@ -768,7 +808,7 @@ exports.recordTechnicalCheckpoint = async (request) => {
 };
 
 exports.getTechnicalLogs = async (request) => {
-  const actor = requireAuth(request, ['ASSISTENTE_TECNICO', 'COMMISSIONE']);
+  const actor = await requireAuth(request, ['ASSISTENTE_TECNICO', 'COMMISSIONE']);
   const year = request.data?.annoScolastico || actor.claims?.staffYear;
   enforceTechnicalYear(actor, year);
   const snap = await yearlyCollection('audit_tecnico', year).orderBy('at', 'desc').limit(100).get();
@@ -800,6 +840,7 @@ exports.changeCommissionPassword = async (request) => {
   }
   const accountId = String(request.auth.token.staffAccountId || '').trim();
   const year = String(request.data?.annoScolastico || '').trim();
+  if (request.auth.token.staffYear !== year) throw new HttpsError('permission-denied','Anno della sessione non valido. Effettuare nuovamente il login.');
   const newPassword = String(request.data?.newPassword || '');
   const confirmPassword = String(request.data?.confirmPassword || '');
   if (!accountId || !/^20\d{2}\/20\d{2}$/.test(year)) {
@@ -816,6 +857,7 @@ exports.changeCommissionPassword = async (request) => {
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError('not-found', 'Account Commissione non trovato.');
   const record = snap.data() || {};
+  if (Number(record.sessionVersion || 0) !== Number(request.auth.token.sessionVersion || 0)) throw new HttpsError('permission-denied','Sessione revocata.');
   if (normalize(record.role) !== 'COMMISSIONE' || record.active === false) {
     throw new HttpsError('permission-denied', 'Account Commissione non autorizzato.');
   }
@@ -828,7 +870,8 @@ exports.changeCommissionPassword = async (request) => {
       mustChangePassword: false,
       bootstrapAccount: false,
       passwordChangedAt: FieldValue.serverTimestamp(),
-      passwordChangedBy: accountId
+      passwordChangedBy: accountId,
+      sessionVersion: Number(record.sessionVersion || 0) + 1
     });
   } else {
     throw new HttpsError('invalid-argument', 'La nuova password deve essere diversa dalla password temporanea o precedente.');
@@ -838,6 +881,8 @@ exports.changeCommissionPassword = async (request) => {
     role: 'COMMISSIONE',
     scopeClass: record.scopeClass || 'TUTTE',
     staffAccountId: accountId,
+    staffYear: String(year || ''),
+    sessionVersion: Number(record.sessionVersion || 0) + 1,
     mustChangePassword: false
   };
   const customToken = await getAuth().createCustomToken(`staff-${accountId}-${crypto.randomUUID()}`, claims);
@@ -882,7 +927,7 @@ exports.referentLogin = async (request) => {
 };
 
 exports.getAnonymousBallots = async (request) => {
-  const actor = requireAuth(request, ['COMMISSIONE', 'DIRIGENTE', 'VICEPRESIDE', 'DSGA', 'SEGRETERIA', 'REFERENTE']);
+  const actor = await requireAuth(request, ['COMMISSIONE', 'DIRIGENTE', 'VICEPRESIDE', 'DSGA', 'SEGRETERIA', 'REFERENTE']);
   const collectionName = String(request.data?.collection || '');
   const year = request.data?.annoScolastico;
   if (!BALLOT_COLLECTIONS.has(collectionName)) throw new HttpsError('invalid-argument', 'Urna non valida.');
@@ -919,7 +964,7 @@ exports.getAnonymousBallots = async (request) => {
 };
 
 exports.createStaffAccount = async (request) => {
-  const actor = requireAuth(request, ['COMMISSIONE']);
+  const actor = await requireAuth(request, ['COMMISSIONE']);
   const year = request.data?.annoScolastico;
   const name = String(request.data?.name || '').trim();
   const username = String(request.data?.username || '').trim().toLowerCase();
@@ -958,7 +1003,7 @@ exports.createStaffAccount = async (request) => {
 };
 
 exports.getStaffAccounts = async (request) => {
-  requireAuth(request, ['COMMISSIONE']);
+  await requireAuth(request, ['COMMISSIONE']);
   const year = request.data?.annoScolastico;
   const snap = await yearlyCollection('gestione_accessi', year).get();
   const accounts = [];
@@ -984,18 +1029,18 @@ exports.getStaffAccounts = async (request) => {
 };
 
 exports.setStaffAccountActive = async (request) => {
-  const actor = requireAuth(request, ['COMMISSIONE']);
+  const actor = await requireAuth(request, ['COMMISSIONE']);
   const year = request.data?.annoScolastico;
   const id = String(request.data?.id || '');
   const active = request.data?.active === true;
   if (!id) throw new HttpsError('invalid-argument', 'Account mancante.');
-  await yearlyCollection('gestione_accessi', year).doc(id).update({ active, updatedAt: FieldValue.serverTimestamp() });
+  await yearlyCollection('gestione_accessi', year).doc(id).update({ active, sessionVersion: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() });
   await auditAdmin(actor, 'SET_STAFF_ACCOUNT_ACTIVE', { accountId: id, active });
   return { ok: true };
 };
 
 exports.getRegularityState = async (request) => {
-  requireAuth(request,['COMMISSIONE','DIRIGENTE','VICEPRESIDE','DSGA','SEGRETERIA']);
+  await requireAuth(request,['COMMISSIONE','DIRIGENTE','VICEPRESIDE','DSGA','SEGRETERIA']);
   const year=request.data?.annoScolastico, state=await loadRegularityState(year);
   const snap=await regularityAppeals(year).orderBy('filedAt','desc').limit(100).get();
   const appeals=snap.docs.map(d=>{const x=d.data()||{};return{id:d.id,protocolRef:x.protocolRef||'',subject:x.subject||'',status:x.status||'OPEN',decisionRef:x.decisionRef||'',filedAt:timestampIso(x.filedAt),decidedAt:timestampIso(x.decidedAt)}});
@@ -1004,11 +1049,13 @@ exports.getRegularityState = async (request) => {
 };
 
 exports.setRegularityControl = async (request) => {
-  const actor=requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico;
+  const actor=await requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico;
   const control=String(request.data?.control||''),value=request.data?.value===true,note=String(request.data?.note||'').trim().slice(0,1000);
   if(!REGULARITY_ALL_CONTROLS.has(control)) throw new HttpsError('invalid-argument','Controllo non valido.');
   const config=await loadElectionConfig(year);
   if(REGULARITY_PRE_VOTE_CONTROLS.includes(control)&&electionPhase(config)!=='BEFORE') throw new HttpsError('failed-precondition','I controlli preliminari non sono modificabili dopo l’apertura della finestra elettorale.');
+  if(value && !note) throw new HttpsError('invalid-argument','Indicare gli estremi del documento o della verifica che giustifica la conferma.');
+  if(control==='appealWindowClosed' && value) assertAppealDeadlineElapsed(await loadRegularityState(year));
   const ref=regularityStateRef(year);
   await db.runTransaction(async tx=>{const snap=await tx.get(ref),cur={...emptyRegularityState(),...(snap.exists?snap.data():{})};tx.set(ref,{[control]:value,notes:{...(cur.notes||{}),[control]:note},updatedAt:FieldValue.serverTimestamp(),updatedBy:actor.uid},{merge:true});});
   await regularityEvents(year).add({type:'CONTROL_UPDATE',control,value,note,actorUid:actor.uid,at:FieldValue.serverTimestamp()});
@@ -1016,17 +1063,18 @@ exports.setRegularityControl = async (request) => {
 };
 
 exports.recordResultsPublication = async (request) => {
-  const actor=requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico;
+  const actor=await requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico;
   const protocolRef=String(request.data?.protocolRef||'').trim().slice(0,160), appealDeadline=String(request.data?.appealDeadline||'').trim();
   if(!protocolRef||!/^\d{4}-\d{2}-\d{2}$/.test(appealDeadline)) throw new HttpsError('invalid-argument','Inserire estremi pubblicazione e termine ricorsi AAAA-MM-GG.');
-  if(electionPhase(await loadElectionConfig(year))==='OPEN') throw new HttpsError('failed-precondition','Non è possibile pubblicare risultati a urne aperte.');
+  if(!['CLOSED','RELEASED'].includes(electionPhase(await loadElectionConfig(year)))) throw new HttpsError('failed-precondition','Pubblicazione consentita solo dopo la chiusura.');
+  if(appealDeadline < romeToday() || new Date(appealDeadline+'T12:00:00Z').toISOString().slice(0,10)!==appealDeadline) throw new HttpsError('invalid-argument','Termine ricorsi non valido o già trascorso.');
   await regularityStateRef(year).set({resultsPublished:true,resultsPublishedAt:FieldValue.serverTimestamp(),resultsPublicationProtocol:protocolRef,appealDeadline,appealWindowClosed:false,legalHold:true,updatedAt:FieldValue.serverTimestamp(),updatedBy:actor.uid},{merge:true});
   await regularityEvents(year).add({type:'RESULTS_PUBLICATION',protocolRef,appealDeadline,actorUid:actor.uid,at:FieldValue.serverTimestamp()});
   await auditAdmin(actor,'RESULTS_PUBLICATION_RECORDED',{protocolRef,appealDeadline}); return{ok:true};
 };
 
 exports.fileElectoralAppeal = async (request) => {
-  const actor=requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico;
+  const actor=await requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico;
   const protocolRef=String(request.data?.protocolRef||'').trim().slice(0,160),subject=String(request.data?.subject||'').trim().slice(0,1000);
   if(!protocolRef||!subject) throw new HttpsError('invalid-argument','Protocollo e oggetto obbligatori.');
   const ref=regularityAppeals(year).doc(); await ref.set({protocolRef,subject,status:'OPEN',filedAt:FieldValue.serverTimestamp(),createdBy:actor.uid});
@@ -1035,7 +1083,7 @@ exports.fileElectoralAppeal = async (request) => {
 };
 
 exports.resolveElectoralAppeal = async (request) => {
-  const actor=requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico,id=String(request.data?.id||''),decisionRef=String(request.data?.decisionRef||'').trim().slice(0,200);
+  const actor=await requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico,id=String(request.data?.id||''),decisionRef=String(request.data?.decisionRef||'').trim().slice(0,200);
   if(!id||!decisionRef) throw new HttpsError('invalid-argument','Ricorso e decisione obbligatori.');
   const ref=regularityAppeals(year).doc(id),snap=await ref.get(); if(!snap.exists) throw new HttpsError('not-found','Ricorso non trovato.');
   await ref.update({status:'RESOLVED',decisionRef,decidedAt:FieldValue.serverTimestamp(),decidedBy:actor.uid});
@@ -1043,7 +1091,7 @@ exports.resolveElectoralAppeal = async (request) => {
 };
 
 exports.recordElectoralIncident = async (request) => {
-  const actor=requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico;
+  const actor=await requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico;
   const protocolRef=String(request.data?.protocolRef||'').trim().slice(0,160),title=String(request.data?.title||'').trim().slice(0,200),details=String(request.data?.details||'').trim().slice(0,2000),suspend=request.data?.suspend===true;
   if(!title||!details) throw new HttpsError('invalid-argument','Titolo e descrizione obbligatori.');
   await regularityEvents(year).add({type:'INCIDENT',protocolRef,title,details,suspend,actorUid:actor.uid,at:FieldValue.serverTimestamp()});
@@ -1052,7 +1100,7 @@ exports.recordElectoralIncident = async (request) => {
 };
 
 exports.setEmergencySuspension = async (request) => {
-  const actor=requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico,suspended=request.data?.suspended===true,reason=String(request.data?.reason||'').trim().slice(0,1000);
+  const actor=await requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico,suspended=request.data?.suspended===true,reason=String(request.data?.reason||'').trim().slice(0,1000);
   if(!reason) throw new HttpsError('invalid-argument','Motivazione obbligatoria.');
   await regularityStateRef(year).set({emergencySuspended:suspended,suspensionReason:reason,updatedAt:FieldValue.serverTimestamp(),updatedBy:actor.uid},{merge:true});
   await regularityEvents(year).add({type:suspended?'SUSPENSION':'RESUMPTION',reason,actorUid:actor.uid,at:FieldValue.serverTimestamp()});
@@ -1060,10 +1108,11 @@ exports.setEmergencySuspension = async (request) => {
 };
 
 exports.closeElectoralProcedure = async (request) => {
-  const actor=requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico,closureRef=String(request.data?.closureRef||'').trim().slice(0,200);
+  const actor=await requireAuth(request,['COMMISSIONE']),year=request.data?.annoScolastico,closureRef=String(request.data?.closureRef||'').trim().slice(0,200);
   if(!closureRef) throw new HttpsError('invalid-argument','Estremi verbale di chiusura obbligatori.');
   if(electionPhase(await loadElectionConfig(year))==='OPEN') throw new HttpsError('failed-precondition','Le urne sono ancora aperte.');
   const state=await loadRegularityState(year); if(!state.resultsPublished||!state.appealWindowClosed||!state.finalArchiveSealed) throw new HttpsError('failed-precondition','Completare pubblicazione, ricorsi e sigillo fascicolo.');
+  assertAppealDeadlineElapsed(state);
   const open=await regularityAppeals(year).where('status','==','OPEN').limit(1).get(); if(!open.empty) throw new HttpsError('failed-precondition','Esistono ricorsi ancora aperti.');
   const accounts=await yearlyCollection('gestione_accessi',year).get(); let count=0,batch=db.batch();
   for(const d of accounts.docs){if(MANAGEMENT_ROLES.has(normalize(d.data()?.role))){batch.update(d.ref,{active:false,closedProcedureRevocationAt:FieldValue.serverTimestamp(),closedProcedureRevocationRef:closureRef});count++;if(count%400===0){await batch.commit();batch=db.batch();}}}
@@ -1073,7 +1122,7 @@ exports.closeElectoralProcedure = async (request) => {
   await auditAdmin(actor,'ELECTORAL_PROCEDURE_CLOSED',{closureRef,revokedManagementAccounts:count}); return{ok:true,revokedManagementAccounts:count};
 };
 exports.getSecurityStatus = async (request) => {
-  const actor = requireAuth(request, ['COMMISSIONE', 'DIRIGENTE', 'VICEPRESIDE', 'DSGA', 'SEGRETERIA']);
+  const actor = await requireAuth(request, ['COMMISSIONE', 'DIRIGENTE', 'VICEPRESIDE', 'DSGA', 'SEGRETERIA']);
   const year = request.data?.annoScolastico;
   const config = await loadElectionConfig(year);
   return {
@@ -1097,7 +1146,7 @@ exports.getSecurityStatus = async (request) => {
 };
 
 exports.destructiveAction = async (request) => {
-  const actor = requireAuth(request, ['COMMISSIONE']);
+  const actor = await requireAuth(request, ['COMMISSIONE']);
   await auditAdmin(actor, 'BLOCKED_DESTRUCTIVE_ACTION', { requestedAction: String(request.data?.action || 'unspecified') });
   throw new HttpsError(
     'failed-precondition',
@@ -1106,7 +1155,7 @@ exports.destructiveAction = async (request) => {
 };
 
 exports.saveElectionConfig = async (request) => {
-  const actor = requireAuth(request, ['COMMISSIONE']);
+  const actor = await requireAuth(request, ['COMMISSIONE']);
   const config = request.data?.config;
   if (!config || typeof config !== 'object' || Array.isArray(config)) {
     throw new HttpsError('invalid-argument', 'Configurazione non valida.');
@@ -1118,15 +1167,35 @@ exports.saveElectionConfig = async (request) => {
   const serialized = JSON.stringify(config);
   if (serialized.length > 700000) throw new HttpsError('invalid-argument', 'Configurazione troppo grande.');
   await db.runTransaction(async (tx) => {
+    const previous = await tx.get(yearlyConfigRef(year));
+    const regularity = await tx.get(regularityStateRef(year));
+    const old = previous.exists ? previous.data() : {};
+    const state = regularity.exists ? regularity.data() : {};
+    const start = parseItalianDate(old.calendario?.votingStartDate, old.calendario?.votingStartTime);
+    if (state.softwareFrozen === true || (start && Date.now() >= start.getTime())) {
+      const protectedKeys = new Set([...Object.keys(old), ...Object.keys(config)].filter(k =>
+        /^(liste|maxPref|rappresentanti|consiglioAttivo|consultaAttiva|divietoVotoDisgiunto|tipologiaElezioni)/.test(k)));
+      for (const key of protectedKeys) {
+        if (JSON.stringify(old[key]) !== JSON.stringify(config[key])) throw new HttpsError('failed-precondition','Schede, liste e regole di voto sono congelate.');
+      }
+      if (start && Date.now() >= start.getTime()) {
+        if (config.modalitaProva !== old.modalitaProva || config.calendario?.votingStartDate !== old.calendario?.votingStartDate || config.calendario?.votingStartTime !== old.calendario?.votingStartTime) {
+          throw new HttpsError('failed-precondition','Non è possibile riavviare o trasformare in prova una votazione iniziata.');
+        }
+        const oldEnd = parseItalianDate(old.calendario?.votingEndDate, old.calendario?.votingEndTime);
+        const newEnd = parseItalianDate(config.calendario?.votingEndDate, config.calendario?.votingEndTime);
+        if (!newEnd || !oldEnd || newEnd > oldEnd) throw new HttpsError('failed-precondition','La proroga richiede una procedura straordinaria verbalizzata.');
+      }
+    }
     tx.set(globalConfigRef(), { annoScolastico: year }, { merge: true });
-    tx.set(yearlyConfigRef(year), { ...config, annoScolastico: year }, { merge: false });
+    tx.set(yearlyConfigRef(year), { ...config, annoScolastico: year, votingStartsAtMs: parseItalianDate(config.calendario?.votingStartDate, config.calendario?.votingStartTime)?.getTime() || 0 }, { merge: false });
   });
   await auditAdmin(actor, 'SAVE_ELECTION_CONFIG', { annoScolastico: year });
   return { ok: true };
 };
 
 exports.ensureReferentKeys = async (request) => {
-  const actor = requireAuth(request, ['COMMISSIONE']);
+  const actor = await requireAuth(request, ['COMMISSIONE']);
   const year = request.data?.annoScolastico;
   const type = normalize(request.data?.tipo);
   const classes = Array.isArray(request.data?.classes)

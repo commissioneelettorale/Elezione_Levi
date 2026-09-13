@@ -1,0 +1,21 @@
+'use strict';
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+let record={active:true,role:'COMMISSIONE'}, oldConfig={}, reg={}, writes=0;
+class HttpsError extends Error { constructor(code,message){super(message);this.code=code;} }
+const ref={collection(){return this},doc(){return this},async get(){return {exists:true,data:()=>record}}};
+const db={collection:()=>ref,runTransaction:async fn=>{let n=0;return fn({get:async()=>({exists:true,data:()=>++n===1?oldConfig:reg}),set:()=>{writes++}})}};
+const context={exports:{},require:n=>n==='crypto'?require(n):n==='firebase-functions/v2/https'?{HttpsError}:n==='firebase-admin/app'?{getApps:()=>[{}]}:n==='firebase-admin/firestore'?{getFirestore:()=>db,FieldValue:{serverTimestamp:()=>0}}:{getAuth:()=>({})},console,Date,Buffer,Intl,Set,Map,process:{env:{}}};
+vm.createContext(context);vm.runInContext(fs.readFileSync('functions/core.js','utf8')+'\nexports.test={requireAuth,rejectExtraPreferences,assertAppealDeadlineElapsed,romeToday};',context);
+const t=context.exports.test,request={auth:{uid:'test',token:{role:'COMMISSIONE',staffYear:'2026/2027',staffAccountId:'test'}},data:{annoScolastico:'2026/2027'}};
+(async()=>{
+await t.requireAuth(request,['COMMISSIONE']);
+record.active=false;await assert.rejects(t.requireAuth(request,['COMMISSIONE']),e=>e.code==='permission-denied');record.active=true;
+record.sessionVersion=1;await assert.rejects(t.requireAuth(request,['COMMISSIONE']),e=>e.code==='permission-denied');record.sessionVersion=0;
+await assert.rejects(t.requireAuth({...request,data:{annoScolastico:'2027/2028'}},['COMMISSIONE']),e=>e.code==='permission-denied');
+assert.throws(()=>t.rejectExtraPreferences({p3:'EXTRA'},'p',2));t.rejectExtraPreferences({p1:'VALID'},'p',2);
+assert.throws(()=>t.assertAppealDeadlineElapsed({resultsPublished:true,appealDeadline:t.romeToday()}));
+t.assertAppealDeadlineElapsed({resultsPublished:true,appealDeadline:'2020-01-01'});
+oldConfig={listeIstituto:{A:[]}};reg={softwareFrozen:true};
+await assert.rejects(context.exports.saveElectionConfig({...request,data:{annoScolastico:'2026/2027',config:{annoScolastico:'2026/2027',listeIstituto:{B:[]}}}}),e=>e.code==='failed-precondition');assert.equal(writes,0);
+console.log('PASS: active/revoked/versioned accounts; year isolation; preference limits; appeal dates; frozen lists.');
+})().catch(e=>{console.error(e);process.exitCode=1});
