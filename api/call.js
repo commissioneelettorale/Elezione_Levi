@@ -12,6 +12,8 @@ const ALLOWED_FUNCTIONS = new Set([
   "advanceVotingReview",
   "createAnonymousCredentials",
   "getDpoReviewProfile",
+  "getDpoDossierMaterials",
+  "getPrivateTechnicalDocument",
   "saveDpoReviewProfile",
   "validateVoterToken",
   "castVote",

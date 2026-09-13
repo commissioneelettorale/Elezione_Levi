@@ -8,3 +8,4 @@ service-account*.json
 *.key
 .DS_Store
 .firebase/
+public/

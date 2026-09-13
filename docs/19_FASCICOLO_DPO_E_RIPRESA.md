@@ -6,7 +6,9 @@ Questo documento aggiorna la precedente analisi V1: il blocco non è più incond
 
 ## Fascicolo DPO / Privacy Review
 
-Aprire **Commissione → Regolarità → Fascicolo DPO / gestione blocchi**, oppure lo stesso pulsante nell’area tecnica. La pagina pubblica `fascicolo-dpo.html` descrive l’architettura senza esporre le evidenze riservate. La Commissione può compilare i riferimenti organizzativi; tecnico e Dirigente possono leggere i dati autorizzati dalle rispettive API. La funzione ZIP è prevista negli accessi Commissione e tecnico.
+Aprire **Commissione → Regolarità → Fascicolo DPO / gestione blocchi**. Solo la Commissione autenticata consulta la documentazione completa e i riferimenti organizzativi, scarica il **PDF dettagliato per il DPO** oppure lo **ZIP con tutte le evidenze**. L’area tecnica mantiene controlli, log e verifica degli interventi senza accedere al fascicolo organizzativo completo. La pagina pubblica `fascicolo-dpo.html` contiene esclusivamente informazioni essenziali per gli utenti.
+
+Il backend controlla ruolo, account, annualità e revoca prima di fornire i materiali. L’output pubblico Vercel e la configurazione GitHub Pages escludono documenti operativi, inventari, prove di sviluppo e sorgenti backend. Il repository sorgente resta pubblico: questi accorgimenti proteggono l’accesso ai documenti operativi sul sito e ai dati riservati dell’applicazione, ma non rendono segrete le informazioni già pubblicate nella cronologia Git. Non inserire mai dati operativi riservati nel repository.
 
 Il DPO è **Vargiu Scuola S.r.l. — dpo@vargiuscuola.it**, secondo l’Allegato A e la conferma del referente scolastico. Inserire gli estremi dell’atto di designazione nel fascicolo. Il DPO valuta il trattamento e suggerisce misure: non gli si chiede di autorizzare il voto telematico o certificare la validità giuridica delle elezioni. La decisione organizzativa ed elettorale rimane agli organi competenti; il Titolare conserva la propria responsabilità privacy.
 

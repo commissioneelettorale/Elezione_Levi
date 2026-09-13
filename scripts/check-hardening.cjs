@@ -4,11 +4,19 @@ let record={active:true,role:'COMMISSIONE'}, oldConfig={}, reg={}, writes=0;
 class HttpsError extends Error { constructor(code,message){super(message);this.code=code;} }
 const ref={collection(){return this},doc(){return this},async get(){return {exists:true,data:()=>record}}};
 const db={collection:()=>ref,runTransaction:async fn=>{let n=0;return fn({get:async()=>({exists:true,data:()=>++n===1?oldConfig:reg}),set:()=>{writes++}})}};
-const context={exports:{},require:n=>n.startsWith('../lib/')?require(n):n==='crypto'?require(n):n==='firebase-functions/v2/https'?{HttpsError}:n==='firebase-admin/app'?{getApps:()=>[{}]}:n==='firebase-admin/firestore'?{getFirestore:()=>db,FieldValue:{serverTimestamp:()=>0}}:{getAuth:()=>({})},console,Date,Buffer,Intl,Set,Map,process:{env:{}}};
+const context={__dirname:require('node:path').resolve('functions'),exports:{},require:n=>n.startsWith('../lib/')?require(n):n==='crypto'||n.startsWith('node:')?require(n):n==='firebase-functions/v2/https'?{HttpsError}:n==='firebase-admin/app'?{getApps:()=>[{}]}:n==='firebase-admin/firestore'?{getFirestore:()=>db,FieldValue:{serverTimestamp:()=>0}}:{getAuth:()=>({})},console,Date,Buffer,Intl,Set,Map,process:{env:{}}};
 vm.createContext(context);vm.runInContext(fs.readFileSync('functions/core.js','utf8')+'\nexports.test={requireAuth,rejectExtraPreferences,assertAppealDeadlineElapsed,romeToday,validateTechnicalReport,TECHNICAL_TEST_IDS};',context);
 const t=context.exports.test,request={auth:{uid:'test',token:{role:'COMMISSIONE',staffYear:'2026/2027',staffAccountId:'test'}},data:{annoScolastico:'2026/2027'}};
 (async()=>{
 await t.requireAuth(request,['COMMISSIONE']);
+for(const name of ['getDpoDossierMaterials','getDpoReviewProfile','getPrivateTechnicalDocument']){
+ await assert.rejects(context.exports[name]({data:{}}),e=>e.code==='unauthenticated');
+ await assert.rejects(context.exports[name]({...request,auth:{...request.auth,token:{...request.auth.token,role:'STUDENTE'}}}),e=>e.code==='permission-denied');
+}
+const materials=await context.exports.getDpoDossierMaterials(request);assert.equal(materials.sections.length,14);assert.ok(JSON.parse(materials.inventory).assets.length);
+await assert.rejects(context.exports.getDpoDossierMaterials({...request,auth:{...request.auth,token:{...request.auth.token,role:'ASSISTENTE_TECNICO'}}}),e=>e.code==='permission-denied');
+await assert.rejects(context.exports.getPrivateTechnicalDocument({...request,data:{...request.data,document:'../../.env'}}),e=>e.code==='invalid-argument');
+
 record.active=false;await assert.rejects(t.requireAuth(request,['COMMISSIONE']),e=>e.code==='permission-denied');record.active=true;
 record.sessionVersion=1;await assert.rejects(t.requireAuth(request,['COMMISSIONE']),e=>e.code==='permission-denied');record.sessionVersion=0;
 await assert.rejects(t.requireAuth({...request,data:{annoScolastico:'2027/2028'}},['COMMISSIONE']),e=>e.code==='permission-denied');

@@ -10,6 +10,10 @@ const tests=[
  ['technical-pdf','scripts/check-legal-evidence.cjs','PDF effettivo con identificativi, ammissione ed evidenze non inventate.'],
  ['dpo-archive','scripts/check-dpo-dossier.cjs','PDF/ZIP effettivi, manifest verificabile, dati mancanti e fallimento dell’esportazione incompleta.']
 ];
+if(process.env.LEVI_PLAYWRIGHT&&process.env.LEVI_CHROMIUM_EXECUTABLE){
+ const build=spawnSync(process.execPath,['scripts/build-public-site.cjs'],{encoding:'utf8',timeout:10000});if(build.status!==0)throw new Error(build.stderr);
+ tests.push(['interface-browser','scripts/check-interface-browser.cjs','Browser Chromium reale con servizi Firebase/API simulati: avvio completo, clic, mobile, indisponibilità opzionali, PDF DPO, ruoli e documenti non pubblicati.']);
+}
 const evidence=[];
 for(const [id,script,requirement]of tests){
  const started=new Date().toISOString(),r=spawnSync(process.execPath,[script],{encoding:'utf8',timeout:60000});
@@ -22,7 +26,7 @@ const audit=spawnSync('npm',['audit','--omit=dev','--json'],{encoding:'utf8',tim
 let auditData;try{auditData=JSON.parse(audit.stdout);}catch(_){throw new Error('npm audit non completato');}
 if(!auditData.metadata?.vulnerabilities||audit.status!==0)throw new Error('npm audit richiede valutazione: '+JSON.stringify(auditData.metadata?.vulnerabilities));
 evidence.push({id:'dependencies',requirement:'Segnalazioni note nel lockfile npm delle dipendenze Production.',method:'npm audit --omit=dev --json',expected:'Nessuna segnalazione nota nel perimetro npm.',observed:JSON.stringify(auditData.metadata.vulnerabilities),outcome:'PASS',testedAt:new Date().toISOString(),operator:'Verifica automatica di sviluppo',limitation:'Non copre SDK remoti, librerie vendorizzate, configurazione cloud o vulnerabilità non note.'});
-const files=['index.html','functions/core.js','api/call.js','firestore.rules','vercel.json','package-lock.json',...fs.readdirSync('lib').map(n=>'lib/'+n),...tests.map(t=>t[1]),'scripts/verify-release.cjs'];
+const files=['index.html','functions/core.js','api/call.js','firestore.rules','vercel.json','_config.yml','scripts/build-public-site.cjs','package-lock.json',...fs.readdirSync('lib').map(n=>'lib/'+n),...tests.map(t=>t[1]),'scripts/verify-release.cjs'];
 const source=files.filter(p=>fs.statSync(p).isFile()).map(path=>({path,sha256:crypto.createHash('sha256').update(fs.readFileSync(path)).digest('hex')}));
-fs.writeFileSync('docs/verifiche-sviluppo.json',JSON.stringify({format:'LEVI_DEVELOPMENT_EVIDENCE_V2',generatedAt:new Date().toISOString(),evidence,source,notVerified:['Browser reale e dispositivi della scuola: browser di prova non disponibile in questo ambiente.','Firebase Rules distribuite, IAM/MFA e log dei provider Production.','Backup, ripristino reale, custodi e conservazione scolastica.','Distribuzione fisica dei codici, non correlabilità dell’intera infrastruttura e verifica indipendente.','Validità degli atti, nomine, DPIA e parere DPO.'],privacy:'Nessun accesso a voti reali, creazione di credenziali reali, migrazione o apertura elettorale durante queste prove.'},null,2)+'\n');
+fs.writeFileSync('docs/verifiche-sviluppo.json',JSON.stringify({format:'LEVI_DEVELOPMENT_EVIDENCE_V2',generatedAt:new Date().toISOString(),evidence,source,notVerified:['Login Production con credenziali reali, dispositivi della scuola e storage dei servizi remoti; il test browser registrato usa risposte Firebase/API fittizie.','Firebase Rules distribuite, IAM/MFA e log dei provider Production.','Backup, ripristino reale, custodi e conservazione scolastica.','Distribuzione fisica dei codici, non correlabilità dell’intera infrastruttura e verifica indipendente.','Validità degli atti, nomine, DPIA e parere DPO.'],privacy:'Nessun accesso a voti reali, creazione di credenziali reali, migrazione o apertura elettorale durante queste prove.'},null,2)+'\n');
 console.log('Development evidence saved; actual software release is identified separately by the deployment commit.');

@@ -1,8 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "node scripts/build-public-site.cjs",
+  "outputDirectory": "public",
   "functions": {
     "api/call.js": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "docs/**"
     }
   },
   "headers": [

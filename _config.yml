@@ -1,0 +1,17 @@
+# GitHub Pages uses Jekyll exclusion rules. No private operational exports belong here.
+exclude:
+  - docs
+  - functions
+  - api
+  - scripts
+  - node_modules
+  - public
+  - README.md
+  - package.json
+  - package-lock.json
+  - firebase.json
+  - firestore.rules
+  - vercel.json
+  - lib/dpo-dossier.js
+  - lib/ballot-vault.js
+  - lib/voting-admission.js

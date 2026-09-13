@@ -1381,8 +1381,22 @@ exports.advanceVotingReview=async request=>{
 };
 
 const DPO_PROFILE_FIELDS=['legalBasis','dpoOpinion','providers','backups','retention','riskAssessment','incidentResponse','stationProcedure','evidenceCustody','accessibility'];
+exports.getDpoDossierMaterials=async request=>{
+  await requireAuth(request,['COMMISSIONE']);
+  const fs=require('node:fs'),path=require('node:path'),definition=require('../lib/dpo-dossier');
+  const read=name=>fs.readFileSync(path.join(__dirname,'..','docs',name),'utf8');
+  return {version:definition.VERSION,fields:definition.fields,sections:definition.sections,release:releaseIdentity(),
+    inventory:read('inventario-release.json'),development:read('verifiche-sviluppo.json'),procedure:read('19_FASCICOLO_DPO_E_RIPRESA.md')};
+};
+exports.getPrivateTechnicalDocument=async request=>{
+  await requireAuth(request,['COMMISSIONE','ASSISTENTE_TECNICO']);
+  const names={'checklist':'12_VERIFICHE_PRIMA_DEL_VOTO.md','consultazioni':'16_CONSULTAZIONI_E_PROTEZIONE_SCHEDE.md'};
+  const name=names[request.data?.document];
+  if(!name)throw new HttpsError('invalid-argument','Documento non disponibile.');
+  return {name,content:require('node:fs').readFileSync(require('node:path').join(__dirname,'..','docs',name),'utf8')};
+};
 exports.getDpoReviewProfile=async request=>{
-  const actor=await requireAuth(request,['COMMISSIONE','ASSISTENTE_TECNICO','DIRIGENTE']),year=actor.claims.staffYear;
+  const actor=await requireAuth(request,['COMMISSIONE']),year=actor.claims.staffYear;
   const snap=await yearlyCollection('fascicolo_privacy',year).doc('profile').get(),source=snap.data()||{};
   return {fields:Object.fromEntries(DPO_PROFILE_FIELDS.map(k=>[k,evidenceText(source.fields?.[k],4000)])),updatedAt:timestampIso(source.updatedAt),updatedBy:source.updatedBy||null,
     dpo:{name:'Vargiu Scuola S.r.l.',email:'dpo@vargiuscuola.it'},release:releaseIdentity()};

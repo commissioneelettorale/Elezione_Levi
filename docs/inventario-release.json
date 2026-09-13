@@ -4,29 +4,39 @@
   "annexSha256": "30b1aadb76827d584a379826da9d5d8d854941732b03f17a76bcf713c19b2102",
   "assets": [
     {
+      "path": "404.html",
+      "bytes": 772,
+      "sha256": "8b61db49507da1c88f967f6bf8d1ce85ae0ec69a9d7f5504605b95efa8caa6ff"
+    },
+    {
+      "path": "_config.yml",
+      "bytes": 350,
+      "sha256": "46ace8129c0158549761e209ad0dbc55003587d0800beb6c725f0e41b608d90e"
+    },
+    {
       "path": "anonimato.html",
-      "bytes": 9649,
-      "sha256": "2ea26785bdc37d160a57ba3929136a089190b76669daaa392cc6c29f249fc4fd"
+      "bytes": 4888,
+      "sha256": "7ef586c9bcf46f03d2c24b02cce93907c205687a38e322597d1ca74d06a04e30"
     },
     {
       "path": "api/call.js",
-      "bytes": 7732,
-      "sha256": "8d98d675ca7fd4593c9a631c19778955a42fefcf619ee38c0fae0f80469e70e9"
+      "bytes": 7793,
+      "sha256": "593a53b94d0964e687c9e67ce2be1f75a9371717f2f8afc392a05ce86e90eb06"
     },
     {
       "path": "docs/19_FASCICOLO_DPO_E_RIPRESA.md",
-      "bytes": 11020,
-      "sha256": "164d761eee7a2cec689beb72461312fcdf6aa5718cf7d698ada1238a321d5eb8"
+      "bytes": 11594,
+      "sha256": "77a669c8dd1ad864aff0891566b9ca53bcbeddc8af726bbb4c5345b78f5c23f2"
     },
     {
       "path": "docs/verifiche-sviluppo.json",
-      "bytes": 9909,
-      "sha256": "0c7be0f929591ede7238e36b3e5813d2a3894b2a46bde9cf3d7d113d6fea75eb"
+      "bytes": 11386,
+      "sha256": "d066ffa0866107c735ad9d36e72f519077d50875391eebf0edb894a780d7a4f5"
     },
     {
       "path": "fascicolo-dpo.html",
-      "bytes": 23356,
-      "sha256": "f37dc386594e0521117eb61e8a28e983085c644496e5efb10a8b04a00e927be3"
+      "bytes": 4153,
+      "sha256": "afb53149354ff17831cadd28d6c7a2f3d55c9c09a1cdf9304e34b8531482d7fd"
     },
     {
       "path": "firestore.rules",
@@ -35,13 +45,13 @@
     },
     {
       "path": "functions/core.js",
-      "bytes": 101613,
-      "sha256": "e674fee4d9ec52afc9ad488e376a514599775591bd43c98f4a4f2e5cac8a7781"
+      "bytes": 102603,
+      "sha256": "08dc559f76e7bbeecea76d3c0638e9bb0761315a1f7e714c4601940eafbb1a5e"
     },
     {
       "path": "index.html",
-      "bytes": 489221,
-      "sha256": "56429ccc6817a8b5fdc692df673d896228a2af2f0258510f536b47ea1dc0c5c3"
+      "bytes": 491041,
+      "sha256": "88454b465177f8ea7b65de93c57a7109b819bf572a67718828159e5607745196"
     },
     {
       "path": "lib/ballot-vault.js",
@@ -65,8 +75,8 @@
     },
     {
       "path": "lib/privacy-review-ui.js",
-      "bytes": 15149,
-      "sha256": "ad29a58b98cb111f2929e52d799a91d8510814a16f98fd40e23444bc39f60845"
+      "bytes": 18770,
+      "sha256": "d4c643be639822744ce3b673815f5f283686577075472ddc73227736bf334479"
     },
     {
       "path": "lib/voting-admission.js",
@@ -75,8 +85,8 @@
     },
     {
       "path": "note-legali.html",
-      "bytes": 19048,
-      "sha256": "a219abcf132252cec0b1f6fd17710d8a6daad63e6980b81c9ab4a15d8033345a"
+      "bytes": 19030,
+      "sha256": "ae9332f51b28c9d4996062eb040343dd1d83861899c279c51f3281257d2b6db9"
     },
     {
       "path": "package-lock.json",
@@ -87,6 +97,11 @@
       "path": "package.json",
       "bytes": 360,
       "sha256": "d6968ec1a0a20dccd8fd8cc307719711c5a6db8a3db24470f6c7992c23d3dd41"
+    },
+    {
+      "path": "scripts/build-public-site.cjs",
+      "bytes": 761,
+      "sha256": "12719b8f233499ca3653e804877965fde3321517baed3cb4acae33fed0a5ac7e"
     },
     {
       "path": "vendor/DEJAVU-LICENSE.txt",
@@ -130,8 +145,8 @@
     },
     {
       "path": "vercel.json",
-      "bytes": 1077,
-      "sha256": "da273e6d28d33b29225a45f6a095d457a058d66d95c658450f135595e6f73f1a"
+      "bytes": 1218,
+      "sha256": "5a77cd8bbcd02938e59e355fa66d4d0441e4d46b8311ddff300915199185be21"
     }
   ],
   "remoteSdk": {
