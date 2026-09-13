@@ -34,7 +34,8 @@ L'Allegato richiede, tra gli altri:
 15. verbali, evidenze, metadati e conservazione secondo le Linee guida AgID;
 16. adeguamento del regolamento d'Istituto;
 17. procedure per malfunzionamenti, sospensione e ripetizione delle votazioni;
-18. verifica preventiva di conformità e acquisizione di documentazione tecnica/dichiarazione di conformità del fornitore o partner tecnologico.
+18. verifica preventiva di conformità e acquisizione di documentazione tecnica/dichiarazione di conformità del fornitore o partner tecnologico;
+19. presidio tecnico nominativo, postazione autorizzata, checkpoint di apertura/chiusura e conservazione delle evidenze.
 
 ## 2. Protezione dei dati personali
 

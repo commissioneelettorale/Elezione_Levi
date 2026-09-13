@@ -17,7 +17,7 @@
  * - separazione persistente tra diritto di voto e contenuto del voto;
  * - autorizzazioni server-side per ruolo;
  * - risultati parziali non esposti durante la votazione;
- * - audit solo per operazioni amministrative (mai per il contenuto del voto).
+ * - audit solo per operazioni amministrative e checkpoint tecnici (mai per il contenuto del voto).
  */
 
 const { HttpsError } = require('firebase-functions/v2/https');
@@ -55,9 +55,9 @@ const APP_ID = 'iis-levi-electoral-v3';
 const REGION = 'europe-west1';
 
 const ALLOWED_STAFF_ROLES = new Set([
-  'COMMISSIONE', 'DIRIGENTE', 'VICEPRESIDE', 'DSGA', 'SEGRETERIA'
+  'COMMISSIONE', 'DIRIGENTE', 'VICEPRESIDE', 'DSGA', 'SEGRETERIA', 'ASSISTENTE_TECNICO'
 ]);
-const MANAGEMENT_ROLES = new Set(['DIRIGENTE', 'VICEPRESIDE', 'DSGA', 'SEGRETERIA']);
+const MANAGEMENT_ROLES = new Set(['DIRIGENTE', 'VICEPRESIDE', 'DSGA', 'SEGRETERIA', 'ASSISTENTE_TECNICO']);
 const BALLOT_COLLECTIONS = new Set([
   'voti_consiglio', 'voti_istituto', 'voti_consulta',
   'voti_classe_studenti', 'voti_classe_genitori'
@@ -105,6 +105,15 @@ function requireAuth(request, allowedRoles = []) {
     throw new HttpsError('failed-precondition', 'Cambio password obbligatorio prima di utilizzare le funzioni della Commissione.');
   }
   return { uid: request.auth.uid, role, claims: request.auth.token };
+}
+
+function enforceTechnicalYear(actor, year) {
+  if (actor?.role !== 'ASSISTENTE_TECNICO') return;
+  const boundYear = String(actor.claims?.staffYear || '').trim();
+  const requestedYear = String(year || '').trim();
+  if (!boundYear || !requestedYear || yearSuffix(boundYear) !== yearSuffix(requestedYear)) {
+    throw new HttpsError('permission-denied', 'L’account tecnico è limitato all’anno scolastico assegnato.');
+  }
 }
 
 async function loadElectionConfig(year) {
@@ -323,6 +332,8 @@ async function authenticateStaff({ username, password, requestedRole, year }) {
     role,
     scopeClass: record.scopeClass || 'TUTTE',
     staffAccountId: docSnap.id,
+    staffDisplayName: record.name || uname,
+    staffYear: String(year || ''),
     mustChangePassword: record.mustChangePassword === true,
     ...(expiresAt ? { staffExpiresAt: Math.floor(expiresAt.getTime() / 1000) } : {})
   };
@@ -657,6 +668,131 @@ exports.commissionLogin = async (request) => {
   return result;
 };
 
+
+exports.technicalLogin = async (request) => {
+  const result = await authenticateStaff({
+    username: request.data?.username,
+    password: request.data?.password,
+    requestedRole: 'ASSISTENTE_TECNICO',
+    year: request.data?.annoScolastico
+  });
+  await auditAdmin({ uid: result.profile.id, role: 'ASSISTENTE_TECNICO' }, 'TECHNICAL_LOGIN', { username: result.profile.username });
+  return result;
+};
+
+function technicalActorName(actor) {
+  return String(actor?.claims?.staffDisplayName || actor?.claims?.staffAccountId || 'Assistente tecnico').trim().slice(0, 160);
+}
+
+function technicalStation(config) {
+  return String(config?.assistenteTecnico?.postazione || 'Postazione PC laboratoriale designata dall’Istituto').trim().slice(0, 200);
+}
+
+function technicalControls(config, state) {
+  return {
+    backendReachable: true,
+    firebaseReachable: true,
+    serverSideAuth: true,
+    // Admin SDK bypasses Rules; this endpoint cannot certify deployed rules or anonymity.
+    firestoreFailClosed: null,
+    auditEnabled: null,
+    anonymousBallotStorage: null,
+    testMode: config.modalitaProva === true,
+    regularityMissing: regularityMissing(state)
+  };
+}
+
+function technicalControlsOk(controls) {
+  return Object.entries(controls || {}).every(([key, value]) => {
+    if (key === 'regularityMissing') return Array.isArray(value) ? value.length === 0 : value === false;
+    if (key === 'testMode') return value !== true;
+    return value === true;
+  });
+}
+
+exports.getTechnicalStatus = async (request) => {
+  const actor = requireAuth(request, ['ASSISTENTE_TECNICO', 'COMMISSIONE']);
+  const year = request.data?.annoScolastico || actor.claims?.staffYear;
+  enforceTechnicalYear(actor, year);
+  const config = await loadElectionConfig(year);
+  const state = await loadRegularityState(year);
+  const eventsSnap = await yearlyCollection('audit_tecnico', year).orderBy('at', 'desc').limit(20).get();
+  return {
+    ok: true,
+    role: actor.role,
+    technicianName: technicalActorName(actor),
+    year: String(year || '2026/2027'),
+    phase: electionPhase(config),
+    station: technicalStation(config),
+    controls: technicalControls(config, state),
+    recentEvents: eventsSnap.docs.map(d => ({
+      id: d.id,
+      event: d.data()?.event || '',
+      technicianName: d.data()?.technicianName || '',
+      station: d.data()?.station || '',
+      phase: d.data()?.phase || '',
+      result: d.data()?.result || '',
+      note: d.data()?.note || '',
+      at: timestampIso(d.data()?.at)
+    }))
+  };
+};
+
+exports.recordTechnicalCheckpoint = async (request) => {
+  const actor = requireAuth(request, ['ASSISTENTE_TECNICO', 'COMMISSIONE']);
+  const year = request.data?.annoScolastico || actor.claims?.staffYear;
+  enforceTechnicalYear(actor, year);
+  const event = String(request.data?.event || '').trim().toUpperCase();
+  const note = String(request.data?.note || '').replace(/[<>`"]/g, ' ').replace(/[\u0000-\u001F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1000);
+  if (!['OPENING', 'CLOSING'].includes(event)) throw new HttpsError('invalid-argument', 'Checkpoint tecnico non valido.');
+  const config = await loadElectionConfig(year);
+  const state = await loadRegularityState(year);
+  const technicianName = technicalActorName(actor);
+  const station = technicalStation(config);
+  const controls = technicalControls(config, state);
+  const result = technicalControlsOk(controls) ? 'OK' : 'ATTENZIONE';
+  const ref = yearlyCollection('audit_tecnico', year).doc();
+  await ref.create({
+    event,
+    technicianName,
+    technicianAccountId: actor.claims?.staffAccountId || actor.uid,
+    station,
+    phase: electionPhase(config),
+    result,
+    note,
+    controls,
+    at: FieldValue.serverTimestamp()
+  });
+  await auditAdmin(actor, 'TECHNICAL_CHECKPOINT_RECORDED', { event, station, technicalLogId: ref.id });
+  return { ok: true, id: ref.id, event, technicianName, station, phase: electionPhase(config), result, controls, recordedAt: new Date().toISOString() };
+};
+
+exports.getTechnicalLogs = async (request) => {
+  const actor = requireAuth(request, ['ASSISTENTE_TECNICO', 'COMMISSIONE']);
+  const year = request.data?.annoScolastico || actor.claims?.staffYear;
+  enforceTechnicalYear(actor, year);
+  const snap = await yearlyCollection('audit_tecnico', year).orderBy('at', 'desc').limit(100).get();
+  return {
+    ok: true,
+    technicianName: technicalActorName(actor),
+    year: String(year || '2026/2027'),
+    // Restituisce solo i campi necessari alla verifica e al verbale: l'ID
+    // interno dell'account e le altre metainformazioni restano server-side.
+    logs: snap.docs.map(d => {
+      const value = d.data() || {};
+      return {
+        id: d.id,
+        event: value.event || '',
+        technicianName: value.technicianName || '',
+        station: value.station || '',
+        phase: value.phase || '',
+        result: value.result || '',
+        note: value.note || '',
+        at: timestampIso(value.at)
+      };
+    })
+  };
+};
 
 exports.changeCommissionPassword = async (request) => {
   if (!request.auth || normalize(request.auth.token.role) !== 'COMMISSIONE') {

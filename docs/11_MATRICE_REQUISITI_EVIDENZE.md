@@ -24,6 +24,9 @@
 | Regolamento | schema di integrazione | doc 03 | ☐ |
 | Malfunzionamenti | sospensione/ripetizione verbalizzata | doc 03/05 | ☐ |
 | Verifica preventiva | checklist + collaudo + commit | doc 01/07 | ☐ |
+| Presidio tecnico separato | account ASSISTENTE_TECNICO con minimo privilegio | `functions/core.js`, area tecnica | ☐ |
+| Checkpoint apertura/chiusura | log server-side con nome, postazione e timestamp | `audit_tecnico_YYYY_YYYY`, verbale PDF | ☐ |
+| Postazione PC autorizzata | configurazione annuale e atto dell’Istituto | area Commissione, doc 07/12 | ☐ |
 | Dichiarazione tecnica | modello per versione collaudata | doc 08 | ☐ |
 
 **Nota:** una casella può essere marcata soltanto dopo verifica della configurazione realmente distribuita. Il repository da solo non prova la conformità dell'ambiente cloud in esercizio.

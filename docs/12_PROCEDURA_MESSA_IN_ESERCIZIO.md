@@ -5,7 +5,7 @@
 1. Acquisire Nota MIM 3803/2026 e Allegato tecnico.
 2. Individuare la disciplina elettorale specifica applicabile.
 3. Aggiornare/approvare il regolamento d'Istituto.
-4. Individuare Commissione, Presidente, Segretario, responsabile tecnico e ruoli privacy.
+4. Individuare Commissione, Presidente, Segretario, Assistente tecnico di riferimento, responsabile tecnico (se distinto) e ruoli privacy.
 5. Completare DPIA e verifica fornitori/cloud.
 
 ## Fase 2 — Firebase
@@ -96,3 +96,10 @@ Eseguire inoltre tutti i test del doc 07 e doc 13. Annotare il commit SHA.
 - protocollare/acquisire agli atti;
 - trasferire in conservazione a norma secondo manuale e piano dell'Istituto;
 - applicare retention/cancellazione ai dati operativi non più necessari.
+
+
+## Presidio tecnico
+
+Prima dell’apertura l’Assistente tecnico accede alla propria area dalla homepage, verifica backend, Firebase, autenticazione server-side, regole Firestore e audit, quindi registra il checkpoint di apertura dalla postazione PC laboratoriale designata. Alla chiusura ripete il controllo e registra il checkpoint di chiusura. Il PDF generato con nome e cognome, postazione, fase, esito e timestamp viene allegato al verbale e al fascicolo digitale.
+
+Il presidio tecnico non sostituisce l’atto di nomina della Commissione, il collaudo sottoscritto, il DPO o le decisioni del Dirigente.

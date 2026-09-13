@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; frame-src 'none'; child-src 'none'; media-src 'none'; form-action 'self'; upgrade-insecure-requests">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https:; connect-src 'self' https://elezione-levi.vercel.app https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; frame-src 'none'; child-src 'none'; media-src 'none'; form-action 'self'; upgrade-insecure-requests">
     <meta name="referrer" content="no-referrer">
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
     <meta http-equiv="Pragma" content="no-cache">
@@ -26,13 +26,13 @@
     <style>
         html {
             min-height: 100%;
-            background: #0b4f9c;
+            background: #f8fafc;
         }
 
         body {
             font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, rgba(5, 39, 87, 0.96) 0%, rgba(12, 91, 170, 0.94) 100%);
-            color: #eaf3ff;
+            background: #f8fafc;
+            color: #0f172a;
             overflow-x: hidden;
             min-height: 100vh;
             position: relative;
@@ -44,17 +44,21 @@
             z-index: -1;
             overflow: hidden;
             pointer-events: none;
-            background: linear-gradient(135deg, #052757 0%, #0c5baa 100%);
+            background: #f8fafc;
         }
 
         .brand-background::after {
             content: "";
             position: absolute;
             inset: 0;
-            background: url("levi.png") center / min(72vw, 760px) auto no-repeat;
-            opacity: 0.18;
-            filter: drop-shadow(0 20px 50px rgba(0, 0, 0, 0.35));
+            background: url("levi.png") center 24% / min(88vw, 980px) auto no-repeat;
+            opacity: 0.12;
+            filter: drop-shadow(0 20px 50px rgba(15, 23, 42, 0.16));
         }
+
+        .commissione-label { color: #000 !important; }
+        #adminUsername, #adminPwd { color: #000 !important; }
+        #adminUsername::placeholder, #adminPwd::placeholder { color: #334155 !important; opacity: 1; }
 
         .hidden { display: none !important; }
         .bg-gradient-header { background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%); }
@@ -178,6 +182,9 @@
                 <button onclick="window.showPage('managementLogin')" class="bg-emerald-950/60 hover:bg-emerald-900 text-white font-extrabold py-1.5 px-3 rounded-lg shadow transition-all flex items-center gap-1.5 border border-emerald-900/50">
                     <i data-lucide="layout-dashboard" class="w-3.5 h-3.5 text-emerald-300"></i> Dirigenza / Vicepresidenza / DSGA / Segreteria
                 </button>
+                <button onclick="window.showPage('technicalLogin')" class="bg-amber-950/70 hover:bg-amber-900 text-white font-extrabold py-1.5 px-3 rounded-lg shadow transition-all flex items-center gap-1.5 border border-amber-900/50">
+                    <i data-lucide="wrench" class="w-3.5 h-3.5 text-amber-300"></i> Assistente tecnico
+                </button>
                 <button onclick="window.showPage('adminLogin')" class="bg-red-950/60 hover:bg-red-900 text-white font-extrabold py-1.5 px-3 rounded-lg shadow transition-all flex items-center gap-1.5 border border-red-900/50">
                     <i data-lucide="shield" class="w-3.5 h-3.5 text-red-400"></i> Commissione
                 </button>
@@ -231,10 +238,16 @@
                 <div class="bg-blue-50 border border-blue-100 p-3 rounded-xl text-[11px] text-blue-950">
                     <b>Nota:</b> l'impronta SHA-256 e il workflow digitale attestano integrità e passaggi interni della piattaforma; non equivalgono, da soli, a una firma digitale qualificata o a un servizio di conservazione a norma.
                 </div>
+                <div class="bg-slate-100 border border-slate-200 p-3 rounded-xl text-[11px] text-slate-800">
+                    <b>Prevalenza degli atti ufficiali:</b> calendario, nomina della Commissione, designazione dell’assistente tecnico e della postazione, regolamento, circolare/nota MIM-USR 2026, verbali, DPIA e decisioni del Dirigente restano gli atti di riferimento. La piattaforma raccoglie evidenze tecniche e organizzative e non sostituisce il DPO, il collaudo sottoscritto o la conservazione documentale dell’Istituto.
+                </div>
                 <div class="pt-2 border-t border-slate-100">
                     <h4 class="font-bold text-slate-900 mb-2 flex items-center gap-1.5"><i data-lucide="shield-check" class="w-4 h-4 text-blue-950"></i> Commissione Elettorale di Presidio:</h4>
                     <div class="bg-slate-50 p-3 rounded-xl border border-slate-150 space-y-2" id="commissione-list-modal">
                         <!-- Generato dinamicamente via JS -->
+                    </div>
+                    <div class="mt-3 bg-amber-50 border border-amber-200 p-3 rounded-xl text-[11px]" id="technical-assistant-modal">
+                        <!-- Assistente tecnico configurato dalla Commissione -->
                     </div>
                 </div>
             </div>
@@ -371,6 +384,10 @@
             validateVoterToken: httpsCallable(functions, 'validateVoterToken'),
             castVote: httpsCallable(functions, 'castVote'),
             commissionLogin: httpsCallable(functions, 'commissionLogin'),
+            technicalLogin: httpsCallable(functions, 'technicalLogin'),
+            getTechnicalStatus: httpsCallable(functions, 'getTechnicalStatus'),
+            recordTechnicalCheckpoint: httpsCallable(functions, 'recordTechnicalCheckpoint'),
+            getTechnicalLogs: httpsCallable(functions, 'getTechnicalLogs'),
             changeCommissionPassword: httpsCallable(functions, 'changeCommissionPassword'),
             managementLogin: httpsCallable(functions, 'managementLogin'),
             referentLogin: httpsCallable(functions, 'referentLogin'),
@@ -392,7 +409,7 @@
             destructiveAction: httpsCallable(functions, 'destructiveAction')
         });
         // Backend principale Vercel; Firebase Functions resta il fallback tecnico.
-        const VERCEL_BACKEND_URL = '/api/call';
+        const VERCEL_BACKEND_URL = 'https://elezione-levi.vercel.app/api/call';
         const SECURE_API = new Proxy({}, {
             get: (_, functionName) => async (data = {}) => {
                 const fallback = FIREBASE_API[functionName];
@@ -434,7 +451,7 @@
         let idleTimer = null;
         function resetIdleTimer(){
             clearTimeout(idleTimer);
-            idleTimer=setTimeout(async()=>{ try{await signOut(auth);}catch(e){} currentUserData=null; currentClassMasterData=null; currentManagementData=null; secureVotingSession=null; showPage('studentLogin'); showNotification('Sessione scaduta','Sessione chiusa automaticamente per inattività.','info'); }, SESSION_IDLE_MS);
+            idleTimer=setTimeout(async()=>{ try{await signOut(auth);}catch(e){} currentUserData=null; currentClassMasterData=null; currentManagementData=null; currentTechnicalData=null; secureVotingSession=null; showPage('studentLogin'); showNotification('Sessione scaduta','Sessione chiusa automaticamente per inattività.','info'); }, SESSION_IDLE_MS);
         }
         ['click','keydown','pointerdown','touchstart'].forEach(evt=>window.addEventListener(evt,resetIdleTimer,{passive:true}));
         let configElezioni = {
@@ -465,6 +482,7 @@
             commissionMessage: "La Commissione Elettorale informa che le risultanze sono soggette alle verifiche ufficiali. Consultare nuovamente questa pagina dopo la chiusura dello scrutinio e la pubblicazione degli esiti.",
             commissionMessageEnabled: true,
             commissionFinalized: false,
+            assistenteTecnico: { nome: "Da designare", ruolo: "Assistente tecnico di riferimento", postazione: "Postazione PC laboratoriale designata dall’Istituto" },
             riferimentoCircolare: { numero:"", data:"", oggetto:"", url:"", note:"" },
             workflowDigitale: { docentiApproved:false, commissionApproved:false, verbaliUnlocked:false, archived:false, archivedAt:null, archivedBy:null, releasedAt:null, releasedBy:null, digitalAttestationHash:null, digitalAttestationAt:null, checklist:{} },
             personaleDirezione: [
@@ -635,6 +653,9 @@
         let commissionLiveUnsubscribes = [];
         let currentLiveCommissionData = {};
         let currentManagementData = null;
+        let currentTechnicalData = null;
+        let currentTechnicalStatus = null;
+        let currentTechnicalLogs = [];
         let managementLiveUnsubscribes = [];
 
         let officialVotiScrutinio = {
@@ -771,9 +792,12 @@
             commContainer.innerHTML = configElezioni.commissione.map(c => `
                 <div class="flex items-center justify-between py-1.5 border-b border-slate-150 last:border-0 text-xs">
                     <span class="font-bold text-slate-800">${c.nome}</span>
-                    <span class="text-[10px] px-2 py-0.5 bg-blue-100 text-blue-855 rounded font-semibold">${c.ruolo}</span>
+                    <span class="commissione-label text-[10px] px-2 py-0.5 bg-slate-200 rounded font-semibold">${c.ruolo}</span>
                 </div>
             `).join('');
+            const technicalBox = document.getElementById('technical-assistant-modal');
+            const technical = configElezioni.assistenteTecnico || {};
+            if (technicalBox) technicalBox.innerHTML = `<b class="block text-amber-950">Area tecnica di supporto</b><span class="block mt-1"><strong>${technical.nome || 'Da designare'}</strong> — ${technical.ruolo || 'Assistente tecnico di riferimento'}</span><span class="block mt-1 text-amber-900">Postazione: ${technical.postazione || 'Postazione PC laboratoriale designata dall’Istituto'}</span><span class="block mt-1 text-[10px] text-slate-600">Supporto tecnico della Commissione, non componente dell’organo elettorale e senza accesso a voti o risultati.</span>`;
 
             modal.classList.remove('hidden');
             lucide.createIcons();
@@ -805,11 +829,13 @@
                     configElezioni.riferimentoCircolare = { numero:"", data:"", oggetto:"", url:"", note:"", ...(configElezioni.riferimentoCircolare || {}) };
                     configElezioni.workflowDigitale = { docentiApproved:false, commissionApproved:false, verbaliUnlocked:false, archived:false, archivedAt:null, archivedBy:null, releasedAt:null, releasedBy:null, digitalAttestationHash:null, digitalAttestationAt:null, checklist:{}, ...(configElezioni.workflowDigitale || {}) };
                     if (configElezioni.tipologiaElezioni == null) configElezioni.tipologiaElezioni = "Elezioni Organi Collegiali d'Istituto";
+                    configElezioni.assistenteTecnico = { nome: "Da designare", ruolo: "Assistente tecnico di riferimento", postazione: "Postazione PC laboratoriale designata dall’Istituto", ...(configElezioni.assistenteTecnico || {}) };
                     window.configElezioni = configElezioni;
         setTimeout(() => { try { updateTestModeBanner(); } catch(e) {} }, 0);
                 } else {
                     configElezioni.riferimentoCircolare = configElezioni.riferimentoCircolare || { numero:"", data:"", oggetto:"", url:"", note:"" };
-                    configElezioni.workflowDigitale = configElezioni.workflowDigitale || { docentiApproved:false, commissionApproved:false, verbaliUnlocked:false, archived:false, archivedAt:null, archivedBy:null, releasedAt:null, releasedBy:null, digitalAttestationHash:null, digitalAttestationAt:null, checklist:{} };
+                    configElezioni.workflowDigitale = configElezioni.workflowDigitale || { docentiApproved:false, commissionApproved:false, verbaliUnlocked:false, archived:false, archivedAt:null, releasedAt:null, releasedBy:null, digitalAttestationHash:null, digitalAttestationAt:null, checklist:{} };
+                    configElezioni.assistenteTecnico = { nome: "Da designare", ruolo: "Assistente tecnico di riferimento", postazione: "Postazione PC laboratoriale designata dall’Istituto", ...(configElezioni.assistenteTecnico || {}) };
                 }
                 firebaseStateConnected = true;
             } catch (err) {
@@ -856,7 +882,16 @@
             const headerActions = document.getElementById('header-actions');
             headerActions.innerHTML = '';
             
-            if (currentManagementData) {
+            if (currentTechnicalData) {
+                headerActions.innerHTML = `
+                    <div class="flex items-center space-x-2 bg-amber-900/60 px-2 py-1 rounded-lg border border-amber-300/30 font-semibold">
+                        <span class="text-[10px] font-bold text-white uppercase hidden sm:inline">ASSISTENTE TECNICO • ${currentTechnicalData.name || '—'}</span>
+                        <button onclick="window.logoutTechnical()" class="bg-red-600 hover:bg-red-700 text-white text-[10px] font-black px-2.5 py-1 rounded shadow-sm transition-all flex items-center gap-1">
+                            <i data-lucide="log-out" class="w-3 h-3"></i> Esci
+                        </button>
+                    </div>
+                `;
+            } else if (currentManagementData) {
                 headerActions.innerHTML = `
                     <div class="flex items-center space-x-2 bg-emerald-900/40 px-2 py-1 rounded-lg border border-emerald-300/20 font-semibold">
                         <span class="text-[10px] font-bold text-white uppercase hidden sm:inline">${normalizeRole(currentManagementData.role)}${currentManagementData.scopeClass && currentManagementData.scopeClass !== 'TUTTE' ? ' • '+currentManagementData.scopeClass : ''}</span>
@@ -915,6 +950,8 @@
                 case 'adminPanel': renderAdminPanel(container); break;
                 case 'managementLogin': renderManagementLogin(container); break;
                 case 'managementDashboard': renderManagementDashboard(container); break;
+                case 'technicalLogin': renderTechnicalLogin(container); break;
+                case 'technicalDashboard': renderTechnicalDashboard(container); break;
             }
             updateHeaderActions();
             updateSecureCabinState();
@@ -966,6 +1003,7 @@
         }
 
         function renderStudentLogin(container) {
+            const publicTechnical = configElezioni.assistenteTecnico || {};
             container.innerHTML = `
                 <div class="w-full max-w-md mx-auto bg-white/95 backdrop-blur-md p-8 rounded-2xl shadow-2xl border border-slate-200 text-center animate-fade-in mt-4 font-semibold">
                     <div class="mb-6 flex flex-col items-center">
@@ -974,6 +1012,7 @@
                         <p class="text-slate-500 text-xs mt-1">Digita il codice segreto (Token) esclusivamente dalla postazione autorizzata predisposta per la votazione.</p>
                         <p class="text-[10px] text-blue-900 bg-blue-50 px-2 py-0.5 rounded mt-2 font-bold">Anno Scolastico Attivo: A.S. ${configElezioni.annoScolastico}</p>
                         <p class="text-[10px] text-slate-500 mt-2 font-semibold">Votazioni: ${configElezioni.calendario?.votingStartDate || 'XX/10/2026'} ${configElezioni.calendario?.votingStartTime || 'XX:XX'} → ${configElezioni.calendario?.votingEndDate || 'XX/10/2026'} ${configElezioni.calendario?.votingEndTime || 'XX:XX'}</p>
+                        <div class="w-full mt-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-left text-[10px] text-amber-950"><b>Commissione • Area tecnica:</b> ${technicalEscape(publicTechnical.nome || 'Da designare')}<br><span class="text-slate-600">Postazione: ${technicalEscape(publicTechnical.postazione || 'Postazione PC laboratoriale designata dall’Istituto')}</span></div>
                     </div>
                     <div class="space-y-4">
                         <input type="text" id="tokenInput" placeholder="ES: STU123" class="w-full p-4 text-center text-2xl font-mono border-2 border-slate-200 rounded-xl uppercase tracking-wider focus:border-blue-600 outline-none font-bold">
@@ -1955,7 +1994,7 @@
                 <div class="max-w-md mx-auto bg-white/95 backdrop-blur-md p-8 rounded-2xl shadow-xl border border-slate-200 mt-10 animate-fade-in w-full font-semibold">
                     <div class="text-center mb-6">
                         <i data-lucide="shield-alert" class="mx-auto w-12 h-12 text-red-600 mb-2"></i>
-                        <h2 class="text-xl font-black text-slate-800">Area Commissione Elettorale</h2>
+                        <h2 class="commissione-label text-xl font-black text-slate-800">Area Commissione Elettorale</h2>
                         <p class="text-slate-500 text-xs mt-1">Accesso protetto per i componenti elettorali.</p>
                     </div>
                     <div class="space-y-4">
@@ -2114,6 +2153,10 @@
             signOut(auth).then(() => {
                 currentUserData = null;
                 currentClassMasterData = null;
+                currentManagementData = null;
+                currentTechnicalData = null;
+                currentTechnicalStatus = null;
+                currentTechnicalLogs = [];
                 showPage('studentLogin');
             });
         };
@@ -2251,7 +2294,7 @@
                         <div class="bg-white rounded-2xl border p-5">
                             <h4 class="font-black text-slate-900 text-sm mb-3">Diagnostica tecnica reale</h4>
                             <p class="text-xs text-slate-600 mb-3">Controlla il backend Vercel, il collegamento Firebase e lo stato di sicurezza senza inserire voti.</p>
-                            <button onclick="runElectionTechnicalCheck()" class="px-4 py-2 rounded-xl bg-blue-900 hover:bg-blue-950 text-white text-xs font-black">ESEGUI TEST BACKEND / FIREBASE</button>
+                            <div class="flex flex-wrap gap-2"><button onclick="runElectionTechnicalCheck()" class="px-4 py-2 rounded-xl bg-blue-900 hover:bg-blue-950 text-white text-xs font-black">ESEGUI TEST BACKEND / FIREBASE</button><button onclick="window.showPage('technicalLogin')" class="px-4 py-2 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-xs font-black">APRI AREA ASSISTENTE TECNICO</button><button onclick="window.downloadTechnicalMinutes()" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-black">SCARICA VERBALE TECNICO</button></div>
                             <div id="technical-check-result" class="mt-3 text-xs"></div>
                             <div class="mt-4 p-3 rounded-xl bg-slate-50 border text-[11px] text-slate-700 leading-relaxed">
                                 <b>TEST PRIVACY CABINA:</b> entra in una scheda di prova, premi “Cabina protetta”, prova cambio scheda/finestra, Ctrl/Cmd+P, menu contestuale e PrintScreen.
@@ -2491,6 +2534,7 @@
         };
 
         function renderConfigTab(container) {
+            const technicalAssistant = configElezioni.assistenteTecnico || { nome: 'Da designare', ruolo: 'Assistente tecnico di riferimento', postazione: 'Postazione PC laboratoriale designata dall’Istituto' };
             let commHTML = configElezioni.commissione.map((c, idx) => `
                 <div class="flex items-center gap-2 mb-2 font-semibold">
                     <input type="text" value="${c.nome}" onchange="updateCommissioneMember(${idx}, 'nome', this.value)" class="p-2 border rounded-xl text-xs flex-grow font-bold">
@@ -2599,6 +2643,13 @@
                             </div>
                             <button onclick="addCommissioneMember()" class="mt-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold py-2 px-4 rounded-xl text-xs flex items-center gap-1.5"><i data-lucide="plus" class="w-4 h-4"></i> Aggiungi Componente</button>
                         </div>
+                        <div class="mt-6 pt-6 border-t border-slate-100 bg-amber-50/60 rounded-2xl p-4">
+                            <h4 class="text-xs font-black text-amber-950 uppercase mb-2 flex items-center gap-1.5"><i data-lucide="wrench" class="text-amber-700"></i> Area tecnica di supporto</h4>
+                            <p class="text-[9px] text-slate-600 mb-3">Indicare l’assistente tecnico di riferimento e la postazione PC laboratoriale. Il ruolo è separato dalla Commissione, non firma le nomine e non accede ai voti.</p>
+                            <input id="cfgTechnicalName" value="${String(technicalAssistant.nome||'').replace(/"/g,'&quot;')}" onchange="window.updateTechnicalAssistantField('nome', this.value)" class="w-full p-2 border rounded-lg text-[10px] font-bold" placeholder="Nome e cognome dell’assistente tecnico">
+                            <input id="cfgTechnicalStation" value="${String(technicalAssistant.postazione||'').replace(/"/g,'&quot;')}" onchange="window.updateTechnicalAssistantField('postazione', this.value)" class="w-full p-2 border rounded-lg text-[10px] font-bold mt-2" placeholder="Postazione PC laboratoriale designata">
+                            <div class="text-[9px] text-amber-900 mt-2"><b>Ruolo registrato:</b> Assistente tecnico di riferimento (supporto tecnico, non componente della Commissione).</div>
+                        </div>
                         <div class="mt-6 pt-6 border-t border-slate-100">
                             <div class="flex items-center justify-between mb-3">
                                 <h4 class="text-xs font-black text-slate-800 uppercase flex items-center gap-1.5"><i data-lucide="building-2" class="text-indigo-700"></i> Dirigenza, Vicepresidenza, DSGA e Segreteria</h4>
@@ -2670,6 +2721,10 @@
         window.updateCommissioneMember = function(idx, field, value) { configElezioni.commissione[idx][field] = value; };
         window.deleteCommissioneMember = function(idx) { configElezioni.commissione.splice(idx, 1); renderActiveAdminTab(); };
         window.addCommissioneMember = function() { configElezioni.commissione.push({ nome: "Nuovo Membro", ruolo: "Componente" }); renderActiveAdminTab(); };
+        window.updateTechnicalAssistantField = function(field, value) {
+            configElezioni.assistenteTecnico = configElezioni.assistenteTecnico || { nome: 'Da designare', ruolo: 'Assistente tecnico di riferimento', postazione: 'Postazione PC laboratoriale designata dall’Istituto' };
+            if (field === 'nome' || field === 'postazione') configElezioni.assistenteTecnico[field] = String(value || '').trim().slice(0, 160);
+        };
 
         window.openConfirmWipe = function() { document.getElementById('custom-confirm-modal').classList.remove('hidden'); };
         window.closeConfirmModal = function() { document.getElementById('custom-confirm-modal').classList.add('hidden'); };
@@ -2684,6 +2739,15 @@
                     <strong style="font-size: 12px; color: #1e293b; display: block;">${c.nome}</strong>
                 </div>
             `).join('');
+            const technicalAssistant = configElezioni.assistenteTecnico || {};
+            const isNominationReport = /\bnomina(?:zione)?\b|\bnomine\b/i.test(String(title || ''));
+            const technicalSupportBlock = isNominationReport ? '' : `
+                <div style="margin-top: 28px; padding: 14px; border: 1px solid #f3d08a; border-radius: 10px; background: #fffbeb; page-break-inside: avoid; text-align: left;">
+                    <span style="font-size: 10px; color: #92400e; text-transform: uppercase; font-weight: 800; display: block;">Area tecnica di supporto — non componente della Commissione</span>
+                    <strong style="font-size: 12px; color: #1e293b; display: block; margin-top: 5px;">Assistente tecnico: ${technicalEscape(technicalAssistant.nome || 'Da designare')}</strong>
+                    <span style="font-size: 11px; color: #475569; display: block; margin-top: 3px;">Postazione PC laboratoriale: ${technicalEscape(technicalAssistant.postazione || 'Da designare')}</span>
+                    <span style="font-size: 10px; color: #64748b; display: block; margin-top: 5px;">I checkpoint di apertura/chiusura e il verbale tecnico sono allegati agli atti secondo la procedura dell’Istituto.</span>
+                </div>`;
 
             return `<!DOCTYPE html>
 <html lang="it">
@@ -2729,9 +2793,10 @@
         <div class="grid-signatures">
             ${commissioneSignatures}
         </div>
+        ${technicalSupportBlock}
 
         <div class="footer">
-            Generato ed esportato dal Sistema Elettorale Digitale ITSCG "Primo Levi" Seregno - Conservazione Registro Digitale a Norma di Legge
+            Generato ed esportato dal Sistema Elettorale Digitale ITSCG "Primo Levi" Seregno — predisposto per acquisizione al sistema documentale e conservazione secondo le procedure dell’Istituto
         </div>
     </div>
 </body>
@@ -3107,9 +3172,13 @@
                 // -------------------------------------------------------------
                 // DOCUMENTO 4: CONFORMITÀ NORMATIVA
                 // -------------------------------------------------------------
+                const assistantConfig = configElezioni.assistenteTecnico || {};
                 let conformitaContent = `
                     <h2>Relazione Tecnica di Conformità e Trasparenza Elettorale</h2>
-                    <p>La presente relazione attesta la conformità tecnica e giuridica della piattaforma elettorale digitale utilizzata.</p>
+                    <p>La presente relazione riepiloga le misure tecniche e organizzative configurate per la piattaforma elettorale digitale. Non costituisce da sola una certificazione di conformità.</p>
+                    <h3>Presidio tecnico della Commissione</h3>
+                    <p><strong>Assistente tecnico di riferimento:</strong> ${assistantConfig.nome || 'Da designare'}<br><strong>Postazione PC laboratoriale:</strong> ${assistantConfig.postazione || 'Da designare'}</p>
+                    <p>Il presidio tecnico è un supporto alla Commissione e non è componente dell’organo elettorale. I checkpoint di apertura e chiusura e il relativo verbale PDF devono essere allegati agli atti; la loro presenza non sostituisce nomina, collaudo sottoscritto, DPO o provvedimenti dell’Istituto.</p>
                 `;
                 zip.file("4_conformita_normativa_e_regolamento.html", getHtmlReportTemplate("Conformità Tecnica e Giuridica", `Anno Scolastico ${configElezioni.annoScolastico}`, conformitaContent));
 
@@ -3127,7 +3196,7 @@
                 });
 
                 // File README
-                const readmeContent = `ITSCG PRIMO LEVI DI SEREGNO - REGISTRO ELETTRONICO DIGITALE CERTIFICATO
+                const readmeContent = `ITSCG PRIMO LEVI DI SEREGNO - FASCICOLO DIGITALE DELLA CONSULTAZIONE
 Anno Scolastico di Riferimento: A.S. ${configElezioni.annoScolastico}
 Data Esportazione Archivio: ${new Date().toLocaleString()}
 
@@ -3146,7 +3215,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 document.body.removeChild(a);
                 window.URL.revokeObjectURL(url);
 
-                showNotification("Successo", `Archivio storico scaricato correttamente per l'A.S. ${configElezioni.annoScolastico}. Tutti i documenti sono firmati e pronti per la conservazione scolastica.`, "success");
+                showNotification("Archivio esportato", `Archivio scaricato per l'A.S. ${configElezioni.annoScolastico}. Verificare le firme e acquisire i documenti nel sistema documentale dell'Istituto.`, "success");
             } catch (err) {
                 console.error(err);
                 showNotification("Errore Esportazione", "Impossibile scaricare l'archivio ZIP: " + err.message, "error");
@@ -4769,6 +4838,17 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                     });
                 }
 
+                const technicalAssistant = configElezioni.assistenteTecnico || {};
+                let technicalY = (doc.lastAutoTable?.finalY || startY) + 12;
+                if (technicalY > 258) { doc.addPage(); technicalY = 24; }
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(9);
+                doc.setTextColor(30, 41, 59);
+                doc.text("AREA TECNICA DI SUPPORTO (NON COMPONENTE DELLA COMMISSIONE)", 15, technicalY);
+                doc.setFont("helvetica", "normal");
+                doc.text(`Assistente tecnico: ${technicalAssistant.nome || 'Da designare'}`, 15, technicalY + 7);
+                doc.text(`Postazione PC laboratoriale: ${technicalAssistant.postazione || 'Da designare'}`, 15, technicalY + 14);
+
                 doc.save(`Verbale_Voti_${section}_Primo_Levi_${(configElezioni.annoScolastico).replace('/', '_')}.pdf`);
                 showNotification("Esportato", "Scaricamento del registro completato.", "success");
             } catch (err) {
@@ -4900,6 +4980,14 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                     doc.text(`${m.nome} (${m.ruolo})`, 15, nextLineY + (idx * 10));
                     doc.text("..........................................................", 115, nextLineY + (idx * 10));
                 });
+
+                const technicalAssistant = configElezioni.assistenteTecnico || {};
+                const technicalLineY = nextLineY + (configElezioni.commissione.length * 10) + 8;
+                doc.setFont("helvetica", "bold");
+                doc.text("AREA TECNICA DI SUPPORTO (NON COMPONENTE)", 15, technicalLineY);
+                doc.setFont("helvetica", "normal");
+                doc.text(`Assistente tecnico: ${technicalAssistant.nome || 'Da designare'}`, 15, technicalLineY + 8);
+                doc.text(`Postazione PC laboratoriale: ${technicalAssistant.postazione || 'Da designare'}`, 15, technicalLineY + 16);
 
                 doc.save(`Verbale_Proclamazione_${section}_Primo_Levi_${(configElezioni.annoScolastico).replace('/', '_')}.pdf`);
                 showNotification("Esportato", "Scaricamento del verbale completato.", "success");
@@ -5101,7 +5189,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                         <h2 style="font-size:18px; margin-top:20px;">PORTALE DI TRASPARENZA ELETTORALE</h2>
                         <p>Scansiona il codice QR sottostante per accedere in tempo reale ai risultati, alla proclamazione degli eletti e ai voti divisi per classe della Consulta Provinciale e dei Rappresentanti d'Istituto.</p>
                         <img src="${qrApiUrl}" alt="QR">
-                        <p class="footer">Elezioni Digitali Certificate • Sede Unica Via Briantina 68</p>
+                        <p class="footer">Elezioni Digitali — evidenze tecniche e documentali • Sede Unica Via Briantina 68</p>
                     </div>
                 </body>
                 </html>
@@ -5159,6 +5247,222 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
         }
 
 
+        function technicalEscape(value) {
+            return String(value ?? '—').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+        }
+
+        function technicalControlLabel(key) {
+            return {
+                backendReachable: 'Backend Vercel raggiungibile',
+                firebaseReachable: 'Firebase raggiungibile',
+                serverSideAuth: 'Autenticazione server-side attiva',
+                firestoreFailClosed: 'Firestore in modalità fail-closed',
+                auditEnabled: 'Audit tecnico/amministrativo attivo',
+                anonymousBallotStorage: 'Urne separate e prive di identità',
+                testMode: 'Modalità prova attiva',
+                regularityMissing: 'Controlli di regolarità ancora mancanti'
+            }[key] || key;
+        }
+
+        function technicalControlState(key, value) {
+            if (key === 'regularityMissing') return Array.isArray(value) ? value.length === 0 : value === false;
+            if (key === 'testMode') return value !== true;
+            return value === true;
+        }
+
+        function renderTechnicalLogin(container) {
+            container.innerHTML = `
+                <div class="w-full max-w-xl mx-auto bg-white/95 backdrop-blur-md p-7 rounded-3xl shadow-2xl border border-amber-200 mt-6 animate-fade-in font-semibold">
+                    <div class="text-center mb-6">
+                        <div class="w-14 h-14 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto mb-3"><i data-lucide="wrench" class="w-7 h-7"></i></div>
+                        <h2 class="text-2xl font-black text-slate-900">Area Assistente tecnico</h2>
+                        <p class="text-slate-600 text-xs mt-1">Controllo della postazione, dei servizi e dei log di sistema.</p>
+                    </div>
+                    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-[10px] text-amber-950 mb-5 space-y-1">
+                        <p><b>Ruolo separato:</b> l’assistente tecnico supporta la Commissione e non è componente dell’organo elettorale.</p>
+                        <p>Può verificare servizi e registrare i checkpoint di apertura/chiusura; non può leggere voti, risultati o configurazioni.</p>
+                    </div>
+                    <form onsubmit="event.preventDefault(); window.handleTechnicalLogin();" class="space-y-3">
+                        <label class="block text-[10px] uppercase tracking-wider text-slate-500 font-black" for="technicalUsername">Credenziale tecnica</label>
+                        <input type="text" id="technicalUsername" autocomplete="username" placeholder="Username assistente tecnico" required class="w-full p-3.5 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-amber-700">
+                        <input type="password" id="technicalPassword" autocomplete="current-password" placeholder="Password" required class="w-full p-3.5 border-2 border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-amber-700">
+                        <label class="flex items-start gap-2 p-3 bg-slate-50 border rounded-xl text-[10px] text-slate-600 cursor-pointer"><input id="technicalNoticeAck" type="checkbox" class="mt-0.5 w-4 h-4"><span>Dichiaro di operare esclusivamente sulla postazione autorizzata e per le finalità tecniche indicate dalla Commissione.</span></label>
+                        <button type="submit" class="w-full bg-amber-700 hover:bg-amber-800 text-white font-extrabold py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"><i data-lucide="log-in" class="w-4 h-4"></i> Accedi all’area tecnica</button>
+                        <button type="button" onclick="showPage('studentLogin')" class="w-full text-slate-500 hover:underline text-[10px] font-extrabold">Torna alla pagina principale</button>
+                        <p id="technicalLoginError" class="hidden text-red-700 bg-red-50 border border-red-200 rounded-xl p-3 text-[10px] font-bold"></p>
+                    </form>
+                </div>`;
+            lucide.createIcons();
+        }
+
+        window.handleTechnicalLogin = async function() {
+            const username = document.getElementById('technicalUsername')?.value.trim().toLowerCase() || '';
+            const password = document.getElementById('technicalPassword')?.value || '';
+            const acknowledged = !!document.getElementById('technicalNoticeAck')?.checked;
+            const err = document.getElementById('technicalLoginError');
+            err?.classList.add('hidden');
+            if (!username || !password || !acknowledged) {
+                if (err) { err.textContent = 'Compilare i dati e confermare la presa visione.'; err.classList.remove('hidden'); }
+                return;
+            }
+            try {
+                const res = await SECURE_API.technicalLogin({ username, password, annoScolastico: configElezioni.annoScolastico });
+                await signInWithCustomToken(auth, res.data.customToken);
+                currentTechnicalData = res.data.profile || { name: username, role: 'ASSISTENTE_TECNICO' };
+                currentManagementData = null;
+                currentUserData = null;
+                currentClassMasterData = null;
+                resetIdleTimer();
+                showPage('technicalDashboard');
+            } catch (e) {
+                if (err) { err.textContent = e?.message || 'Credenziali non valide.'; err.classList.remove('hidden'); }
+            }
+        };
+
+        function technicalStatusCards(controls) {
+            const entries = Object.entries(controls || {});
+            return entries.map(([key, value]) => {
+                const ok = technicalControlState(key, value);
+                const detail = key === 'regularityMissing'
+                    ? (Array.isArray(value) && value.length ? `${value.length} controllo/i da confermare dalla Commissione.` : 'Nessun controllo preliminare mancante.')
+                    : key === 'testMode'
+                        ? (value === true ? 'Usare esclusivamente dataset di prova fino al collaudo formale.' : 'Modalità reale configurata.')
+                        : (value === null ? 'Verifica separata richiesta nel collaudo: questo controllo non è misurato automaticamente.' : (ok ? 'Risposta verificata dal backend.' : 'Verifica non superata. Informare la Commissione.'));
+                return `<div class="p-3 rounded-2xl border ${ok ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}"><div class="flex items-start gap-2"><span class="text-sm font-black ${ok ? 'text-emerald-700' : 'text-red-700'}">${ok ? '✓' : (value === null ? '?' : '✕')}</span><div><b class="text-[10px] ${ok ? 'text-emerald-950' : 'text-red-950'}">${technicalEscape(technicalControlLabel(key))}</b><p class="text-[9px] text-slate-600 mt-1">${technicalEscape(detail)}</p></div></div></div>`;
+            }).join('');
+        }
+
+        function technicalLogRows(logs) {
+            return (logs || []).map(log => `<tr class="border-t border-slate-100"><td class="p-2.5 font-black">${technicalEscape(log.event)}</td><td class="p-2.5">${technicalEscape(log.technicianName)}</td><td class="p-2.5">${technicalEscape(log.station)}</td><td class="p-2.5">${technicalEscape(log.phase)}</td><td class="p-2.5">${technicalEscape(log.result)}</td><td class="p-2.5">${technicalEscape(log.at ? new Date(log.at).toLocaleString('it-IT') : '—')}</td><td class="p-2.5 max-w-[220px]">${technicalEscape(log.note || '—')}</td></tr>`).join('') || '<tr><td colspan="7" class="p-8 text-center text-slate-400">Nessun checkpoint registrato.</td></tr>';
+        }
+
+        function renderTechnicalDashboard(container) {
+            if (!currentTechnicalData) { showPage('technicalLogin'); return; }
+            const assistant = configElezioni.assistenteTecnico || {};
+            container.innerHTML = `
+                <div class="w-full max-w-7xl mx-auto space-y-5 animate-fade-in font-semibold">
+                    <div class="bg-gradient-header text-white rounded-3xl p-6 shadow-xl border-b-4 border-amber-400 flex flex-col lg:flex-row justify-between gap-4 items-start lg:items-center">
+                        <div><span class="text-[9px] uppercase tracking-[0.2em] text-amber-300 font-black">COMMISSIONE ELETTORALE • AREA TECNICA</span><h2 class="text-2xl font-black mt-2">Verifica dei sistemi e dei log</h2><p class="text-xs text-slate-300 mt-1">Assistente: ${technicalEscape(currentTechnicalData.name || '—')} · supporto tecnico, non componente della Commissione</p></div>
+                        <div class="flex flex-wrap gap-2"><span id="technicalLastUpdate" class="px-3 py-2.5 rounded-xl bg-amber-400/10 border border-amber-200/20 text-[9px] font-black">CARICAMENTO</span><button onclick="window.refreshTechnicalDashboard()" class="px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-xs font-black flex items-center gap-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Aggiorna</button><button onclick="window.logoutTechnical()" class="px-4 py-2.5 rounded-xl bg-red-600 border border-red-500 text-xs font-black flex items-center gap-2"><i data-lucide="log-out" class="w-4 h-4"></i> Esci</button></div>
+                    </div>
+                    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-[10px] text-amber-950"><b>Postazione designata:</b> ${technicalEscape(assistant.postazione || 'Postazione PC laboratoriale designata dall’Istituto')}<br><span class="text-slate-600">Il nominativo e la postazione devono risultare nell’atto/verbale dell’Istituto. Il registro tecnico documenta i controlli, non sostituisce la nomina o il collaudo formale.</span></div>
+                    <div id="technical-status-error" class="hidden"></div>
+                    <div id="technical-status-summary" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><div class="spinner border-amber-700 border-t-transparent mx-auto"></div></div>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <button onclick="window.recordTechnicalCheckpoint('OPENING')" class="p-5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-left shadow-lg"><div class="text-2xl mb-2">①</div><div class="font-black">REGISTRA CHECKPOINT DI APERTURA</div><div class="text-[10px] mt-1">Esegue e salva il controllo della postazione e dei servizi prima dell’apertura.</div></button>
+                        <button onclick="window.recordTechnicalCheckpoint('CLOSING')" class="p-5 rounded-2xl bg-slate-900 hover:bg-black text-white text-left shadow-lg"><div class="text-2xl mb-2">②</div><div class="font-black">REGISTRA CHECKPOINT DI CHIUSURA</div><div class="text-[10px] mt-1">Registra lo stato dei servizi e dei log alla chiusura.</div></button>
+                    </div>
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><div class="flex flex-col md:flex-row justify-between gap-3 items-start md:items-center"><div><h3 class="text-sm font-black text-slate-900">Verbale tecnico</h3><p class="text-[10px] text-slate-500 mt-1">PDF con nominativo del tecnico, postazione, fase, esito e timestamp dei checkpoint disponibili.</p></div><button onclick="window.downloadTechnicalMinutes()" class="bg-amber-700 hover:bg-amber-800 text-white px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2"><i data-lucide="file-down" class="w-4 h-4"></i> Scarica verbale PDF</button></div></div>
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><div class="flex justify-between gap-3 items-center mb-3"><div><h3 class="text-sm font-black text-slate-900">Registro checkpoint tecnici</h3><p class="text-[10px] text-slate-500">Solo eventi di sistema; nessun voto, preferenza, token o identificativo dell’elettore.</p></div><span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-[9px] font-black">A.S. ${technicalEscape(configElezioni.annoScolastico)}</span></div><div class="overflow-auto max-h-[520px] custom-scrollbar"><table class="w-full text-left text-[10px]"><thead class="sticky top-0 bg-slate-50"><tr><th class="p-2.5">Evento</th><th class="p-2.5">Tecnico</th><th class="p-2.5">Postazione</th><th class="p-2.5">Fase</th><th class="p-2.5">Esito</th><th class="p-2.5">Data/ora</th><th class="p-2.5">Note</th></tr></thead><tbody id="technical-log-body"><tr><td colspan="7" class="p-8 text-center text-slate-400">Caricamento...</td></tr></tbody></table></div></div>
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-[10px] text-slate-600"><b>Per la Commissione:</b> se un controllo risulta rosso, sospendere l’apertura o la chiusura, annotare l’incidente nell’area Commissione e acquisire il verbale previsto dal piano di continuità. I log non contengono il contenuto delle schede.</div>
+                </div>`;
+            lucide.createIcons();
+            window.refreshTechnicalDashboard();
+        }
+
+        window.refreshTechnicalDashboard = async function() {
+            const summary = document.getElementById('technical-status-summary');
+            const body = document.getElementById('technical-log-body');
+            const error = document.getElementById('technical-status-error');
+            if (!summary || !currentTechnicalData) return;
+            error?.classList.add('hidden');
+            try {
+                const [statusResponse, logsResponse] = await Promise.all([
+                    SECURE_API.getTechnicalStatus({ annoScolastico: configElezioni.annoScolastico }),
+                    SECURE_API.getTechnicalLogs({ annoScolastico: configElezioni.annoScolastico })
+                ]);
+                currentTechnicalStatus = statusResponse.data || {};
+                currentTechnicalLogs = logsResponse.data?.logs || currentTechnicalStatus.recentEvents || [];
+                const controls = currentTechnicalStatus.controls || {};
+                summary.innerHTML = `<div class="flex flex-col lg:flex-row justify-between gap-4 items-start lg:items-center mb-4"><div><span class="text-[9px] uppercase tracking-wider text-amber-700 font-black">STATO SISTEMA</span><h3 class="text-xl font-black text-slate-900 mt-1">${technicalEscape(currentTechnicalStatus.phase || '—')}</h3><p class="text-[10px] text-slate-500">Backend e registri verificati per l’A.S. ${technicalEscape(currentTechnicalStatus.year || configElezioni.annoScolastico)}</p></div><div class="px-3 py-2 rounded-xl bg-emerald-100 text-emerald-900 text-[10px] font-black">${Object.entries(controls).every(([k,v]) => technicalControlState(k,v)) ? 'SISTEMA OPERATIVO' : 'VERIFICHE DA COMPLETARE'}</div></div><div class="grid md:grid-cols-2 lg:grid-cols-4 gap-3">${technicalStatusCards(controls)}</div>`;
+                if (body) body.innerHTML = technicalLogRows(currentTechnicalLogs);
+                const stamp = document.getElementById('technicalLastUpdate');
+                if (stamp) stamp.textContent = 'LIVE • ' + new Date().toLocaleTimeString('it-IT');
+                lucide.createIcons();
+            } catch (e) {
+                summary.innerHTML = '<div class="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs font-black">Servizio tecnico non raggiungibile. Aggiornare o informare la Commissione.</div>';
+                if (error) { error.innerHTML = `<div class="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-[10px] font-bold">${technicalEscape(e?.message || 'Errore di collegamento.')}</div>`; error.classList.remove('hidden'); }
+                const stamp = document.getElementById('technicalLastUpdate');
+                if (stamp) stamp.textContent = 'ERRORE • ' + new Date().toLocaleTimeString('it-IT');
+            }
+        };
+
+        window.recordTechnicalCheckpoint = async function(event) {
+            if (!currentTechnicalData) return showPage('technicalLogin');
+            const label = event === 'OPENING' ? 'apertura' : 'chiusura';
+            const note = window.prompt(`Nota facoltativa per il checkpoint di ${label}:`, '') || '';
+            try {
+                const response = await SECURE_API.recordTechnicalCheckpoint({ event, note, annoScolastico: configElezioni.annoScolastico });
+                const result = response.data?.result || 'ATTENZIONE';
+                showNotification(result === 'OK' ? 'Checkpoint registrato' : 'Checkpoint registrato con avviso', result === 'OK'
+                    ? `Il controllo tecnico di ${label} è stato salvato con il tuo nome e la postazione designata.`
+                    : `Il controllo di ${label} è stato salvato, ma una verifica risulta incompleta: informare la Commissione prima di procedere.`, result === 'OK' ? 'success' : 'info');
+                await window.refreshTechnicalDashboard();
+            } catch (e) {
+                showNotification('Checkpoint non registrato', e?.message || 'Operazione non completata.', 'error');
+            }
+        };
+
+        window.downloadTechnicalMinutes = async function() {
+            if (!currentTechnicalData && !auth.currentUser) return showPage('technicalLogin');
+            const assistant = configElezioni.assistenteTecnico || {};
+            {
+                try {
+                    if (currentTechnicalData) await window.refreshTechnicalDashboard();
+                    else {
+                        const response = await SECURE_API.getTechnicalLogs({ annoScolastico: configElezioni.annoScolastico });
+                        currentTechnicalLogs = response.data?.logs || [];
+                    }
+                } catch (e) {
+                    return showNotification('Log tecnici non disponibili', e?.message || 'Operazione non completata.', 'error');
+                }
+            }
+            const logs = [...(currentTechnicalLogs || [])].sort((a,b) => String(a.at || '').localeCompare(String(b.at || '')));
+            const technicianDisplayName = currentTechnicalData?.name || assistant.nome || 'Da designare';
+            const JsPDF = window.jspdf?.jsPDF || window.jsPDF;
+            if (!JsPDF) return showNotification('PDF non disponibile', 'La libreria PDF non è stata caricata.', 'error');
+            const doc = new JsPDF({ unit: 'mm', format: 'a4' });
+            const margin = 15; const width = 180; let y = 18;
+            const write = (value, size = 9, bold = false, gap = 5) => {
+                doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setFontSize(size); doc.setTextColor(15, 23, 42);
+                const lines = doc.splitTextToSize(String(value ?? '—'), width);
+                if (y + lines.length * (size * 0.45 + 1) > 276) { doc.addPage(); y = 18; }
+                doc.text(lines, margin, y); y += lines.length * (size * 0.45 + 1) + gap;
+            };
+            doc.setFillColor(30, 58, 138); doc.rect(0, 0, 210, 12, 'F');
+            doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.text('ITSCG PRIMO LEVI DI SEREGNO — VERBALE TECNICO', margin, 8);
+            y = 22; write('Verbale dei controlli tecnici di apertura e chiusura', 14, true, 6);
+            write(`Anno scolastico: ${configElezioni.annoScolastico || '—'}`);
+            write(`Assistente tecnico di riferimento: ${technicianDisplayName}`);
+            write(`Postazione PC laboratoriale: ${assistant.postazione || 'Postazione PC laboratoriale designata dall’Istituto'}`);
+            write(`Ruolo: ${assistant.ruolo || 'supporto tecnico, non componente della Commissione'}`);
+            write(`Documento generato: ${new Date().toLocaleString('it-IT')}`);
+            write('I checkpoint documentano la verifica tecnica dei servizi e non contengono voti, preferenze, token o identificativi degli elettori.', 8, false, 7);
+            write('I controlli su regole Firestore, audit e anonimato richiedono un collaudo separato. Il verbale non certifica la conformità complessiva alla Nota MIM 3803/2026.', 8, false, 7);
+            write('Checkpoint registrati (ultimi 100 eventi disponibili)', 11, true, 4);
+            if (!logs.length) write('Nessun checkpoint di apertura o chiusura risulta registrato.', 9, false, 5);
+            logs.forEach((log, index) => {
+                write(`${index + 1}. ${log.event || '—'} — ${log.result || '—'} — ${log.at ? new Date(log.at).toLocaleString('it-IT') : 'timestamp in attesa'}`, 9, true, 2);
+                write(`Tecnico: ${log.technicianName || '—'} | Postazione: ${log.station || '—'} | Fase: ${log.phase || '—'}`, 8, false, 2);
+                if (log.note) write(`Nota: ${log.note}`, 8, false, 3);
+            });
+            write('Esito e sottoscrizione', 11, true, 4);
+            write('Il verbale deve essere verificato dalla Commissione, sottoscritto secondo le procedure dell’Istituto e acquisito al fascicolo digitale insieme all’atto di designazione del tecnico e della postazione.', 8, false, 10);
+            write(`Assistente tecnico: ${technicianDisplayName}    Firma: ______________________________`, 9, false, 8);
+            write('Presidente Commissione: ______________________________    Firma: ______________________________', 9, false, 8);
+            const suffix = String(configElezioni.annoScolastico || 'AS').replace('/', '_');
+            doc.save(`Verbale_Collaudo_Tecnico_${suffix}.pdf`);
+            showNotification('Verbale scaricato', 'Il verbale tecnico PDF è stato generato con i checkpoint disponibili.', 'success');
+        };
+
+        window.logoutTechnical = async function() {
+            currentTechnicalData = null;
+            currentTechnicalStatus = null;
+            currentTechnicalLogs = [];
+            try { await signOut(auth); } catch (e) {}
+            showPage('studentLogin');
+        };
+
         function renderManagementLogin(container) {
             container.innerHTML = `
                 <div class="w-full max-w-xl mx-auto bg-white/95 backdrop-blur-md p-7 rounded-3xl shadow-2xl border border-emerald-200 mt-6 animate-fade-in font-semibold">
@@ -5173,6 +5477,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                         <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-100"><span class="font-black text-emerald-900 block">Vicepreside</span><span class="text-slate-500">Risultati in tempo reale e dettaglio per classe autorizzata.</span></div>
                         <div class="p-3 rounded-xl bg-rose-50 border border-rose-100"><span class="font-black text-rose-900 block">Segreteria</span><span class="text-slate-500">Riepiloghi e risultati aggregati; verbali solo dopo sblocco.</span></div>
                         <div class="p-3 rounded-xl bg-amber-50 border border-amber-100"><span class="font-black text-amber-900 block">DSGA</span><span class="text-slate-500">Visione amministrativo-contabile e fascicolo documentale in sola lettura; nessuna modifica ai voti.</span></div>
+                        <div class="p-3 rounded-xl bg-slate-100 border border-slate-200"><span class="font-black text-slate-900 block">Assistente tecnico</span><span class="text-slate-500">Usare il pulsante “Assistente tecnico” dedicato per log e checkpoint; non accede ai risultati.</span></div>
                     </div>
                     <div class="space-y-3">
                         <label class="block text-[10px] uppercase tracking-wider text-slate-500 font-black">Livello di accesso</label>
@@ -5204,6 +5509,9 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 const res=await SECURE_API.managementLogin({requestedRole,username,password,annoScolastico:configElezioni.annoScolastico});
                 await signInWithCustomToken(auth,res.data.customToken);
                 currentManagementData=res.data.profile;
+                currentTechnicalData = null;
+                currentUserData = null;
+                currentClassMasterData = null;
                 resetIdleTimer(); showPage('managementDashboard');
             }catch(e){ if(err){err.textContent=e.message||'Credenziali non valide.';err.classList.remove('hidden');} }
         };
@@ -5263,6 +5571,50 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             const stamp = document.getElementById('managementLastUpdate');
             if (stamp) stamp.textContent = 'LIVE • ' + new Date().toLocaleTimeString('it-IT');
         }
+
+        function managementRoleDescription(role) {
+            return {
+                DIRIGENTE: 'Vista completa del procedimento e del fascicolo.',
+                VICEPRESIDE: 'Risultati aggregati e dettaglio per la classe autorizzata.',
+                DSGA: 'Consultazione amministrativa e documentale in sola lettura.',
+                SEGRETERIA: 'Riepiloghi aggregati e documenti dopo lo sblocco.'
+            }[normalizeRole(role)] || 'Accesso gestionale autorizzato.';
+        }
+
+        async function loadManagementDashboardData() {
+            const collections = ['voti_istituto','voti_consulta','voti_consiglio','voti_classe_studenti','voti_classe_genitori'];
+            const pairs = await Promise.all(collections.map(async collectionName => {
+                const response = await SECURE_API.getAnonymousBallots({ collection: collectionName, annoScolastico: configElezioni.annoScolastico });
+                return [collectionName, response.data?.ballots || []];
+            }));
+            return Object.fromEntries(pairs);
+        }
+
+        function renderManagementDashboard(container) {
+            if (!currentManagementData) { showPage('managementLogin'); return; }
+            container.innerHTML = '<div class="w-full max-w-3xl mx-auto bg-white rounded-3xl border p-8 text-center"><div class="spinner border-emerald-700 border-t-transparent mx-auto mb-3"></div><p class="text-xs text-slate-600 font-bold">Caricamento dati aggregati...</p></div>';
+            window.refreshManagementDashboard();
+        }
+
+        window.refreshManagementDashboard = async function() {
+            const container = document.getElementById('app-container');
+            if (!container || !currentManagementData) return;
+            try {
+                const data = await loadManagementDashboardData();
+                renderManagementDashboardView(container, data);
+            } catch (e) {
+                container.innerHTML = `<div class="w-full max-w-3xl mx-auto bg-red-50 border border-red-200 rounded-3xl p-8 text-center text-red-900"><b class="text-sm">Cruscotto non disponibile</b><p class="text-[10px] mt-2">${technicalEscape(e?.message || 'Dati non disponibili.')}</p><button onclick="window.refreshManagementDashboard()" class="mt-4 px-4 py-2 rounded-xl bg-red-700 text-white text-xs font-black">Riprova</button><button onclick="window.logoutManagement()" class="mt-2 px-4 py-2 rounded-xl bg-white border text-xs font-black">Esci</button></div>`;
+            }
+        };
+
+        window.logoutManagement = async function() {
+            managementLiveUnsubscribes.forEach(fn => { try { fn(); } catch (e) {} });
+            managementLiveUnsubscribes = [];
+            currentManagementData = null;
+            currentTechnicalData = null;
+            try { await signOut(auth); } catch (e) {}
+            showPage('studentLogin');
+        };
 
         function clearCommissionLiveListeners() {
             commissionLiveUnsubscribes.forEach(fn => { try { fn(); } catch (_) {} });
@@ -5371,16 +5723,17 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 ['DIRIGENTE','Accesso completo'],
                 ['VICEPRESIDE','Risultati e classi'],
                 ['DSGA','Esiti + fascicolo documentale'],
-                ['SEGRETERIA','Riepiloghi e classi']
+                ['SEGRETERIA','Riepiloghi e classi'],
+                ['ASSISTENTE_TECNICO','Log, stato sistemi e collaudo']
             ];
             container.innerHTML = `
                 <div class="w-full bg-white rounded-2xl shadow border border-slate-200 p-6 animate-fade-in font-semibold">
-                    <div class="flex flex-col md:flex-row justify-between gap-4 items-start md:items-center border-b pb-5 mb-5"><div><span class="text-[9px] bg-emerald-700 text-white font-black px-2 py-0.5 rounded uppercase">Gestione Docenti</span><h3 class="text-xl font-black text-slate-800 mt-2">Credenziali area Dirigenza / Vicepresidenza / DSGA / Segreteria</h3><p class="text-[10px] text-slate-500">Le credenziali vengono create e revocate esclusivamente dall'area Commissione/Docenti. Ogni account è vincolato a un ruolo e, se necessario, a una singola classe.</p></div><button onclick="window.refreshManagementAccounts()" class="bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl text-xs font-black">Aggiorna elenco</button></div>
+                    <div class="flex flex-col md:flex-row justify-between gap-4 items-start md:items-center border-b pb-5 mb-5"><div><span class="text-[9px] bg-emerald-700 text-white font-black px-2 py-0.5 rounded uppercase">Gestione Docenti</span><h3 class="text-xl font-black text-slate-800 mt-2">Credenziali area gestionale e assistenza tecnica</h3><p class="text-[10px] text-slate-500">Le credenziali vengono create e revocate esclusivamente dall'area Commissione. Ogni account è vincolato a un ruolo e, se necessario, a una singola classe. L’assistente tecnico ha un’area separata e non vede voti o risultati.</p></div><button onclick="window.refreshManagementAccounts()" class="bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl text-xs font-black">Aggiorna elenco</button></div>
                     <div class="grid lg:grid-cols-2 gap-5">
-                        <div class="bg-slate-50 border rounded-2xl p-4"><h4 class="text-xs font-black mb-3">Nuovo account</h4><div class="grid grid-cols-2 gap-2 text-[10px]"><input id="mgmtNewName" placeholder="Nome / ufficio" class="p-2.5 border rounded-xl col-span-2"><input id="mgmtNewUsername" placeholder="Username" autocomplete="off" class="p-2.5 border rounded-xl"><input id="mgmtNewPassword" type="password" autocomplete="new-password" placeholder="Password" class="p-2.5 border rounded-xl"><select id="mgmtNewRole" class="p-2.5 border rounded-xl"><option value="DIRIGENTE">DIRIGENTE</option><option value="VICEPRESIDE">VICEPRESIDE</option><option value="DSGA">DSGA</option><option value="SEGRETERIA">SEGRETERIA</option></select><input id="mgmtNewScope" placeholder="Classe (oppure TUTTE)" value="TUTTE" class="p-2.5 border rounded-xl"></div><div class="mt-3 p-2.5 rounded-xl bg-blue-50 border border-blue-100 text-[10px] text-blue-950"><b>Scadenza automatica:</b> ogni credenziale gestionale è valida fino al <b>${managementDefaultExpiryLabel()}</b>. Dopo tale data il server rifiuta login e operazioni riservate.</div><button onclick="window.createManagementAccount()" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white py-2.5 rounded-xl mt-3 text-xs font-black">Crea credenziale</button></div>
+                        <div class="bg-slate-50 border rounded-2xl p-4"><h4 class="text-xs font-black mb-3">Nuovo account</h4><div class="grid grid-cols-2 gap-2 text-[10px]"><input id="mgmtNewName" placeholder="Nome / ufficio" class="p-2.5 border rounded-xl col-span-2"><input id="mgmtNewUsername" placeholder="Username" autocomplete="off" class="p-2.5 border rounded-xl"><input id="mgmtNewPassword" type="password" autocomplete="new-password" placeholder="Password" class="p-2.5 border rounded-xl"><select id="mgmtNewRole" class="p-2.5 border rounded-xl"><option value="DIRIGENTE">DIRIGENTE</option><option value="VICEPRESIDE">VICEPRESIDE</option><option value="DSGA">DSGA</option><option value="SEGRETERIA">SEGRETERIA</option><option value="ASSISTENTE_TECNICO">ASSISTENTE TECNICO</option></select><input id="mgmtNewScope" placeholder="Classe (oppure TUTTE)" value="TUTTE" class="p-2.5 border rounded-xl"></div><div class="mt-3 p-2.5 rounded-xl bg-blue-50 border border-blue-100 text-[10px] text-blue-950"><b>Scadenza automatica:</b> ogni credenziale gestionale è valida fino al <b>${managementDefaultExpiryLabel()}</b>. Dopo tale data il server rifiuta login e operazioni riservate.</div><button onclick="window.createManagementAccount()" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white py-2.5 rounded-xl mt-3 text-xs font-black">Crea credenziale</button></div>
                         <div class="space-y-2">${roleCards.map(r=>`<div class="p-3 border rounded-2xl bg-white flex justify-between items-center"><div><b class="text-xs">${r[0]}</b><div class="text-[9px] text-slate-500">${r[1]}</div></div><i data-lucide="shield-check" class="w-5 h-5 text-emerald-600"></i></div>`).join('')}</div>
                     </div>
-                    <div class="mt-6 grid sm:grid-cols-2 lg:grid-cols-4 gap-3"><div class="p-3 bg-blue-50 border border-blue-100 rounded-2xl"><div class="text-[9px] uppercase font-black text-blue-700">Dirigente</div><div id="managementCountDirigente" class="text-xl font-black text-blue-900">—</div></div><div class="p-3 bg-emerald-50 border border-emerald-100 rounded-2xl"><div class="text-[9px] uppercase font-black text-emerald-700">Vicepreside</div><div id="managementCountVice" class="text-xl font-black text-emerald-900">—</div></div><div class="p-3 bg-amber-50 border border-amber-100 rounded-2xl"><div class="text-[9px] uppercase font-black text-amber-700">DSGA</div><div id="managementCountDsga" class="text-xl font-black text-amber-900">—</div></div><div class="p-3 bg-rose-50 border border-rose-100 rounded-2xl"><div class="text-[9px] uppercase font-black text-rose-700">Segreteria</div><div id="managementCountSegreteria" class="text-xl font-black text-rose-900">—</div></div></div><div class="mt-6"><h4 class="text-xs font-black mb-3">Account creati</h4><div id="managementAccountsTable" class="overflow-auto border rounded-2xl"></div></div>
+                    <div class="mt-6 grid sm:grid-cols-2 lg:grid-cols-5 gap-3"><div class="p-3 bg-blue-50 border border-blue-100 rounded-2xl"><div class="text-[9px] uppercase font-black text-blue-700">Dirigente</div><div id="managementCountDirigente" class="text-xl font-black text-blue-900">—</div></div><div class="p-3 bg-emerald-50 border border-emerald-100 rounded-2xl"><div class="text-[9px] uppercase font-black text-emerald-700">Vicepreside</div><div id="managementCountVice" class="text-xl font-black text-emerald-900">—</div></div><div class="p-3 bg-amber-50 border border-amber-100 rounded-2xl"><div class="text-[9px] uppercase font-black text-amber-700">DSGA</div><div id="managementCountDsga" class="text-xl font-black text-amber-900">—</div></div><div class="p-3 bg-rose-50 border border-rose-100 rounded-2xl"><div class="text-[9px] uppercase font-black text-rose-700">Segreteria</div><div id="managementCountSegreteria" class="text-xl font-black text-rose-900">—</div></div><div class="p-3 bg-slate-100 border border-slate-200 rounded-2xl"><div class="text-[9px] uppercase font-black text-slate-700">Assistente tecnico</div><div id="managementCountTechnical" class="text-xl font-black text-slate-900">—</div></div></div><div class="mt-6"><h4 class="text-xs font-black mb-3">Account creati</h4><div id="managementAccountsTable" class="overflow-auto border rounded-2xl"></div></div>
                     <div class="mt-5 bg-amber-50 border border-amber-200 rounded-2xl p-4 text-[10px] text-amber-950"><b>Nota di sicurezza:</b> gli account gestionali sono autenticati e autorizzati lato server; le password non sono salvate in chiaro, le operazioni privilegiate sono sottoposte ad audit e ogni credenziale scade automaticamente al 31 agosto dell'anno scolastico di riferimento.<div class="mt-3 pt-3 border-t border-amber-200"><b>Motivazione normativa e organizzativa della scadenza:</b> l'O.M. 215/1991 disciplina la conclusione del procedimento elettorale prevedendo la proclamazione degli eletti e, all'art. 46, un termine di 5 giorni per i ricorsi contro i risultati e ulteriori 5 giorni per la relativa decisione; l'art. 48 collega la prima convocazione alla definizione degli eventuali ricorsi. La Nota MIM prot. 3803 del 30 giugno 2026 e il relativo Allegato tecnico rafforzano, per la gestione digitale del voto, i requisiti di controllo degli accessi, sicurezza, protezione dei dati e conservazione documentale. In coerenza anche con gli artt. 5 e 32 GDPR, una volta conclusa la consultazione, definita la fase dei reclami/ricorsi e completati gli adempimenti conclusivi, gli accessi operativi non devono restare attivi oltre il tempo necessario. La conservazione degli atti elettorali prosegue secondo le regole documentali applicabili, ma non richiede il mantenimento di credenziali operative attive. La scadenza riduce quindi il rischio di accessi successivi non più giustificati, applica il principio del minimo privilegio e separa la fase di gestione dalla successiva conservazione.</div></div>
                 </div>`;
             lucide.createIcons();
@@ -5398,12 +5751,13 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             try {
                 const response = await SECURE_API.getStaffAccounts({annoScolastico:configElezioni.annoScolastico});
                 const rows = response.data?.accounts || [];
-                const counts = { DIRIGENTE:0, VICEPRESIDE:0, DSGA:0, SEGRETERIA:0 };
+                const counts = { DIRIGENTE:0, VICEPRESIDE:0, DSGA:0, SEGRETERIA:0, ASSISTENTE_TECNICO:0 };
                 rows.forEach(r => { if (counts[r.role] !== undefined) counts[r.role]++; });
                 const c1=document.getElementById('managementCountDirigente'); if(c1) c1.textContent=counts.DIRIGENTE;
                 const c2=document.getElementById('managementCountVice'); if(c2) c2.textContent=counts.VICEPRESIDE;
                 const c3=document.getElementById('managementCountDsga'); if(c3) c3.textContent=counts.DSGA;
                 const c4=document.getElementById('managementCountSegreteria'); if(c4) c4.textContent=counts.SEGRETERIA;
+                const c5=document.getElementById('managementCountTechnical'); if(c5) c5.textContent=counts.ASSISTENTE_TECNICO;
                 box.innerHTML = `<table class="w-full text-left text-[10px]"><thead class="bg-slate-50"><tr><th class="p-2.5">Nome</th><th class="p-2.5">Username</th><th class="p-2.5">Ruolo</th><th class="p-2.5">Ambito</th><th class="p-2.5">Scadenza</th><th class="p-2.5">Stato</th><th class="p-2.5">Azione</th></tr></thead><tbody>${rows.map(r=>`<tr class="border-t ${r.isExpired?'bg-red-50/60':''}"><td class="p-2.5 font-bold">${r.name||'—'}</td><td class="p-2.5 font-mono">${r.username}</td><td class="p-2.5 font-black">${r.role}</td><td class="p-2.5">${r.scopeClass||'TUTTE'}</td><td class="p-2.5 font-bold ${r.isExpired?'text-red-700':'text-slate-700'}">${r.expiresOn||managementDefaultExpiryLabel()}</td><td class="p-2.5 font-black ${r.isExpired?'text-red-700':''}">${r.isExpired?'SCADUTO':(r.active===false?'DISATTIVO':'ATTIVO')}</td><td class="p-2.5">${r.isExpired?'<span class="px-2 py-1 rounded-lg bg-slate-100 text-slate-500 font-black">Scaduta</span>':`<button onclick="window.toggleManagementAccount('${r.id}',${r.active===false})" class="px-2 py-1 rounded-lg ${r.active===false?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'} font-black">${r.active===false?'Riattiva':'Disattiva'}</button>`}</td></tr>`).join('')||'<tr><td colspan="7" class="p-6 text-center text-slate-400">Nessun account creato.</td></tr>'}</tbody></table>`;
             } catch(e) {
                 box.innerHTML = `<div class="p-5 text-center text-red-600 text-xs font-bold">Impossibile caricare gli account: ${e.message||'accesso non autorizzato'}</div>`;
@@ -5418,7 +5772,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             const scopeClass = document.getElementById('mgmtNewScope').value.trim().toUpperCase() || 'TUTTE';
             if (!name || !username || !password) return showNotification('Dati mancanti','Compilare nome, username e password.','error');
             if (password.length < 12) return showNotification('Password troppo breve','Usare una password personale di almeno 12 caratteri.','error');
-            if (!['DIRIGENTE','VICEPRESIDE','DSGA','SEGRETERIA'].includes(role)) return showNotification('Ruolo non valido','Selezionare Dirigente, Vicepreside, DSGA o Segreteria.','error');
+            if (!['DIRIGENTE','VICEPRESIDE','DSGA','SEGRETERIA','ASSISTENTE_TECNICO'].includes(role)) return showNotification('Ruolo non valido','Selezionare un ruolo autorizzato.','error');
             try {
                 const response = await SECURE_API.createStaffAccount({name,username,password,role,scopeClass,annoScolastico:configElezioni.annoScolastico});
                 const expiry = response.data?.expiresOn || managementDefaultExpiryLabel();
@@ -5455,6 +5809,10 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             configElezioni.commissionMessage = document.getElementById('cfgCommissionMessage').value.trim();
             configElezioni.commissionMessageEnabled = document.getElementById('cfgMessageEnabled').checked;
             configElezioni.commissionFinalized = document.getElementById('cfgCommissionFinalized').checked;
+            configElezioni.assistenteTecnico = configElezioni.assistenteTecnico || { nome: 'Da designare', ruolo: 'Assistente tecnico di riferimento', postazione: 'Postazione PC laboratoriale designata dall’Istituto' };
+            configElezioni.assistenteTecnico.nome = document.getElementById('cfgTechnicalName')?.value.trim() || 'Da designare';
+            configElezioni.assistenteTecnico.postazione = document.getElementById('cfgTechnicalStation')?.value.trim() || 'Postazione PC laboratoriale designata dall’Istituto';
+            configElezioni.assistenteTecnico.ruolo = 'Assistente tecnico di riferimento';
             await saveConfigToDB();
             showNotification('Calendario aggiornato','Date, orari e messaggio della Commissione sono stati salvati nel cloud.','success');
         };
@@ -5625,8 +5983,11 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 ['Circolare/nota annuale MIM/USR',`${circ.numero||'________'} | ${circ.data||'________'} | ${circ.oggetto||'________'}`]
             ]));
             body.push(docxHeading('3. COMPOSIZIONE DEI SOGGETTI RESPONSABILI',1));
+            const technicalAssistant = configElezioni.assistenteTecnico || {};
             body.push(docxTable([
                 ['Ruolo','Nominativo'],
+                ['Area tecnica di supporto (non componente della Commissione)', technicalAssistant.nome || 'Da designare'],
+                ['Postazione PC laboratoriale designata', technicalAssistant.postazione || 'Da designare'],
                 ...((configElezioni.personaleDirezione||[]).map(m=>[m.ruolo||'',m.nome||''])),
                 ...((configElezioni.commissione||[]).map(m=>[m.ruolo||'',m.nome||'']))
             ]));
@@ -5646,7 +6007,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             const wf=workflowStatus();
             body.push(docxTable([['Controllo','Stato'],['Via libera Docenti',wf.docentiApproved?'COMPLETATO':'NON COMPLETATO'],['Convalida Commissione',wf.commissionApproved?'COMPLETATO':'NON COMPLETATO'],['Checklist',wf.checklistComplete?'COMPLETATA':'NON COMPLETATA'],['Verbali sbloccati',wf.verbaliUnlocked?'SÌ':'NO'],['Pronto per conservazione',wf.archived?'SÌ':'NO'],['Hash SHA-256',configElezioni.workflowDigitale?.digitalAttestationHash||'NON GENERATO']]));
             body.push(docxHeading('9. ALLEGATI E SOTTOSCRIZIONI',1));
-            body.push(docxTable([['Allegato','Stato / note'],['Atto di indizione','____________________________'],['Circolare annuale / nota MIM-USR','____________________________'],['Liste e candidature','____________________________'],['Verbale di scrutinio','____________________________'],['Verbale di proclamazione','____________________________'],['Report risultati per classe','____________________________'],['Attestazione digitale','____________________________']]));
+            body.push(docxTable([['Allegato','Stato / note'],['Atto di indizione','____________________________'],['Circolare annuale / nota MIM-USR','____________________________'],['Liste e candidature','____________________________'],['Verbale di scrutinio','____________________________'],['Verbale di proclamazione','____________________________'],['Verbale tecnico apertura/chiusura', '____________________________'],['Designazione assistente tecnico/postazione', '____________________________'],['Report risultati per classe','____________________________'],['Attestazione digitale','____________________________']]));
             body.push(docxParagraph('Il documento deve essere sottoscritto e acquisito agli atti secondo le procedure documentali e di conservazione adottate dall’Istituto.',true));
             body.push(docxTable([['Ruolo','Nominativo','Firma / sottoscrizione'], ...((configElezioni.commissione||[]).map(m=>[m.ruolo||'',m.nome||'','____________________________'])), ...((configElezioni.personaleDirezione||[]).map(m=>[m.ruolo||'',m.nome||'','____________________________']))]));
             return body.join('');
@@ -5683,6 +6044,8 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             
             if (params.get('view') === 'management') {
                 showPage('managementLogin');
+            } else if (params.get('view') === 'technical') {
+                showPage('technicalLogin');
             } else {
                 showPage('studentLogin');
             }

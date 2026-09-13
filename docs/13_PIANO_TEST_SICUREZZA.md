@@ -7,6 +7,8 @@
 3. Segreteria prova a modificare token/config: negato;
 4. Commissione prova a scrivere direttamente un voto: negato dalle Rules;
 5. elettore tenta di chiamare API staff: negato.
+6. Assistente tecnico tenta di leggere `getAnonymousBallots`, configurazione o registro aventi diritto: negato.
+7. dodici tentativi di login staff dallo stesso indirizzo nella finestra prevista: il successivo riceve `resource-exhausted`.
 
 ## Test voto
 
@@ -46,6 +48,8 @@ Verificare anche che nei token non esista un identificativo della scheda.
 - refresh/back/forward durante una sessione;
 - doppio click sul pulsante di invio;
 - perdita rete al commit e successivo riaccesso.
+- registrazione di checkpoint tecnici con nome/postazione senza dati di voto;
+- download del verbale tecnico da Assistente tecnico e Commissione, senza accesso al contenuto delle urne da parte dell’assistente.
 
 ## Strumenti
 

@@ -16,6 +16,7 @@ Flusso principale:
 
 ```text
 Browser → Vercel /api/call → Firebase Admin SDK → Firestore
+                 ↘ area Assistente tecnico → stato/log/checkpoint server-side
 ```
 
 Le Firebase Functions non vengono utilizzate per il backend applicativo: in questo modo il progetto può restare sul piano Firebase senza Blaze. Firestore resta il database e il service account viene usato solo server-side da Vercel.
@@ -32,4 +33,4 @@ Non usare il prefisso `NEXT_PUBLIC_` e non inserire mai questo JSON nel reposito
 
 Vercel esegue automaticamente il deploy dal branch `main`. Non serve eseguire `firebase deploy --only functions`.
 
-Il workflow GitHub pubblica soltanto Firestore Rules e prepara l’account iniziale `commissione.presidente`. Il primo accesso richiede il cambio della password temporanea.
+Il workflow GitHub pubblica soltanto Firestore Rules e prepara l’account iniziale `commissione.presidente`. Il primo accesso richiede il cambio della password temporanea. L’account `ASSISTENTE_TECNICO` viene creato dalla Commissione e può usare solo l’area tecnica (stato, log, checkpoint e verbale PDF); non accede alle urne, ai voti o ai risultati. L’endpoint Vercel accetta richieste cross-origin solo dalla pagina GitHub Pages del progetto e dal dominio Vercel autorizzato.

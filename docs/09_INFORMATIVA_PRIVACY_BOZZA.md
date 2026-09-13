@@ -20,6 +20,7 @@ Gestione delle consultazioni scolastiche, verifica degli aventi diritto, prevenz
 - credenziali casuali di voto;
 - stato di utilizzo delle schede spettanti;
 - dati degli account istituzionali e audit delle operazioni amministrative;
+- nominativo dell’assistente tecnico di riferimento, postazione autorizzata e log dei checkpoint tecnici;
 - contenuto della scheda elettorale, che nel voto segreto è conservato separatamente e senza elementi identificativi individuali.
 
 ## Base giuridica
@@ -32,7 +33,7 @@ Indicare servizi cloud e fornitori che trattano dati per conto dell'Istituto, co
 
 ## Conservazione
 
-Indicare tempi e criteri distinti per registro aventi diritto, account, audit, risultanze e fascicolo elettorale.
+Indicare tempi e criteri distinti per registro aventi diritto, account, audit amministrativo, checkpoint tecnici, risultanze e fascicolo elettorale.
 
 ## Diritti
 

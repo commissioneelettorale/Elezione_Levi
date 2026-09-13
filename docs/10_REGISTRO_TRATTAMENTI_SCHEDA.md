@@ -6,7 +6,7 @@
 
 **Interessati:** studenti, genitori/tutori, docenti, ATA, personale incaricato.
 
-**Dati:** identificativi, componente/classe, credenziale casuale, stato di voto, dati account/operatori, audit amministrativo; scheda elettorale separata dall'identità.
+**Dati:** identificativi, componente/classe, credenziale casuale, stato di voto, dati account/operatori, nominativo e postazione dell’assistente tecnico, audit amministrativo e checkpoint tecnici; scheda elettorale separata dall'identità.
 
 **Destinatari:** personale autorizzato; fornitori/responsabili formalmente individuati; soggetti previsti da norme/atti.
 
@@ -14,7 +14,7 @@
 
 **Conservazione:** da definire con tempi distinti per ciascuna categoria e coordinare con piano/manuali di gestione e conservazione.
 
-**Misure:** RBAC, server-side authorization, scrypt password hashing, timeout, random tokens, Firestore rules deny-by-default, urne non leggibili dal client, assenza di identificativi/timestamp nella scheda, audit amministrativo, backup/DR, procedure incidenti, collaudo e DPIA.
+**Misure:** RBAC, server-side authorization, scrypt password hashing, timeout, rate limiting sui login staff, random tokens, Firestore rules deny-by-default, urne non leggibili dal client, assenza di identificativi/timestamp nella scheda, audit amministrativo, checkpoint tecnici, backup/DR, procedure incidenti, collaudo e DPIA.
 
 **Responsabile interno del processo:** __________________
 

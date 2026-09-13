@@ -3,7 +3,7 @@
 **Istituto:** ITSCG Primo Levi di Seregno  
 **A.S.:** __________  
 **Data:** __________  
-**Repository:** `giuseppeborzumati-cmyk/Elezioni`  
+**Repository:** `commissioneelettorale/Elezione_Levi`
 **Commit sottoposto a collaudo:** ______________________________
 
 ## Soggetti presenti
@@ -11,8 +11,12 @@
 - Dirigente/Delegato: __________________
 - Presidente Commissione: __________________
 - Segretario: __________________
-- Responsabile tecnico: __________________
+- Assistente tecnico di riferimento (supporto, non componente della Commissione): __________________
+- Responsabile tecnico/fornitore (se distinto): __________________
+- Postazione PC laboratoriale designata dall’Istituto: __________________
 - DPO/Referente privacy (se presente): __________________
+
+La designazione del tecnico e della postazione deve risultare in un atto o verbale dell’Istituto. Il registro tecnico della piattaforma documenta i controlli eseguiti e non sostituisce la nomina, il collaudo formale o la sottoscrizione degli atti.
 
 ## Verifiche
 
@@ -38,6 +42,20 @@
 | audit admin funzionante | ☐ OK ☐ KO | |
 | backup/restore test | ☐ OK ☐ KO | |
 | preflight script superato | ☐ OK ☐ KO | |
+| account Assistente tecnico autenticato con ruolo separato | ☐ OK ☐ KO | |
+| area tecnica priva di accesso a voti e risultati | ☐ OK ☐ KO | |
+| checkpoint tecnico di apertura registrato lato server | ☐ OK ☐ KO | |
+| checkpoint tecnico di chiusura registrato lato server | ☐ OK ☐ KO | |
+| verbale PDF tecnico esportato e verificato | ☐ OK ☐ KO | |
+
+## Registro dei checkpoint di apertura e chiusura
+
+| Fase | Data/ora (Europe/Rome) | Nome e cognome tecnico | Postazione | Esito | ID log / evidenza |
+|---|---|---|---|---|---|
+| Apertura | __________________ | __________________ | __________________ | ☐ OK ☐ KO | __________________ |
+| Chiusura | __________________ | __________________ | __________________ | ☐ OK ☐ KO | __________________ |
+
+Il verbale deve riportare anche eventuali anomalie, il relativo protocollo/verbale d’incidente e la decisione della Commissione sulla prosecuzione, sospensione o ripresa.
 
 ## Dataset di prova
 

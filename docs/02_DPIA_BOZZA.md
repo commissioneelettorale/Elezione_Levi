@@ -8,7 +8,7 @@
 
 **Finalità:** organizzare consultazioni scolastiche, verificare il diritto di partecipazione/voto, garantire unicità, acquisire schede segrete o voti palesi ove previsti, produrre risultati e verbali, documentare il procedimento.
 
-**Categorie di interessati:** studenti, genitori/tutori, docenti, personale ATA, personale di direzione/segretaria, componenti della Commissione elettorale.
+**Categorie di interessati:** studenti, genitori/tutori, docenti, personale ATA, personale di direzione/segretaria, componenti della Commissione elettorale, assistente tecnico di riferimento.
 
 **Dati trattati nell'area aventi diritto:** nominativo, componente, classe/indirizzo ove necessario, stato di utilizzo delle schede previste, credenziale casuale.
 
@@ -44,7 +44,7 @@ Da documentare:
 |---|---|---:|---|---|
 | Correlazione identità-voto | Molto alto | Media | separazione persistente, nessun vote_id/timestamp, urne non leggibili dal client | da valutare |
 | Furto token | Alto | Media | alta entropia, consegna controllata, sessione 15 min, unicità | da valutare |
-| Furto account staff | Alto | Media | password lunghe, scrypt, MFA provider, minimo privilegio | da valutare |
+| Furto account staff | Alto | Media | password lunghe, scrypt, MFA provider, minimo privilegio, scadenza e rate limiting login | da valutare |
 | Lettura diretta Firestore | Molto alto | Media | rules deny-by-default, Admin SDK solo Functions | da valutare |
 | Alterazione voto dal browser | Alto | Media | validazione completa server-side | da valutare |
 | Esposizione risultati parziali | Medio/Alto | Media | fase server-side, preferenze nascoste durante apertura | da valutare |
@@ -61,6 +61,7 @@ Compilare e allegare:
 - DPO;
 - autorizzati interni;
 - amministratori di sistema, se nominati;
+- assistente tecnico autorizzato, limitato a stato/log/checkpoint e senza accesso all’urna;
 - eventuali responsabili ex art. 28 GDPR (cloud, servizi esterni, manutentori);
 - eventuali sub-responsabili;
 - localizzazione primaria/backup e trasferimenti extra SEE, se presenti.
@@ -72,6 +73,7 @@ Definire tempi distinti per:
 - registro aventi diritto/token;
 - account del personale;
 - audit amministrativi;
+- checkpoint tecnici e verbale di collaudo;
 - configurazioni e verbali;
 - risultati aggregati;
 - eventuali copie di sicurezza.

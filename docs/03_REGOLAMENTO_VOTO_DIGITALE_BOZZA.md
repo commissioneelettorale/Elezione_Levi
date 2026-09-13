@@ -12,7 +12,7 @@ La partecipazione e l'accesso alle votazioni sono consentiti esclusivamente agli
 
 ## Art. 3 — Ruoli
 
-Sono individuati almeno: Presidente, Segretario verbalizzante, Commissione/organismo di controllo, personale tecnico autorizzato e responsabili amministrativi. Ciascun ruolo opera secondo il minimo privilegio.
+Sono individuati almeno: Presidente, Segretario verbalizzante, Commissione/organismo di controllo, personale tecnico autorizzato e responsabili amministrativi. L’Assistente tecnico di riferimento è supporto della Commissione, non componente dell’organo elettorale; nominativo e postazione PC laboratoriale devono risultare da atto dell’Istituto. Ciascun ruolo opera secondo il minimo privilegio.
 
 ## Art. 4 — Apertura e chiusura
 
@@ -36,7 +36,7 @@ Durante l'apertura non sono rese disponibili preferenze o risultati parziali ido
 
 ## Art. 9 — Malfunzionamenti
 
-In caso di indisponibilità, perdita di connettività, sospetto incidente o anomalia che possa incidere sulla regolarità, il Presidente/Commissione sospende la votazione. La ripresa, proroga, annullamento o ripetizione sono motivate e verbalizzate. Non è ammessa la cancellazione ordinaria dell'urna dal browser.
+In caso di indisponibilità, perdita di connettività, sospetto incidente o anomalia che possa incidere sulla regolarità, il Presidente/Commissione sospende la votazione. L’Assistente tecnico registra, quando possibile, il checkpoint e l’evidenza dell’anomalia senza acquisire contenuti di voto. La ripresa, proroga, annullamento o ripetizione sono motivate e verbalizzate. Non è ammessa la cancellazione ordinaria dell'urna dal browser.
 
 ## Art. 10 — Scrutinio
 
@@ -52,4 +52,4 @@ Verbali, risultanze e evidenze tecniche sono acquisiti nel sistema di gestione d
 
 ## Art. 13 — Collaudo
 
-Prima dell'uso reale la soluzione è sottoposta a verifica preventiva di conformità, test di sicurezza/funzionali e verbale di collaudo con identificazione della versione software impiegata.
+Prima dell'uso reale la soluzione è sottoposta a verifica preventiva di conformità, test di sicurezza/funzionali e verbale di collaudo con identificazione della versione software impiegata. I controlli dell’Assistente tecnico di apertura e chiusura sono allegati al verbale, insieme all’atto di designazione della postazione.

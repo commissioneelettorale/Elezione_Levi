@@ -10,17 +10,18 @@
 
 ## Matrice ruoli
 
-| Funzione | Commissione | Dirigente | Vicepreside | DSGA | Segreteria | Referente | Elettore |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Configurazione elezioni | Sì | No | No | No | No | No | No |
-| Gestione aventi diritto | Sì | No | No | No | No | No | No |
-| Gestione account staff | Sì | No | No | No | No | No | No |
-| Lettura diretta Firestore urna | **No** | **No** | **No** | **No** | **No** | **No** | **No** |
-| Scrutinio schede anonimizzate | dopo chiusura | No | No | No | No | No | No |
-| Risultati aggregati | Sì | secondo fase | secondo fase/scope | secondo fase | secondo fase | classe/componente | No |
-| Preferenze parziali durante apertura | No | No | No | No | No | No | No |
-| Voto | No | se avente diritto con token | idem | idem | idem | se avente diritto | Sì |
-| Audit amministrativo | Sì | lettura autorizzata | lettura autorizzata | lettura autorizzata | lettura autorizzata | No | No |
+| Funzione | Commissione | Assistente tecnico | Dirigente | Vicepreside | DSGA | Segreteria | Referente | Elettore |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Configurazione elezioni | Sì | No | No | No | No | No | No | No |
+| Gestione aventi diritto | Sì | No | No | No | No | No | No | No |
+| Gestione account staff | Sì | No | No | No | No | No | No | No |
+| Lettura diretta Firestore urna | **No** | **No** | **No** | **No** | **No** | **No** | **No** | **No** |
+| Scrutinio schede anonimizzate | dopo chiusura | No | No | No | No | No | No | No |
+| Risultati aggregati | Sì | No | secondo fase | secondo fase/scope | secondo fase | secondo fase | classe/componente | No |
+| Preferenze parziali durante apertura | No | No | No | No | No | No | No | No |
+| Voto | No | No | se avente diritto con token | idem | idem | idem | se avente diritto | Sì |
+| Stato/log/checkpoint tecnici | Sì (lettura) | Sì (area tecnica) | No | No | No | No | No | No |
+| Audit amministrativo | Sì | No | lettura autorizzata | lettura autorizzata | lettura autorizzata | lettura autorizzata | No | No |
 
 ## Password e MFA
 
@@ -30,7 +31,7 @@
 - MFA obbligatoria/raccomandata fortemente per GitHub, Google/Firebase e console cloud;
 - vietato trasmettere password via email non protetta o inserirle nei verbali;
 - revoca immediata alla cessazione del ruolo;
-- per **Dirigente, Vicepreside, DSGA e Segreteria** la credenziale applicativa ha scadenza automatica al **31 agosto dell'anno scolastico di riferimento**; dal 1° settembre non è più accettata dal server;
+- per **Assistente tecnico, Dirigente, Vicepreside, DSGA e Segreteria** la credenziale applicativa ha scadenza automatica al **31 agosto dell'anno scolastico di riferimento**; dal 1° settembre non è più accettata dal server;
 - la scadenza è registrata lato server e inclusa come claim firmata nelle sessioni gestionali, così anche una sessione già aperta non può superare il termine di validità.
 
 ## Sessioni
@@ -42,7 +43,7 @@
 
 ## Motivazione della scadenza delle credenziali e chiusura del procedimento elettorale
 
-Le credenziali attribuite a **Dirigente, Vicepreside, DSGA e Segreteria** sono credenziali operative collegate alla gestione della consultazione e non devono restare utilizzabili indefinitamente.
+Le credenziali attribuite a **Assistente tecnico, Dirigente, Vicepreside, DSGA e Segreteria** sono credenziali operative collegate alla gestione della consultazione e non devono restare utilizzabili indefinitamente.
 
 La scelta di prevederne la scadenza automatica deriva dall'incrocio tra la disciplina elettorale scolastica, i requisiti tecnico-organizzativi introdotti nel 2026 e i principi di protezione dei dati personali.
 
@@ -67,3 +68,10 @@ Questa impostazione costituisce una misura tecnico-organizzativa di sicurezza e 
 ## Revisione periodica
 
 Prima di ogni consultazione la Commissione verifica elenco account, ruoli, ambiti di classe e stato attivo/disattivo. La verifica è verbalizzata. Al termine della consultazione, definita la fase degli eventuali reclami/ricorsi e completati gli adempimenti conclusivi, la Commissione verbalizza la disattivazione o la naturale scadenza delle credenziali operative non più necessarie.
+
+
+## Assistente tecnico
+
+L'Assistente tecnico è un supporto operativo designato dalla Commissione con atto dell'Istituto. L'account è personale, vincolato all'anno scolastico assegnato, a scadenza annuale e consente esclusivamente accesso all'area tecnica, lettura dello stato dei servizi e registrazione dei checkpoint di apertura/chiusura. Non può leggere o modificare urne, voti, risultati, token, configurazioni o verbali di nomina.
+
+Il nominativo e la postazione PC laboratoriale devono essere riportati nell’atto/verbale di designazione e nel verbale tecnico esportato dalla piattaforma.

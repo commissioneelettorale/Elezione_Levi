@@ -8,6 +8,8 @@ La checklist deve essere compilata **prima di ogni messa in esercizio reale** e 
 - [ ] Tipologia di consultazione e base regolamentare individuate.
 - [ ] Presidente/Segretario/Commissione e responsabilità formalmente individuati.
 - [ ] Procedura per sospensione/ripetizione in caso di malfunzionamento approvata.
+- [ ] Assistente tecnico di riferimento formalmente designato come supporto della Commissione, senza ruolo di componente.
+- [ ] Postazione PC laboratoriale autorizzata e piano di continuità disponibili nell’atto/verbale dell’Istituto.
 - [ ] Periodo di apertura/chiusura e pubblicazione risultati formalmente determinati.
 - [ ] Circolare/atto annuale MIM/USR pertinente acquisito agli atti.
 
@@ -18,6 +20,7 @@ La checklist deve essere compilata **prima di ogni messa in esercizio reale** e 
 - [ ] Token generati con entropia crittografica adeguata.
 - [ ] Account Commissione personali; nessuna password condivisa.
 - [ ] Account Dirigente/Vicepreside/DSGA/Segreteria personali e limitati al ruolo.
+- [ ] Account Assistente tecnico separato, nominativo, a scadenza e limitato a stato/log/checkpoint.
 - [ ] Password assenti da HTML, repository, documenti e log.
 - [ ] Timeout sessione verificato.
 - [ ] Sessioni simultanee non autorizzate impedite.
@@ -48,12 +51,14 @@ La checklist deve essere compilata **prima di ogni messa in esercizio reale** e 
 ## E. Sicurezza ICT
 
 - [ ] Firestore Rules distribuite e testate in modalità deny-by-default.
-- [ ] Cloud Functions distribuite nella regione prevista.
+- [ ] Backend Vercel distribuito e regione effettiva documentata.
 - [ ] Dipendenze aggiornate e vulnerabilità critiche assenti.
 - [ ] Repository privo di segreti e service-account key.
 - [ ] GitHub secret scanning/code scanning abilitati ove disponibili.
 - [ ] MFA attiva sugli account GitHub/Firebase amministrativi.
 - [ ] Log amministrativi abilitati senza contenuto del voto.
+- [ ] Checkpoint di apertura e chiusura dell’assistente tecnico registrati lato server.
+- [ ] Verbale tecnico PDF esportato con nome, cognome, postazione, fase e timestamp.
 - [ ] Piano incident response approvato.
 - [ ] Backup e restore testati.
 
@@ -67,10 +72,13 @@ La checklist deve essere compilata **prima di ogni messa in esercizio reale** e 
 - [ ] Localizzazione e trasferimenti dei dati verificati.
 - [ ] Tempi di conservazione per registro aventi diritto, log e fascicolo definiti.
 - [ ] Data breach procedure coordinate con DPO/Dirigente.
+- [ ] Il registro tecnico non contiene voti, preferenze, token, IP o identificativi eccedenti.
 
 ## G. Documentazione e conservazione
 
 - [ ] Verbale di collaudo sottoscritto/acquisito agli atti.
+- [ ] Verbale tecnico di apertura/chiusura allegato al fascicolo.
+- [ ] Atto di designazione dell’assistente tecnico e della postazione allegato.
 - [ ] Hash/commit della versione software utilizzata annotato.
 - [ ] Configurazione elettorale congelata e identificata.
 - [ ] Verbali e risultanze acquisiti nel sistema documentale dell'Istituto.
@@ -86,3 +94,5 @@ La checklist deve essere compilata **prima di ogni messa in esercizio reale** e 
 - DPO consultato: SÌ / NO / N.A.
 - Esito: IDONEO / NON IDONEO / IDONEO CON PRESCRIZIONI
 - Prescrizioni: ____________________________________________________________
+
+Il cruscotto non verifica automaticamente le regole Firestore distribuite, la completezza dell’audit o l’anonimato irreversibile: questi controlli restano da verificare nel collaudo. La Nota MIM 3803/2026 riguarda le attività collegiali a distanza previste dal CCNL; la sua applicabilità alla specifica elezione deve essere verificata dall’Istituto.

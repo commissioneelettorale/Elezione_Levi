@@ -79,6 +79,9 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Il registro audit_tecnico_YYYY_YYYY resta coperto dal fail-closed generale e
+    // viene letto/scritto esclusivamente dall’Admin SDK tramite API server-side.
+
     // Fail-closed per ogni altro percorso.
     match /{document=**} {
       allow read, write: if false;

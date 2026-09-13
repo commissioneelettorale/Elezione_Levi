@@ -6,6 +6,10 @@ const ALLOWED_FUNCTIONS = new Set([
   "validateVoterToken",
   "castVote",
   "commissionLogin",
+  "technicalLogin",
+  "getTechnicalStatus",
+  "recordTechnicalCheckpoint",
+  "getTechnicalLogs",
   "changeCommissionPassword",
   "managementLogin",
   "referentLogin",
@@ -26,6 +30,41 @@ const ALLOWED_FUNCTIONS = new Set([
   "saveElectionConfig",
   "ensureReferentKeys"
 ]);
+
+// Difesa leggera contro tentativi ripetuti sulle credenziali staff. La mappa è
+// volutamente in memoria: non sostituisce il rate limiting/WAF di Vercel, ma
+// riduce i burst sulla singola istanza senza condividere indirizzi o credenziali.
+const STAFF_LOGIN_FUNCTIONS = new Set(['commissionLogin', 'technicalLogin', 'managementLogin']);
+const loginAttempts = new Map();
+const LOGIN_WINDOW_MS = 5 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 12;
+
+function clientAddress(req) {
+  const forwarded = String(req.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
+  return forwarded || String(req.socket?.remoteAddress || 'unknown').slice(0, 120);
+}
+
+function rateLimitStaffLogin(req, functionName) {
+  if (!STAFF_LOGIN_FUNCTIONS.has(functionName)) return null;
+  const now = Date.now();
+  const key = `${functionName}:${clientAddress(req)}`;
+  const previous = loginAttempts.get(key);
+  const entry = previous && now - previous.startedAt < LOGIN_WINDOW_MS
+    ? previous
+    : { startedAt: now, count: 0 };
+  entry.count += 1;
+  loginAttempts.set(key, entry);
+  // Opportunistic cleanup prevents an unbounded map on warm instances.
+  if (loginAttempts.size > 2000) {
+    for (const [storedKey, stored] of loginAttempts) {
+      if (now - stored.startedAt >= LOGIN_WINDOW_MS) loginAttempts.delete(storedKey);
+    }
+  }
+  if (entry.count > LOGIN_MAX_ATTEMPTS) {
+    return Math.max(1, Math.ceil((LOGIN_WINDOW_MS - (now - entry.startedAt)) / 1000));
+  }
+  return null;
+}
 
 let handlers;
 
@@ -100,6 +139,23 @@ function parseBody(req) {
 }
 
 module.exports = async function handler(req, res) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  const origin = String(req.headers?.origin || '');
+  const allowedOrigins = new Set([
+    'https://commissioneelettorale.github.io',
+    'https://elezione-levi.vercel.app'
+  ]);
+  if (allowedOrigins.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  }
+
   if (req.method === 'OPTIONS') {
     res.setHeader('Allow', 'POST, OPTIONS');
     return res.status(204).end();
@@ -117,6 +173,14 @@ module.exports = async function handler(req, res) {
   if (!ALLOWED_FUNCTIONS.has(functionName)) {
     return sendJson(res, 400, {
       error: { code: 'invalid-argument', message: 'Funzione non autorizzata.' }
+    });
+  }
+
+  const retryAfter = rateLimitStaffLogin(req, functionName);
+  if (retryAfter) {
+    res.setHeader('Retry-After', String(retryAfter));
+    return sendJson(res, 429, {
+      error: { code: 'resource-exhausted', message: 'Troppi tentativi di accesso. Riprovare tra alcuni minuti.' }
     });
   }
 

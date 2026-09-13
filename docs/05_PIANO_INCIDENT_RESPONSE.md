@@ -17,7 +17,7 @@ Gestire anomalie tecniche o violazioni di sicurezza senza compromettere validit√
 1. non cancellare dati o log;
 2. sospendere la votazione se l'incidente pu√≤ incidere su regolarit√† o segretezza;
 3. annotare ora di rilevazione, soggetto segnalante e sintomi senza registrare contenuto del voto;
-4. informare Dirigente, Presidente Commissione, referente tecnico e DPO secondo pertinenza;
+4. informare Dirigente, Presidente Commissione, Assistente tecnico di riferimento e DPO secondo pertinenza;
 5. revocare/ruotare credenziali compromesse;
 6. preservare evidenze (commit, log amministrativi, log provider, configurazioni);
 7. valutare se attivare procedura data breach artt. 33-34 GDPR;
@@ -36,6 +36,7 @@ Gestire anomalie tecniche o violazioni di sicurezza senza compromettere validit√
 - identificativo commit/versione;
 - snapshot configurazione;
 - log amministrativi e provider pertinenti;
+- checkpoint tecnici di apertura/chiusura e verbale dell‚Äôassistente;
 - cronologia decisioni della Commissione;
 - esito dei test successivi alla mitigazione;
 - verbale di chiusura incidente.
