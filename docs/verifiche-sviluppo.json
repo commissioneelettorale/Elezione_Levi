@@ -1,6 +1,6 @@
 {
   "format": "LEVI_DEVELOPMENT_EVIDENCE_V2",
-  "generatedAt": "2026-09-13T21:16:16.072Z",
+  "generatedAt": "2026-09-13T21:34:35.722Z",
   "evidence": [
     {
       "id": "access",
@@ -9,7 +9,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: technical report outcomes, evidence requirements and authorization.\nPASS: active/revoked/versioned accounts; year isolation; preference limits; appeal dates; frozen lists.",
       "outcome": "PASS",
-      "testedAt": "2026-09-13T21:15:59.180Z",
+      "testedAt": "2026-09-13T21:34:15.497Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -20,7 +20,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: named credential mode cannot be admitted by checking documentary flags.\nPASS: actual anonymous pool, issuance limits, independent review, authorization, suspension/resume, stale-evidence rejection. All data and documentary claims are synthetic.\nPASS: Rome time boundaries/DST, split sessions, October/November isolation, per-election publications and freeze.\nPASS: sealed vote round trip, tamper/wrong-key rejection, no cleartext identity, repeat submission, closing race and live result embargo.\nPASS: technician denied migration; migration blocked between elections, lossless verified migration and idempotent retry.\nPASS: Commission receives aggregate projections only; original pairings cannot affect the response; counts, groups and blank totals preserved; architectural limitations remain explicit.",
       "outcome": "PASS",
-      "testedAt": "2026-09-13T21:15:59.280Z",
+      "testedAt": "2026-09-13T21:34:15.604Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -31,7 +31,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: 205 records across pages; no duplicates; cutoff preserved; interrupted export rejected; 12 unconfirmed test fields.",
       "outcome": "PASS",
-      "testedAt": "2026-09-13T21:15:59.466Z",
+      "testedAt": "2026-09-13T21:34:15.766Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -42,7 +42,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: distinct October/November acts and dates in Word; PDF appendix generation with embedded font.",
       "outcome": "PASS",
-      "testedAt": "2026-09-13T21:15:59.544Z",
+      "testedAt": "2026-09-13T21:34:15.840Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -53,7 +53,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: memory auth, no tracking integrations, one backend, no fallback on outage, no cookies sent by API and volatile test log.",
       "outcome": "PASS",
-      "testedAt": "2026-09-13T21:15:59.682Z",
+      "testedAt": "2026-09-13T21:34:15.980Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -64,7 +64,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: actual technical PDF includes admission, source version, configuration hash and architectural limitation.",
       "outcome": "PASS",
-      "testedAt": "2026-09-13T21:15:59.765Z",
+      "testedAt": "2026-09-13T21:34:16.066Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -75,7 +75,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: actual direct PDF and ZIP, authorization failure yields no download, ten entries with matching SHA-256, missing evidence remains unverified, interrupted export creates no archive.",
       "outcome": "PASS",
-      "testedAt": "2026-09-13T21:15:59.921Z",
+      "testedAt": "2026-09-13T21:34:16.221Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -84,9 +84,9 @@
       "requirement": "Browser Chromium reale con servizi Firebase/API simulati: avvio completo, clic, mobile, indisponibilità opzionali, PDF DPO, ruoli e documenti non pubblicati.",
       "method": "Esecuzione del codice in scripts/check-interface-browser.cjs con dati fittizi; dipendenze Firebase simulate dove necessario.",
       "expected": "Asserzioni completate senza errori.",
-      "observed": "PASS browser: normal\nPASS browser: status-offline\nPASS browser: optional-library-missing\nPASS browser: urn, main navigation, black Commission input, visible login button, optional service failures, Commission dossier/direct PDF, technical role scope, session cleanup, mobile navigation and unpublished private files.",
+      "observed": "PASS browser: normal\nPASS browser: status-offline\nPASS browser: optional-library-missing\nPASS browser: uncluttered login, notices popup, fresh open/closed status, footer links, urn, main navigation, black Commission input, visible login button, optional service failures, Commission dossier/direct PDF, technical role scope, session cleanup, mobile navigation and unpublished private files.",
       "outcome": "PASS",
-      "testedAt": "2026-09-13T21:16:00.316Z",
+      "testedAt": "2026-09-13T21:34:16.564Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -97,7 +97,7 @@
       "expected": "Nessun ERR_REQUIRE_ESM.",
       "observed": "Import riuscito: v22.23.2",
       "outcome": "PASS",
-      "testedAt": "2026-09-13T21:16:06.731Z",
+      "testedAt": "2026-09-13T21:34:23.708Z",
       "operator": "Verifica automatica di sviluppo"
     },
     {
@@ -107,7 +107,7 @@
       "expected": "Nessuna segnalazione nota nel perimetro npm.",
       "observed": "{\"info\":0,\"low\":0,\"moderate\":0,\"high\":0,\"critical\":0,\"total\":0}",
       "outcome": "PASS",
-      "testedAt": "2026-09-13T21:16:16.068Z",
+      "testedAt": "2026-09-13T21:34:35.718Z",
       "operator": "Verifica automatica di sviluppo",
       "limitation": "Non copre SDK remoti, librerie vendorizzate, configurazione cloud o vulnerabilità non note."
     }
@@ -115,7 +115,7 @@
   "source": [
     {
       "path": "index.html",
-      "sha256": "88454b465177f8ea7b65de93c57a7109b819bf572a67718828159e5607745196"
+      "sha256": "e8801436fc79148e7892fe0ae8d93071c2a5d76b42cdcb6bc80f4ac4ee385c7e"
     },
     {
       "path": "functions/core.js",
@@ -199,7 +199,7 @@
     },
     {
       "path": "scripts/check-interface-browser.cjs",
-      "sha256": "27add8e5bac15f60e78c97da6767558cde2776965247f905bd0f90655e388b0a"
+      "sha256": "eddb8a1a5ac94f0da600bc8688080e3638e659b95ccb171bef2b9c455be53fe4"
     },
     {
       "path": "scripts/verify-release.cjs",

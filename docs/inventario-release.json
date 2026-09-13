@@ -30,8 +30,8 @@
     },
     {
       "path": "docs/verifiche-sviluppo.json",
-      "bytes": 11386,
-      "sha256": "d066ffa0866107c735ad9d36e72f519077d50875391eebf0edb894a780d7a4f5"
+      "bytes": 11460,
+      "sha256": "c7b97bcee262786e603b21ce39b2e4397db2de9ff984ea79fbf711b48b2bf241"
     },
     {
       "path": "fascicolo-dpo.html",
@@ -50,8 +50,8 @@
     },
     {
       "path": "index.html",
-      "bytes": 491041,
-      "sha256": "88454b465177f8ea7b65de93c57a7109b819bf572a67718828159e5607745196"
+      "bytes": 496418,
+      "sha256": "e8801436fc79148e7892fe0ae8d93071c2a5d76b42cdcb6bc80f4ac4ee385c7e"
     },
     {
       "path": "lib/ballot-vault.js",

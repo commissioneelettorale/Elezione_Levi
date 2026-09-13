@@ -44,19 +44,18 @@
         .brand-background {
             position: fixed;
             inset: 0;
-            z-index: -1;
+            z-index: 0;
             overflow: hidden;
             pointer-events: none;
-            background: #f8fafc;
+            background: transparent;
         }
 
         .brand-background::after {
             content: "";
             position: absolute;
             inset: 0;
-            background: url("levi.png") center 24% / min(88vw, 980px) auto no-repeat;
-            opacity: 0.12;
-            filter: drop-shadow(0 20px 50px rgba(15, 23, 42, 0.16));
+            background: url("levi.png") center 55% / clamp(760px, 100vw, 1100px) auto no-repeat;
+            opacity: 0.4;
         }
 
         .commissione-label { color: #000 !important; }
@@ -205,8 +204,6 @@
 <div id="header-actions" class="flex items-center space-x-3"></div></div>
         </div>
     </header>
-
-    <div class="bg-slate-100 text-black border-b border-slate-300 p-3 text-center text-xs"><span id="public-voting-status" role="status">Stato delle votazioni in aggiornamento.</span> <a href="note-legali.html" class="underline">Informativa e note legali</a> · <a href="fascicolo-dpo.html" class="underline">Privacy e DPO</a></div>
 
     <div id="test-mode-banner" class="hidden sticky top-0 z-40 bg-amber-400 text-slate-950 border-b-2 border-amber-600 shadow-md">
         <div class="container mx-auto px-4 py-2 text-center text-xs md:text-sm font-black uppercase tracking-wide">
@@ -361,8 +358,12 @@
     <footer class="bg-slate-900 text-slate-400 p-4 text-center text-[10px] border-t border-slate-800 z-10">
         <div class="container mx-auto space-y-1">
             <p class="font-bold text-slate-300">Sistema Elettorale Digitale ITSCG "Primo Levi" Seregno</p>
-            <p><a href="note-legali.html" class="underline text-white">Privacy, cookie e note legali</a> · <a href="note-legali.html#assistenza" class="underline text-white">Accessibilità e assistenza</a> · <a href="anonimato.html" class="underline text-white">Protezione del voto</a></p>
-            <p>Preparazione e collaudo • Uso elettorale subordinato alle verifiche documentate dell’Allegato A</p>
+            <nav aria-label="Privacy e sito della scuola" class="flex flex-wrap justify-center gap-2 py-2">
+                <a href="fascicolo-dpo.html" class="rounded-lg border border-slate-500 px-3 py-2 text-white hover:bg-slate-800">DPO e privacy</a>
+                <a href="note-legali.html" class="rounded-lg border border-slate-500 px-3 py-2 text-white hover:bg-slate-800">Informativa legale</a>
+                <a href="https://www.leviseregno.edu.it/" target="_blank" rel="noopener noreferrer" class="rounded-lg border border-slate-500 px-3 py-2 text-white hover:bg-slate-800">Sito della scuola</a>
+            </nav>
+            <p><a href="note-legali.html#assistenza" class="underline text-white">Accessibilità e assistenza</a> · <a href="anonimato.html" class="underline text-white">Protezione del voto</a></p>
         </div>
     </footer>
 
@@ -446,12 +447,62 @@
                 modal.append(close,content);modal.addEventListener('close',()=>modal.remove(),{once:true});document.body.appendChild(modal);modal.showModal();
             }catch(e){showNotification('Documento non disponibile',e.message,'error');}
         };
-        async function refreshPublicVotingStatus(){
-            const node=document.getElementById('public-voting-status');if(!node)return;
-            const unavailable=()=>{node.textContent='Stato delle votazioni non disponibile. Gli accessi alle aree riservate restano disponibili.';};
-            const timer=setTimeout(unavailable,10000);
-            try{const {data}=await SECURE_API.getPublicServiceStatus();node.textContent=data.secretVotingEnabled?'Votazioni ammesse: consulta le date e gli orari di apertura.':data.serviceState==='SUSPENDED'?'Votazione sospesa: attendere le indicazioni della Commissione.':'Urna in preparazione. Le aree riservate sono accessibili; il voto segue i controlli e gli orari previsti.';}
-            catch(_){unavailable();}finally{clearTimeout(timer);}
+        async function publicInfoRequest(promise){
+            let timer;
+            try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Servizio non raggiungibile. Riprova tra poco.')),10000);})]);}
+            finally{clearTimeout(timer);}
+        }
+        async function readPublicLoginInformation(){
+            const global=await getDoc(getGlobalConfigRef());
+            if(global.metadata?.fromCache)throw new Error('Informazioni aggiornate non disponibili.');
+            const year=global.exists()?global.data().annoScolastico:configElezioni.annoScolastico;
+            const activeYear=/^20\d{2}\/20\d{2}$/.test(year||'')?year:configElezioni.annoScolastico;
+            const snapshot=await getDoc(doc(db,'artifacts',appId,'public','data','config','yearly_settings_'+activeYear.replace('/','_')));
+            if(snapshot.metadata?.fromCache)throw new Error('Informazioni aggiornate non disponibili.');
+            return snapshot.exists()?snapshot.data():null;
+        }
+        window.openLoginInformation=function(kind){
+            const previous=document.getElementById('login-information-dialog');if(previous)previous.close();
+            const dialog=document.createElement('dialog');dialog.id='login-information-dialog';dialog.setAttribute('aria-labelledby','login-information-title');
+            dialog.style.cssText='width:min(620px,94vw);max-height:88vh;overflow:auto;border:1px solid #cbd5e1;border-radius:20px;padding:24px;background:#fff;color:#111';
+            dialog.innerHTML=`<div class="flex items-center justify-between gap-4 mb-5"><h2 id="login-information-title" class="text-xl font-black">${kind==='status'?'Stato votazioni':'Avvisi Commissione'}</h2><button data-close class="border rounded-lg px-3 py-2 text-sm font-bold">Chiudi</button></div><div data-content><p role="status">Caricamento…</p></div>`;
+            document.body.appendChild(dialog);dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.showModal();
+            let interval;
+            dialog.addEventListener('close',()=>{clearInterval(interval);dialog.remove();},{once:true});
+            if(kind==='status'){
+                dialog.querySelector('[data-content]').innerHTML='<div id="public-voting-status" role="status" class="rounded-xl border p-4 font-bold">Verifica in corso…</div><p data-checked-at class="text-xs text-slate-600 mt-2"></p><div data-calendar class="text-sm mt-4"></div><p class="text-xs text-slate-600 mt-4">Aggiornamento automatico ogni 15 secondi mentre questa finestra è aperta. Orari delle consultazioni: Europe/Rome.</p><button data-refresh class="mt-3 border rounded-lg px-4 py-2 text-sm font-bold">Aggiorna adesso</button>';
+                const refresh=()=>refreshPublicVotingStatus(dialog);dialog.querySelector('[data-refresh]').onclick=refresh;void refresh();
+                interval=setInterval(()=>{if(dialog.open&&!document.hidden)void refresh();},15000);
+            }else{
+                void publicInfoRequest(readPublicLoginInformation()).then(config=>{
+                    if(!dialog.open)return;
+                    const technical=config?.assistenteTecnico||{};
+                    const message=config?.commissionMessageEnabled!==false&&config?.commissionMessage?config.commissionMessage:'Non sono presenti nuovi avvisi della Commissione.';
+                    dialog.querySelector('[data-content]').innerHTML=`<p class="whitespace-pre-wrap text-sm leading-relaxed">${technicalEscape(message)}</p><section class="mt-5 rounded-xl border bg-slate-50 p-4 text-sm"><h3 class="font-bold mb-2">Commissione · Area tecnica</h3><p>${technicalEscape(technical.nome||'Assistente tecnico da comunicare')}</p><p class="mt-2">Postazione: ${technicalEscape(technical.postazione||'Da comunicare dalla scuola')}</p><p>Orari di assistenza: ${technicalEscape(technical.orari||'Da comunicare dalla scuola')}</p><p>Contatto: ${technicalEscape(technical.contatto||'mbtd430001@istruzione.it')}</p></section>`;
+                }).catch(()=>{if(dialog.open)dialog.querySelector('[data-content]').innerHTML='<p role="status" class="text-sm">Avvisi non disponibili in questo momento. Chiudi e riapri questa finestra per riprovare.</p>';});
+            }
+        };
+        async function refreshPublicVotingStatus(dialog){
+            if(!dialog.open||dialog.dataset.loading==='true')return;
+            dialog.dataset.loading='true';
+            const node=dialog.querySelector('#public-voting-status'),button=dialog.querySelector('[data-refresh]'),checked=dialog.querySelector('[data-checked-at]'),calendar=dialog.querySelector('[data-calendar]');
+            button.disabled=true;node.textContent='Verifica in corso…';node.className='rounded-xl border p-4 font-bold bg-slate-50 text-black';checked.textContent='';
+            void publicInfoRequest(readPublicLoginInformation()).then(config=>{
+                if(!dialog.open)return;
+                calendar.innerHTML=config?LeviElectionPolicy.enabled(config).map(key=>{
+                    const profile=LeviElectionPolicy.profile(config,key),cal=config.calendario||{};
+                    const schedule=profile.dedicated?(profile.windows||[]).map(w=>`${String(w.date||'').split('-').reverse().join('/')} · ${w.from}–${w.to}`).join(' · '):`${cal.votingStartDate||''} ${cal.votingStartTime||''} – ${cal.votingEndDate||''} ${cal.votingEndTime||''}`;
+                    return `<div class="py-3 border-b last:border-0"><b>${technicalEscape(LeviElectionPolicy.ELECTIONS[key].label)}</b><p>${technicalEscape(!schedule.trim()||schedule.includes('XX')||!/[0-9]/.test(schedule)?'Date e orari da comunicare':schedule)}</p></div>`;
+                }).join(''):'<p>Calendario da comunicare dalla Commissione.</p>';
+            }).catch(()=>{if(dialog.open)calendar.textContent='Calendario non disponibile in questo momento.';});
+            try{
+                const {data}=await publicInfoRequest(SECURE_API.getPublicServiceStatus());if(!dialog.open)return;
+                const open=data.secretVotingEnabled===true&&data.phase==='OPEN';
+                node.textContent=data.serviceState==='SUSPENDED'?'Votazioni sospese':open?'Votazioni aperte':data.phase==='CLOSED'||data.phase==='RELEASED'?'Votazioni concluse':'Votazioni non aperte in questo momento';
+                node.className='rounded-xl border p-4 font-bold '+(open?'bg-emerald-50 border-emerald-300 text-emerald-950':'bg-amber-50 border-amber-300 text-amber-950');
+                checked.textContent='Ultima verifica: '+new Date().toLocaleTimeString('it-IT',{timeZone:'Europe/Rome'})+' · '+(open?'Accesso secondo la propria consultazione.':'Attendere le indicazioni della Commissione.');
+            }catch(_){if(dialog.open){node.textContent='Stato delle votazioni non disponibile. Riprova tra poco.';node.className='rounded-xl border border-slate-300 p-4 font-bold text-black bg-slate-50';}}
+            finally{button.disabled=false;dialog.dataset.loading='false';}
         }
         let secureVotingSession = null;
         const SESSION_IDLE_MS = 15 * 60 * 1000;
@@ -1048,28 +1099,24 @@
         };
 
         function renderStudentLogin(container) {
-            const publicTechnical = configElezioni.assistenteTecnico || {};
             container.innerHTML = `
-                <div class="w-full max-w-md mx-auto bg-white/95 backdrop-blur-md p-8 rounded-2xl shadow-2xl border border-slate-200 text-center animate-fade-in mt-4 font-semibold">
+                <div class="w-full max-w-md mx-auto bg-white/95 p-8 rounded-2xl shadow-2xl border border-slate-200 text-center animate-fade-in mt-4 font-semibold">
                     <div class="mb-6 flex flex-col items-center">
                         <img src="levi.png" alt="Primo Levi Logo" onerror="this.onerror=null;this.style.visibility='hidden'" class="w-16 h-16 object-contain mb-4">
                         <h2 class="text-xl font-black text-slate-800">Entra in Cabina Elettorale</h2>
                         <p class="text-slate-500 text-xs mt-1">Digita il codice segreto (Token) esclusivamente dalla postazione autorizzata predisposta per la votazione.</p>
-                        <p class="text-[10px] text-blue-900 bg-blue-50 px-2 py-0.5 rounded mt-2 font-bold">Anno Scolastico Attivo: A.S. ${configElezioni.annoScolastico}</p>
-                        <div class="text-[10px] text-slate-600 mt-2 text-left w-full">${consultationSummaryHTML()}<p class="mt-1">Orari Europe/Rome. Accesso consentito solo nelle fasce della propria elezione.</p></div>
-                        <div class="w-full mt-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-left text-[10px] text-amber-950"><b>Commissione • Area tecnica:</b> ${technicalEscape(publicTechnical.nome || 'Da designare')}<br><span class="text-slate-600">Postazione: ${technicalEscape(publicTechnical.postazione || 'Postazione PC laboratoriale designata dall’Istituto')}<br>Orari: ${technicalEscape(publicTechnical.orari||'Da comunicare dalla scuola')}<br>Contatto: ${technicalEscape(publicTechnical.contatto||'mbtd430001@istruzione.it')}</span></div>
                     </div>
                     <div class="space-y-4">
-                        <input type="text" id="tokenInput" placeholder="Codice del cedolino" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="80" class="w-full p-4 text-center text-2xl font-mono border-2 border-slate-200 rounded-xl uppercase tracking-wider focus:border-blue-600 outline-none font-bold">
+                        <input type="text" id="tokenInput" placeholder="Inserisci token" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="80" class="w-full p-4 text-center text-2xl font-mono border-2 border-slate-200 rounded-xl uppercase tracking-wider focus:border-blue-600 outline-none font-bold">
                         <button id="loginBtn" onclick="handleStudentLogin()" class="w-full bg-blue-900 hover:bg-blue-850 text-white font-extrabold py-3.5 rounded-xl shadow-md transition-all text-sm flex items-center justify-center space-x-2">
                             <i data-lucide="key" class="w-4 h-4"></i> <span>Accedi alla Votazione</span>
                         </button>
                         <p id="loginError" class="text-red-600 text-xs font-semibold hidden bg-red-50 p-3 rounded-xl border border-red-100"></p>
                     </div>
                     
-                    <div class="mt-6 pt-4 border-t border-slate-100 flex justify-between items-center text-[10px] text-slate-400 font-medium">
-                        <span><i data-lucide="shield-check" class="w-3.5 h-3.5 inline mr-1"></i> Voto segreto: separazione identità/scheda</span>
-                        <button onclick="window.openInformativaModal()" class="text-blue-900 hover:underline font-bold">Informativa Leggi</button>
+                    <div class="mt-5 pt-4 border-t border-slate-200 grid grid-cols-2 gap-3 text-xs text-black">
+                        <button onclick="window.openLoginInformation('notices')" class="border border-slate-300 bg-white hover:bg-slate-50 rounded-xl px-2 py-3 font-bold flex flex-col items-center gap-2"><i data-lucide="megaphone" class="w-5 h-5"></i><span>Avvisi Commissione</span></button>
+                        <button onclick="window.openLoginInformation('status')" class="border border-slate-300 bg-white hover:bg-slate-50 rounded-xl px-2 py-3 font-bold flex flex-col items-center gap-2"><i data-lucide="clock-3" class="w-5 h-5"></i><span>Stato votazioni</span></button>
                     </div>
                 </div>
             `;
@@ -6279,7 +6326,6 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             } else {
                 showPage('studentLogin');
             }
-            void refreshPublicVotingStatus();
 
             onAuthStateChanged(auth, async (user) => {
                 if (!user) {electionTestLog=[];window.LeviPrivacyReview?.clear?.();document.querySelectorAll('[data-private-document]').forEach(node=>node.remove());}

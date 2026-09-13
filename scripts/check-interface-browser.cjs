@@ -4,7 +4,7 @@ const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),
 const {chromium}=require(process.env.LEVI_PLAYWRIGHT||'playwright');
 const definition=require('../lib/dpo-dossier');
 const root=path.resolve('public');
-const stubs={app:'export const initializeApp=()=>({});',auth:'export const inMemoryPersistence={};export const initializeAuth=()=>({currentUser:null});export const signInAnonymously=async()=>({});export const signInWithCustomToken=async()=>({});export const signOut=async()=>{};export const onAuthStateChanged=(a,cb)=>{cb(null);return()=>{}};',firestore:['getFirestore','doc','setDoc','getDoc','updateDoc','deleteDoc','collection','query','getDocs','onSnapshot','writeBatch'].map(n=>'export const '+n+'=()=>({});').join('')};
+const stubs={app:'export const initializeApp=()=>({});',auth:'export const inMemoryPersistence={};export const initializeAuth=()=>({currentUser:null});export const signInAnonymously=async()=>({});export const signInWithCustomToken=async()=>({});export const signOut=async()=>{};export const onAuthStateChanged=(a,cb)=>{cb(null);return()=>{}};',firestore:['getFirestore','doc','setDoc','updateDoc','deleteDoc','collection','query','getDocs','onSnapshot','writeBatch'].map(n=>'export const '+n+'=()=>({});').join('')+"export const getDoc=async()=>({exists:()=>true,metadata:{fromCache:false},data:()=>({annoScolastico:'2026/2027',commissionMessage:'Avviso pubblicato dalla Commissione',assistenteTecnico:{nome:'Tecnico di prova'},consiglioAttivo:true,consultazioni:{consiglio:{dedicated:true,windows:[{date:'2026-11-15',from:'08:00',to:'12:00'}]}}})});"};
 (async()=>{
  const server=http.createServer((req,res)=>{
   const url=new URL(req.url,'http://local'),file=path.resolve(root,'.'+(url.pathname==='/'?'/index.html':decodeURIComponent(url.pathname)));
@@ -15,11 +15,29 @@ const stubs={app:'export const initializeApp=()=>({});',auth:'export const inMem
   browser=await chromium.launch({executablePath:process.env.LEVI_CHROMIUM_EXECUTABLE||undefined,headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--no-zygote']});
   const origin='http://127.0.0.1:'+server.address().port;
   for(const scenario of ['normal','status-offline','optional-library-missing']){
-   const page=await browser.newPage({viewport:{width:1280,height:900}}),errors=[],calls=[];page.on('pageerror',e=>errors.push(e.message));
+   const page=await browser.newPage({viewport:{width:1280,height:900}}),errors=[],calls=[];let liveStatus={ok:true,serviceState:'ADMITTED',secretVotingEnabled:true,phase:'BEFORE'};page.on('pageerror',e=>errors.push(e.message));
    await page.route('https://www.gstatic.com/firebasejs/**',r=>r.fulfill({contentType:'text/javascript',body:stubs[/firebase-(\w+)\.js/.exec(r.request().url())[1]]}));
-   await page.route('https://elezione-levi.vercel.app/api/call',r=>{const name=r.request().postDataJSON().name;calls.push(name);assert.equal(name,'getPublicServiceStatus','No login credentials or votes sent by this test');return scenario==='status-offline'?r.abort():r.fulfill({contentType:'application/json',body:JSON.stringify({data:{ok:true,serviceState:'PREPARATION_ONLY',secretVotingEnabled:false}})});});
+   await page.route('https://elezione-levi.vercel.app/api/call',r=>{const name=r.request().postDataJSON().name;calls.push(name);assert.equal(name,'getPublicServiceStatus','No login credentials or votes sent by this test');return scenario==='status-offline'?r.abort():r.fulfill({contentType:'application/json',body:JSON.stringify({data:liveStatus})});});
    if(scenario==='optional-library-missing')await page.route('**/lib/privacy-review-ui.js*',r=>r.abort());
-   await page.goto(origin,{waitUntil:'load'});await page.locator('#tokenInput').waitFor({state:'visible'});
+   await page.goto(origin,{waitUntil:'load'});await page.locator('#tokenInput').waitFor({state:'visible'});if(scenario==='normal')await page.clock.install();
+   assert.equal(calls.length,0,'No status notice or request before pressing its button');
+   assert.doesNotMatch(await page.locator('#app-container').innerText(),/XX\/10|Orari Europe|Commissione • Area tecnica|Anno Scolastico Attivo/);
+   assert.equal(await page.locator('#public-voting-status').count(),0);
+   const school=page.getByRole('link',{name:'Sito della scuola',exact:true});assert.equal(await school.getAttribute('href'),'https://www.leviseregno.edu.it/');
+   assert.equal(await page.getByRole('link',{name:'DPO e privacy',exact:true}).count(),1);
+   assert.equal(await page.getByRole('link',{name:'Informativa legale',exact:true}).count(),1);
+   await page.getByRole('button',{name:'Avvisi Commissione',exact:true}).click();
+   const information=page.locator('#login-information-dialog');await information.getByText('Avviso pubblicato dalla Commissione',{exact:true}).waitFor({state:'visible'});
+   await information.getByRole('button',{name:'Chiudi',exact:true}).click();
+   await page.getByRole('button',{name:'Stato votazioni',exact:true}).click();
+   if(scenario==='status-offline')await page.locator('#public-voting-status').getByText('Stato delle votazioni non disponibile.',{exact:false}).waitFor();
+   else{
+    await page.locator('#public-voting-status').getByText('Votazioni non aperte in questo momento',{exact:true}).waitFor();
+    liveStatus.phase='OPEN';if(scenario==='normal')await page.clock.runFor(15010);else await information.getByRole('button',{name:'Aggiorna adesso',exact:true}).click();await page.locator('#public-voting-status').getByText('Votazioni aperte',{exact:true}).waitFor();
+    liveStatus.secretVotingEnabled=false;await information.getByRole('button',{name:'Aggiorna adesso',exact:true}).click();await page.locator('#public-voting-status').getByText('Votazioni non aperte in questo momento',{exact:true}).waitFor();
+   }
+   await information.getByRole('button',{name:'Chiudi',exact:true}).click();await information.waitFor({state:'detached'});if(scenario==='normal'){const count=calls.length;await page.clock.runFor(16000);assert.equal(calls.length,count,'Polling stops when the dialog closes');}
+   if(scenario==='normal'&&process.env.LEVI_BROWSER_OUTPUT){fs.mkdirSync(process.env.LEVI_BROWSER_OUTPUT,{recursive:true});await page.screenshot({path:path.join(process.env.LEVI_BROWSER_OUTPUT,'login-desktop.png'),fullPage:true});await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(process.env.LEVI_BROWSER_OUTPUT,'login-mobile.png'),fullPage:true});await page.setViewportSize({width:1280,height:900});}
    await page.locator('#loginBtn').click();assert.match(await page.locator('#loginError').innerText(),/Inserisci/);
    await page.getByRole('button',{name:'Commissione',exact:true}).click();await page.locator('#adminUsername').waitFor({state:'visible'});
    await page.locator('#adminUsername').fill('Commissione Presidente');assert.equal(await page.locator('#adminUsername').evaluate(n=>getComputedStyle(n).color),'rgb(0, 0, 0)');
@@ -32,7 +50,7 @@ const stubs={app:'export const initializeApp=()=>({});',auth:'export const inMem
    await page.getByRole('button',{name:'Referenti Genitori',exact:true}).click();assert.match(await page.locator('#classMasterToken').getAttribute('placeholder'),/REF-GEN/);
    await page.getByRole('button',{name:'Dirigenza / Vicepresidenza / DSGA / Segreteria',exact:true}).click();await page.locator('#managementUsername').waitFor({state:'visible'});
    await page.goto(origin+'/?view=commission',{waitUntil:'load'});await page.locator('#adminUsername').waitFor({state:'visible'});
-   assert.deepEqual(errors,[],scenario);assert.ok(calls.length>=1);if(scenario==='status-offline')await page.getByText('Stato delle votazioni non disponibile.',{exact:false}).waitFor();
+   assert.deepEqual(errors,[],scenario);assert.ok(calls.length>=1);
    if(scenario==='normal'){
     const materials={version:definition.VERSION,fields:definition.fields,sections:definition.sections,release:{commit:'a'.repeat(40)},inventory:fs.readFileSync('docs/inventario-release.json','utf8'),development:'{"scope":"SYNTHETIC BROWSER TEST"}',procedure:fs.readFileSync('docs/19_FASCICOLO_DPO_E_RIPRESA.md','utf8')};
     await page.evaluate(async materials=>{
@@ -56,6 +74,6 @@ const stubs={app:'export const initializeApp=()=>({});',auth:'export const inMem
   }
   const page=await browser.newPage();await page.goto(origin+'/fascicolo-dpo.html');assert.match(await page.locator('body').innerText(),/Vargiu Scuola/);assert.doesNotMatch(await page.locator('body').innerText(),/credenziali_anonime_anno|AES-256-GCM|artifacts\/iis/);
   for(const privatePath of ['/docs/19_FASCICOLO_DPO_E_RIPRESA.md','/docs/inventario-release.json','/lib/dpo-dossier.js','/functions/core.js'])assert.equal((await page.request.get(origin+privatePath)).status(),404);
-  console.log('PASS browser: urn, main navigation, black Commission input, visible login button, optional service failures, Commission dossier/direct PDF, technical role scope, session cleanup, mobile navigation and unpublished private files.');
+  console.log('PASS browser: uncluttered login, notices popup, fresh open/closed status, footer links, urn, main navigation, black Commission input, visible login button, optional service failures, Commission dossier/direct PDF, technical role scope, session cleanup, mobile navigation and unpublished private files.');
  }finally{if(browser)await browser.close();server.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
