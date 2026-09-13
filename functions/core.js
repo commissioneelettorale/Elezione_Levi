@@ -807,29 +807,85 @@ exports.recordTechnicalCheckpoint = async (request) => {
   return { ok: true, id: ref.id, event, technicianName, station, phase: electionPhase(config), result, controls, recordedAt: new Date().toISOString() };
 };
 
+const TECHNICAL_TEST_IDS = Object.freeze([
+  'identity','revokedAccess','duplicateVote','timeWindow','ballotValidation',
+  'configurationFreeze','outageRecovery','tally','restore','accessibility','anonymity','cloudSecurity'
+]);
+const TEST_OUTCOMES = new Set(['PASS','FAIL','ISSUES','NOT_TESTED']);
+function evidenceText(value, max = 1000) {
+  return String(value || '').replace(/[<>`"\u0000-\u001F]/g, ' ').trim().slice(0, max);
+}
+function validateTechnicalReport(data) {
+  const softwareVersion = evidenceText(data.softwareVersion, 160);
+  const evidenceRef = evidenceText(data.evidenceRef, 300);
+  if (!softwareVersion || !evidenceRef || data.testEnvironment !== 'ISOLATED_TEST') {
+    throw new HttpsError('invalid-argument', 'Indicare versione, riferimento al verbale e ambiente di prova separato.');
+  }
+  const tests = TECHNICAL_TEST_IDS.map(id => {
+    const source = data.tests?.[id];
+    if (!source || !TEST_OUTCOMES.has(source.outcome)) throw new HttpsError('invalid-argument','Compilare l’esito di tutte le prove, anche quelle non eseguite.');
+    const evidence = evidenceText(source.evidence, 600);
+    if (source.outcome !== 'NOT_TESTED' && !evidence) throw new HttpsError('invalid-argument','Ogni prova eseguita richiede un riferimento all’evidenza o all’anomalia.');
+    return { id, outcome: source.outcome, evidence };
+  });
+  const result = tests.some(t=>t.outcome==='FAIL') ? 'NON_SUPERATO'
+    : tests.some(t=>t.outcome==='NOT_TESTED') ? 'NON_COMPLETO'
+    : tests.some(t=>t.outcome==='ISSUES') ? 'CON_ANOMALIE' : 'PROVE_DICHIARATE_SUPERATE';
+  return { softwareVersion, evidenceRef, testEnvironment:'ISOLATED_TEST', tests, result };
+}
+
+exports.recordTechnicalTestReport = async (request) => {
+  const actor = await requireAuth(request, ['ASSISTENTE_TECNICO','COMMISSIONE']);
+  const year = actor.claims.staffYear;
+  const report = validateTechnicalReport(request.data || {});
+  const config = await loadElectionConfig(year);
+  const entry = {
+    event:'COLLAUDO', technicianName:technicalActorName(actor),
+    technicianAccountId:actor.claims.staffAccountId, station:technicalStation(config),
+    phase:electionPhase(config), result:report.result,
+    note:evidenceText(request.data?.note), report,
+    at:FieldValue.serverTimestamp()
+  };
+  const ref = yearlyCollection('audit_tecnico', year).doc();
+  await ref.create(entry);
+  // La registrazione non conferma automaticamente technicalTestPassed.
+  return { ok:true, id:ref.id, result:report.result };
+};
+
 exports.getTechnicalLogs = async (request) => {
   const actor = await requireAuth(request, ['ASSISTENTE_TECNICO', 'COMMISSIONE']);
   const year = request.data?.annoScolastico || actor.claims?.staffYear;
   enforceTechnicalYear(actor, year);
-  const snap = await yearlyCollection('audit_tecnico', year).orderBy('at', 'desc').limit(100).get();
+  const untilText = request.data?.snapshotUntil;
+  const until = untilText ? new Date(untilText) : new Date();
+  if (!Number.isFinite(until.getTime()) || until.getTime() > Date.now() + 1000) throw new HttpsError('invalid-argument','Intervallo dei log non valido.');
+  const collection = yearlyCollection('audit_tecnico', year);
+  let query = collection.where('at','<=',Timestamp.fromDate(until)).orderBy('at','desc');
+  const cursor = String(request.data?.cursor || '');
+  if (cursor) {
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(cursor)) throw new HttpsError('invalid-argument','Cursore non valido.');
+    const previous = await collection.doc(cursor).get();
+    if (!previous.exists) throw new HttpsError('invalid-argument','Il punto di continuazione non è più disponibile. Ripetere l’esportazione.');
+    query = query.startAfter(previous);
+  }
+  const snap = await query.limit(101).get();
+  const page = snap.docs.slice(0,100);
   return {
-    ok: true,
-    technicianName: technicalActorName(actor),
-    year: String(year || '2026/2027'),
-    // Restituisce solo i campi necessari alla verifica e al verbale: l'ID
-    // interno dell'account e le altre metainformazioni restano server-side.
-    logs: snap.docs.map(d => {
-      const value = d.data() || {};
-      return {
-        id: d.id,
-        event: value.event || '',
-        technicianName: value.technicianName || '',
-        station: value.station || '',
-        phase: value.phase || '',
-        result: value.result || '',
-        note: value.note || '',
-        at: timestampIso(value.at)
-      };
+    ok:true, technicianName:technicalActorName(actor), year:String(year),
+    snapshotUntil:until.toISOString(),
+    nextCursor:snap.docs.length > 100 ? page[page.length-1].id : null,
+    logs:page.map(d => {
+      const v=d.data()||{};
+      const report=v.event==='COLLAUDO' && v.report ? {
+        softwareVersion:evidenceText(v.report.softwareVersion,160),
+        evidenceRef:evidenceText(v.report.evidenceRef,300),
+        testEnvironment:'ISOLATED_TEST',
+        tests:(Array.isArray(v.report.tests)?v.report.tests:[])
+          .filter(t=>TECHNICAL_TEST_IDS.includes(t.id)&&TEST_OUTCOMES.has(t.outcome))
+          .map(t=>({id:t.id,outcome:t.outcome,evidence:evidenceText(t.evidence,600)}))
+      }:null;
+      return {id:d.id,event:v.event||'',technicianName:v.technicianName||'',station:v.station||'',
+        phase:v.phase||'',result:v.result||'',note:v.note||'',at:timestampIso(v.at),report};
     })
   };
 };
@@ -1056,8 +1112,15 @@ exports.setRegularityControl = async (request) => {
   if(REGULARITY_PRE_VOTE_CONTROLS.includes(control)&&electionPhase(config)!=='BEFORE') throw new HttpsError('failed-precondition','I controlli preliminari non sono modificabili dopo l’apertura della finestra elettorale.');
   if(value && !note) throw new HttpsError('invalid-argument','Indicare gli estremi del documento o della verifica che giustifica la conferma.');
   if(control==='appealWindowClosed' && value) assertAppealDeadlineElapsed(await loadRegularityState(year));
+  let reportId='';
+  if(control==='technicalTestPassed' && value) {
+    reportId=String(request.data?.reportId||'');
+    if(!/^[A-Za-z0-9_-]{1,128}$/.test(reportId)) throw new HttpsError('invalid-argument','Indicare l’ID del rapporto di collaudo registrato nell’area tecnica.');
+    const report=await yearlyCollection('audit_tecnico',year).doc(reportId).get();
+    if(!report.exists || report.data()?.event!=='COLLAUDO' || report.data()?.result!=='PROVE_DICHIARATE_SUPERATE') throw new HttpsError('failed-precondition','Il rapporto indicato è assente oppure contiene prove non superate, anomalie o verifiche mancanti.');
+  }
   const ref=regularityStateRef(year);
-  await db.runTransaction(async tx=>{const snap=await tx.get(ref),cur={...emptyRegularityState(),...(snap.exists?snap.data():{})};tx.set(ref,{[control]:value,notes:{...(cur.notes||{}),[control]:note},updatedAt:FieldValue.serverTimestamp(),updatedBy:actor.uid},{merge:true});});
+  await db.runTransaction(async tx=>{const snap=await tx.get(ref),cur={...emptyRegularityState(),...(snap.exists?snap.data():{})};tx.set(ref,{[control]:value,...(control==='technicalTestPassed'?{technicalReportId:reportId}:{}),notes:{...(cur.notes||{}),[control]:note},updatedAt:FieldValue.serverTimestamp(),updatedBy:actor.uid},{merge:true});});
   await regularityEvents(year).add({type:'CONTROL_UPDATE',control,value,note,actorUid:actor.uid,at:FieldValue.serverTimestamp()});
   await auditAdmin(actor,'REGULARITY_CONTROL_UPDATE',{control,value}); return{ok:true};
 };

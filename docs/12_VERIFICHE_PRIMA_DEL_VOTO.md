@@ -47,3 +47,9 @@ L'incarico tecnico va documentato dalla scuola. Il ruolo applicativo non attribu
 La pubblicazione Vercel non aggiorna automaticamente le regole Firestore: verificare separatamente il workflow delle regole. Per preparare il registro occorre salvare un calendario futuro valido e predisporre lo stato Regolarità; il registro viene bloccato quando è dichiarato definitivo o inizia la finestra. Le correzioni straordinarie richiedono una procedura autorizzata, tracciata e ricollaudata. Gli account con sessioni antecedenti alla gestione dell'anno devono accedere di nuovo.
 
 Fonti: [Allegato tecnico 2026](https://www.tecnicadellascuola.it/wp-content/uploads/2026/08/Allegato_Tecnico_organi_collegiali_online.pdf), [GDPR](https://eur-lex.europa.eu/eli/reg/2016/679/oj?locale=it), [O.M. 215/1991](https://www.edscuola.it/archivio/norme/ordinanze/om215_91.html).
+
+## Rapporto di collaudo registrato
+
+Nell’area Assistente tecnico e nel Collaudo della Commissione è disponibile il modulo con dodici prove, versione del software, riferimento al fascicolo ed evidenze. Le prove non eseguite restano “Non verificata”. La registrazione crea un nuovo evento; per una rettifica registrare un nuovo rapporto richiamando nelle osservazioni l’ID precedente. La conferma del collaudo in Regolarità richiede l’ID di un rapporto con tutte le prove dichiarate superate e un’annotazione della Commissione: non verifica automaticamente la veridicità delle evidenze o la conformità giuridica. Le conferme precedenti a questo aggiornamento devono essere riesaminate.
+
+L’esportazione JSON contiene un’impronta SHA-256 del payload serializzato in UTF-8 con JSON.stringify. Se WebCrypto non è disponibile l’esportazione con impronta viene interrotta. L’impronta consente il confronto d’integrità con una copia attendibile; non costituisce firma digitale, marca temporale o conservazione a norma.

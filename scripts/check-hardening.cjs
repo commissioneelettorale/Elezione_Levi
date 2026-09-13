@@ -5,7 +5,7 @@ class HttpsError extends Error { constructor(code,message){super(message);this.c
 const ref={collection(){return this},doc(){return this},async get(){return {exists:true,data:()=>record}}};
 const db={collection:()=>ref,runTransaction:async fn=>{let n=0;return fn({get:async()=>({exists:true,data:()=>++n===1?oldConfig:reg}),set:()=>{writes++}})}};
 const context={exports:{},require:n=>n==='crypto'?require(n):n==='firebase-functions/v2/https'?{HttpsError}:n==='firebase-admin/app'?{getApps:()=>[{}]}:n==='firebase-admin/firestore'?{getFirestore:()=>db,FieldValue:{serverTimestamp:()=>0}}:{getAuth:()=>({})},console,Date,Buffer,Intl,Set,Map,process:{env:{}}};
-vm.createContext(context);vm.runInContext(fs.readFileSync('functions/core.js','utf8')+'\nexports.test={requireAuth,rejectExtraPreferences,assertAppealDeadlineElapsed,romeToday};',context);
+vm.createContext(context);vm.runInContext(fs.readFileSync('functions/core.js','utf8')+'\nexports.test={requireAuth,rejectExtraPreferences,assertAppealDeadlineElapsed,romeToday,validateTechnicalReport,TECHNICAL_TEST_IDS};',context);
 const t=context.exports.test,request={auth:{uid:'test',token:{role:'COMMISSIONE',staffYear:'2026/2027',staffAccountId:'test'}},data:{annoScolastico:'2026/2027'}};
 (async()=>{
 await t.requireAuth(request,['COMMISSIONE']);
@@ -17,5 +17,15 @@ assert.throws(()=>t.assertAppealDeadlineElapsed({resultsPublished:true,appealDea
 t.assertAppealDeadlineElapsed({resultsPublished:true,appealDeadline:'2020-01-01'});
 oldConfig={listeIstituto:{A:[]}};reg={softwareFrozen:true};
 await assert.rejects(context.exports.saveElectionConfig({...request,data:{annoScolastico:'2026/2027',config:{annoScolastico:'2026/2027',listeIstituto:{B:[]}}}}),e=>e.code==='failed-precondition');assert.equal(writes,0);
+const report={softwareVersion:'commit-test',evidenceRef:'TEST-001',testEnvironment:'ISOLATED_TEST',tests:Object.fromEntries(t.TECHNICAL_TEST_IDS.map(id=>[id,{outcome:'NOT_TESTED',evidence:''}]))};
+assert.equal(t.validateTechnicalReport(report).result,'NON_COMPLETO');
+report.tests.identity={outcome:'PASS',evidence:''};assert.throws(()=>t.validateTechnicalReport(report));
+for(const id of t.TECHNICAL_TEST_IDS) report.tests[id]={outcome:'PASS',evidence:'Test con dati fittizi'};
+assert.equal(t.validateTechnicalReport(report).result,'PROVE_DICHIARATE_SUPERATE');
+report.tests.anonymity={outcome:'FAIL',evidence:'Separazione non dimostrata'};assert.equal(t.validateTechnicalReport(report).result,'NON_SUPERATO');
+report.tests.anonymity.outcome='INVALID';assert.throws(()=>t.validateTechnicalReport(report));
+assert.throws(()=>t.validateTechnicalReport({...report,testEnvironment:'PRODUCTION'}));
+await assert.rejects(context.exports.recordTechnicalTestReport({data:report}),e=>e.code==='unauthenticated');
+console.log('PASS: technical report outcomes, evidence requirements and authorization.');
 console.log('PASS: active/revoked/versioned accounts; year isolation; preference limits; appeal dates; frozen lists.');
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -9,6 +9,7 @@ const ALLOWED_FUNCTIONS = new Set([
   "technicalLogin",
   "getTechnicalStatus",
   "recordTechnicalCheckpoint",
+  "recordTechnicalTestReport",
   "getTechnicalLogs",
   "changeCommissionPassword",
   "managementLogin",
