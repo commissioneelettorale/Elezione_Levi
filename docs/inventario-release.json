@@ -30,13 +30,13 @@
     },
     {
       "path": "docs/verifiche-sviluppo.json",
-      "bytes": 11460,
-      "sha256": "c7b97bcee262786e603b21ce39b2e4397db2de9ff984ea79fbf711b48b2bf241"
+      "bytes": 12227,
+      "sha256": "ea8ad6c8d6433340678f1cfdb040085677e27c0981ddb837a81e42951a85904d"
     },
     {
       "path": "fascicolo-dpo.html",
-      "bytes": 4153,
-      "sha256": "afb53149354ff17831cadd28d6c7a2f3d55c9c09a1cdf9304e34b8531482d7fd"
+      "bytes": 4248,
+      "sha256": "54fd1c8a5c8379eb252d96eff4906eacf18226dd452ecc1a16e50e5c7b1e4c5d"
     },
     {
       "path": "firestore.rules",
@@ -45,13 +45,13 @@
     },
     {
       "path": "functions/core.js",
-      "bytes": 102603,
-      "sha256": "08dc559f76e7bbeecea76d3c0638e9bb0761315a1f7e714c4601940eafbb1a5e"
+      "bytes": 103273,
+      "sha256": "2c7b1019c29f38909d22c99f99b27957a1bc5f4b8ae6a2bf92b294554b3ce912"
     },
     {
       "path": "index.html",
-      "bytes": 496418,
-      "sha256": "e8801436fc79148e7892fe0ae8d93071c2a5d76b42cdcb6bc80f4ac4ee385c7e"
+      "bytes": 497671,
+      "sha256": "7a6607f6c4c2365599e32bf46e7ab140601d8a3336bcb13cdf428f876d8859cd"
     },
     {
       "path": "lib/ballot-vault.js",
@@ -75,8 +75,8 @@
     },
     {
       "path": "lib/privacy-review-ui.js",
-      "bytes": 18770,
-      "sha256": "d4c643be639822744ce3b673815f5f283686577075472ddc73227736bf334479"
+      "bytes": 20677,
+      "sha256": "69a65d557dab960da74efb7bee31dad29bda534bc6d6c501c602a566be1947a7"
     },
     {
       "path": "lib/voting-admission.js",

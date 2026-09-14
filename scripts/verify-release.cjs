@@ -13,6 +13,7 @@ const tests=[
 if(process.env.LEVI_PLAYWRIGHT&&process.env.LEVI_CHROMIUM_EXECUTABLE){
  const build=spawnSync(process.execPath,['scripts/build-public-site.cjs'],{encoding:'utf8',timeout:10000});if(build.status!==0)throw new Error(build.stderr);
  tests.push(['interface-browser','scripts/check-interface-browser.cjs','Browser Chromium reale con servizi Firebase/API simulati: avvio completo, clic, mobile, indisponibilità opzionali, PDF DPO, ruoli e documenti non pubblicati.']);
+ tests.push(['dpo-login-download','scripts/check-dpo-download-browser.cjs','Pagina completa e login Commissione simulato: download PDF reale su desktop/mobile, sessione preservata, ripresa dopo login, fascicolo preliminare, errori visibili e annullamento dopo logout.']);
 }
 const evidence=[];
 for(const [id,script,requirement]of tests){

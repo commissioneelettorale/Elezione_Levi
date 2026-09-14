@@ -1311,10 +1311,18 @@ function assertDifferentPerson(actor,previous){
 }
 exports.getVotingReview=async request=>{
   const actor=await requireAuth(request,['COMMISSIONE','ASSISTENTE_TECNICO','DIRIGENTE']),year=actor.claims.staffYear;
-  const config=await loadElectionConfig(year),state=await loadRegularityState(year);
+  // The DPO dossier is needed before configuring or admitting an election.
+  // This read-only view must describe missing configuration, never create it or admit voting.
+  const configSnap=await yearlyConfigRef(year).get(),configurationAvailable=configSnap.exists;
+  const config=configSnap.data()||{},state=await loadRegularityState(year);
+  const assessment=legalAssessment(config,state);
+  if(!configurationAvailable){
+    assessment.configurationSha256=null;assessment.admittedToSecretVoting=false;
+    assessment.blockers.unshift({id:'configurationUnavailable',detail:'Configurazione elettorale annuale non ancora salvata. Il fascicolo descrive la versione software e i documenti disponibili, senza autorizzare il voto.'});
+  }
   const batches=await yearlyCollection('lotti_credenziali',year).get();
-  return {year,role:actor.role,release:releaseIdentity(),configurationSha256:configurationHash(config),credentialRevision:state.credentialRevision||null,privacyMode:config.privacyMode||'LEGACY_NAMED',review:state.votingReview||{stage:'PREPARATION'},suspended:state.emergencySuspended===true,closed:state.procedureClosed===true,
-    assessment:legalAssessment(config,state),privacy:privacyArchitectureAssessment(config),batches:batches.docs.map(d=>{const x=d.data();return {tipo:x.tipo,classe:x.classe,issued:x.issued,eligible:x.eligible};})};
+  return {year,role:actor.role,release:releaseIdentity(),configurationAvailable,configurationSha256:configurationAvailable?configurationHash(config):null,credentialRevision:state.credentialRevision||null,privacyMode:config.privacyMode||'LEGACY_NAMED',review:state.votingReview||{stage:'PREPARATION'},suspended:state.emergencySuspended===true,closed:state.procedureClosed===true,
+    assessment,privacy:privacyArchitectureAssessment(config),batches:batches.docs.map(d=>{const x=d.data();return {tipo:x.tipo,classe:x.classe,issued:x.issued,eligible:x.eligible};})};
 };
 exports.getAnonymousParticipation=async request=>{
   const actor=await requireAuth(request,['COMMISSIONE','DIRIGENTE','VICEPRESIDE','DSGA','SEGRETERIA']),year=actor.claims.staffYear;

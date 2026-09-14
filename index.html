@@ -359,7 +359,7 @@
         <div class="container mx-auto space-y-1">
             <p class="font-bold text-slate-300">Sistema Elettorale Digitale ITSCG "Primo Levi" Seregno</p>
             <nav aria-label="Privacy e sito della scuola" class="flex flex-wrap justify-center gap-2 py-2">
-                <a href="fascicolo-dpo.html" class="rounded-lg border border-slate-500 px-3 py-2 text-white hover:bg-slate-800">DPO e privacy</a>
+                <a href="fascicolo-dpo.html" target="_blank" rel="noopener noreferrer" class="rounded-lg border border-slate-500 px-3 py-2 text-white hover:bg-slate-800">DPO e privacy</a>
                 <a href="note-legali.html" class="rounded-lg border border-slate-500 px-3 py-2 text-white hover:bg-slate-800">Informativa legale</a>
                 <a href="https://www.leviseregno.edu.it/" target="_blank" rel="noopener noreferrer" class="rounded-lg border border-slate-500 px-3 py-2 text-white hover:bg-slate-800">Sito della scuola</a>
             </nav>
@@ -430,15 +430,24 @@
         const isAnonymousVoteMode=()=>configElezioni.privacyMode==='PRESENTIAL_UNLINKED_V1';
         const anonymousParticipation=async()=>isAnonymousVoteMode()?(await SECURE_API.getAnonymousParticipation({annoScolastico:configElezioni.annoScolastico})).data:null;
         // Optional dossier setup happens on demand, after the main interface is ready.
-        window.openPrivacyReview=async()=>{
-            if(!auth.currentUser){showPage('adminLogin');return;}
+        let pendingDpoDownload=false;
+        window.openPrivacyReview=async(options={})=>{
+            if(!auth.currentUser){pendingDpoDownload=options.download==='pdf';showPage('adminLogin');return;}
             const ui=window.LeviPrivacyReview;
             if(!ui?.configure||!ui?.show){showNotification('Fascicolo non disponibile','Ricarica la pagina per riprovare. Gli altri accessi restano disponibili.','error');return;}
             ui.configure({api:SECURE_API,config:()=>configElezioni,logs:()=>fetchCompleteTechnicalLog(),notify:(...args)=>window.showNotification(...args),
                 saveMode:async()=>{const next={...configElezioni,privacyMode:'PRESENTIAL_UNLINKED_V1'};await SECURE_API.saveElectionConfig({config:next,annoScolastico:next.annoScolastico});configElezioni=next;window.configElezioni=next;}
             });
-            await ui.show();
+            await ui.show(options);
         };
+        window.downloadDpoPdf=()=>window.openPrivacyReview({download:'pdf'});
+        async function resumeDpoDownload(){
+            if(!pendingDpoDownload)return;
+            pendingDpoDownload=false;
+            const url=new URL(window.location.href);url.searchParams.delete('document');
+            window.history.replaceState(null,'',url);
+            await window.downloadDpoPdf();
+        }
         window.openPrivateTechnicalDocument=async documentId=>{
             try{const {data}=await SECURE_API.getPrivateTechnicalDocument({annoScolastico:configElezioni.annoScolastico,document:documentId});
                 const modal=document.createElement('dialog');modal.dataset.privateDocument='true';modal.style.cssText='width:min(900px,95vw);max-height:90vh;overflow:auto;padding:24px;color:#111;border-radius:16px';
@@ -988,6 +997,7 @@
         }
 
         window.showPage = function(pageId, extraParam) {
+            if(pageId==='studentLogin')pendingDpoDownload=false;
             currentView = pageId;
             const container = document.getElementById('app-container');
             container.innerHTML = '';
@@ -2094,6 +2104,7 @@
                         <i data-lucide="shield-alert" class="mx-auto w-12 h-12 text-red-600 mb-2"></i>
                         <h2 class="commissione-label text-xl font-black text-slate-800">Area Commissione Elettorale</h2>
                         <p class="text-slate-500 text-xs mt-1">Accesso protetto per i componenti elettorali.</p>
+                        ${pendingDpoDownload?'<p class="mt-3 rounded-xl bg-slate-100 p-3 text-sm text-black" role="status">Accedi con il tuo account Commissione: il PDF DPO verrà preparato e scaricato dopo l’accesso.</p>':''}
                     </div>
                     <div class="space-y-4">
                         <input type="text" id="adminUsername" autocomplete="username" placeholder="Username Commissione" class="w-full p-4 border rounded-xl text-center text-sm outline-none focus:ring-4 focus:ring-red-100 focus:border-red-600 font-bold">
@@ -2121,6 +2132,7 @@
                 activeAdminTab = 'config';
                 startTokensListener();
                 showPage('adminPanel');
+                await resumeDpoDownload();
             } catch (e) {
                 const authCode=String(e?.code||''); const authMsg=String(e?.message||''); const serviceUnavailable=/unavailable|internal|network-request-failed/i.test(authCode)||/failed to fetch|network|cors|temporaneamente non disponibile/i.test(authMsg); showNotification(serviceUnavailable?'Servizio Commissione non disponibile':'Accesso negato',serviceUnavailable?'Il servizio di autenticazione non è raggiungibile in questo momento.':'Username o password non validi.','error');
             }
@@ -2179,6 +2191,7 @@
                 resetIdleTimer();
                 showNotification('Password aggiornata','La password temporanea è stata revocata. Conserva la nuova password in modo sicuro.','success');
                 showPage('adminPanel');
+                await resumeDpoDownload();
             } catch (e) {
                 console.error(e);
                 showNotification('Cambio password non riuscito', e?.message || 'Operazione non completata.', 'error');
@@ -2215,6 +2228,7 @@
                         <div>
                             <h2 class="text-lg font-black text-slate-800">Cruscotto di Controllo (Commissione Elettorale)</h2>
                             <p class="text-slate-500 text-xs">Gestione in tempo reale e riscontro asincrono dei registri</p>
+                            <button type="button" onclick="window.downloadDpoPdf()" class="mt-3 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white">Scarica PDF DPO</button>
                         </div>
                         
                         <div class="flex items-center space-x-2 bg-slate-100 p-2 rounded-xl border">
@@ -6316,8 +6330,11 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
 
                 window.onload = async () => {
             const params = new URLSearchParams(window.location.search);
+            pendingDpoDownload=params.get('document')==='dpo';
             
-            if (params.get('view') === 'management') {
+            if (pendingDpoDownload) {
+                showPage('adminLogin');
+            } else if (params.get('view') === 'management') {
                 showPage('managementLogin');
             } else if (params.get('view') === 'technical') {
                 showPage('technicalLogin');

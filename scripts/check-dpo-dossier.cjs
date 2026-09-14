@@ -8,7 +8,7 @@ class Url extends URL{static createObjectURL(blob){blobs.push(blob);return 'blob
 const review={year:'2026/2027',release:{commit:'a'.repeat(40),environment:'SYNTHETIC TEST'},configurationSha256:'b'.repeat(64),review:{stage:'PREPARATION'},assessment:{admittedToSecretVoting:false,controls:[{id:'backupPlanReady',status:'NON_VERIFICATO',note:''}]}};
 const profile={fields:{},dpo:{name:'Vargiu Scuola S.r.l.',email:'dpo@vargiuscuola.it'}};
 const data={generatedAt:'2026-09-13T12:00:00Z',review,profile,materials,technical:{snapshotUntil:'2026-09-13T12:00:00Z',logs:[{id:'TEST-REPORT',technicianName:'Tecnico fittizio',at:'2026-09-13T11:00:00Z',release:review.release,configurationSha256:review.configurationSha256,result:'NON_COMPLETO',report:{tests:[{id:'restore',outcome:'NOT_TESTED',evidence:'',method:'',observed:'',expected:''}]}}]}};
-const context={window:{jspdf:{jsPDF},JSZip,LeviDpoDossier:definition},URL:Url,Blob,TextEncoder,crypto:crypto.webcrypto,Uint8Array,ArrayBuffer,Date,console,setTimeout:()=>0,document:{baseURI:'https://example.test/',createElement:()=>({click(){}})},fetch:async url=>{
+const context={window:{jspdf:{jsPDF},JSZip,LeviDpoDossier:definition},URL:Url,Blob,TextEncoder,crypto:crypto.webcrypto,Uint8Array,ArrayBuffer,Date,console,setTimeout:()=>0,document:{baseURI:'https://example.test/',body:{appendChild(){}},getElementById:()=>null,querySelector:()=>null,createElement:()=>({dataset:{},style:{},click(){},remove(){}})},fetch:async url=>{
  const path=new URL(url).pathname.slice(1);if(failResource&&path==='anonimato.html')return {ok:false};
  const value=path==='docs/verifiche-sviluppo.json'?'{"scope":"SYNTHETIC EXPORT TEST"}':fs.readFileSync(path,'utf8');
  return {ok:true,text:async()=>value,json:async()=>JSON.parse(value)};

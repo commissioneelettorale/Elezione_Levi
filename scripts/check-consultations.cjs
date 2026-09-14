@@ -57,6 +57,18 @@ async function propose(reportId){return api.advanceVotingReview(commission({acti
 async function verify(){return api.advanceVotingReview(staff('ASSISTENTE_TECNICO',{action:'VERIFY',...proof}));}
 async function authorize(){return api.advanceVotingReview(commission({action:'AUTHORIZE',...proof}));}
 async function check(){
+ // A preliminary DPO dossier must work before configuration is saved, without writing or opening voting.
+ stores.delete(configPath);const beforeDossier=JSON.stringify([...stores]);
+ const preliminary=await api.getVotingReview(commission());
+ assert.equal(preliminary.configurationAvailable,false);assert.equal(preliminary.configurationSha256,null);
+ assert.equal(preliminary.assessment.configurationSha256,null);assert.equal(preliminary.assessment.admittedToSecretVoting,false);
+ assert.ok(preliminary.assessment.blockers.some(b=>b.id==='configurationUnavailable'));
+ assert.equal(JSON.stringify([...stores]),beforeDossier,'DPO review must not create configuration or alter records');
+ await assert.rejects(api.getVotingReview({data:{annoScolastico:year}}),e=>e.code==='unauthenticated');
+ await assert.rejects(api.validateVoterToken({data:{annoScolastico:year,token:'TEST-NEVER-ACTUAL'}}),e=>e.code==='failed-precondition');
+ stores.set(configPath,config);
+ const configured=await api.getVotingReview(commission());assert.equal(configured.configurationAvailable,true);assert.match(configured.configurationSha256,/^[a-f0-9]{64}$/);
+ console.log('PASS: preliminary DPO review without configuration, authenticated and read-only; real voting still blocked.');
  const preGateStores=stores.size;
  assert.deepEqual(legal.structuralBlockers(),['structuralSecrecy']);
  const publicStatus=await api.getPublicServiceStatus();assert.equal(publicStatus.secretVotingEnabled,false);
