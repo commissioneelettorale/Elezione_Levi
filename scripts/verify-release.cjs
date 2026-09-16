@@ -2,6 +2,7 @@
 // Reproducible development evidence. Never connects to an election database.
 const fs=require('node:fs'),crypto=require('node:crypto'),{spawnSync}=require('node:child_process');
 const tests=[
+ ['register-import','scripts/check-register-import.cjs','Importazione autenticata di 1501 elettori, ripresa senza duplicati, blocchi di sicurezza e atomicità con database simulato.'],
  ['access','scripts/check-hardening.cjs','Accessi revocati, ruoli/anno, preferenze, congelamento e completezza dei rapporti.'],
  ['concurrency-model','scripts/check-concurrent-votes.cjs','3000 flussi concorrenti sul backend con database simulato: integrità, doppio invio e ricevuta; non misura capacità cloud.'],
  ['voting','scripts/check-consultations.cjs','Lotti, ammissione, indipendenza, sospensione/ripresa, anonimizzazione applicativa, doppio voto, tempi e ricevuta.'],
@@ -12,6 +13,7 @@ const tests=[
  ['dpo-archive','scripts/check-dpo-dossier.cjs','PDF/ZIP effettivi, manifest verificabile, dati mancanti e fallimento dell’esportazione incompleta.']
 ];
 if(process.env.LEVI_JSDOM)tests.push(['sandbox-flow','scripts/check-sandbox-flow.cjs','Applicazione completa in DOM emulato: login fittizio, download riservato, utente docente, scheda bianca senza API reali e ritorno al collaudo.']);
+if(process.env.LEVI_JSDOM)tests.push(['register-import-ui','scripts/check-register-import-ui.cjs','Applicazione completa in DOM emulato: Excel reale, API autenticata, tutti i blocchi, errori e doppio invio; nessuna scrittura Firestore diretta.']);
 if(process.env.LEVI_JSDOM)tests.push(['sandbox-ui','scripts/check-sandbox.cjs','Utenti fittizi di tutte le componenti, orari separati, doppio invio, isolamento e PDF DPO assente dalla pagina pubblica.']);
 if(process.env.LEVI_JSDOM)tests.push(['school-ui-dom','scripts/check-school-ui.cjs','DOM emulato con jsdom: avviso senza persistenza, schede bianche e riepilogo, diritti distinti, modulo genitori e fascicolo DPO preliminare. Non è un test browser Production.']);
 if(process.env.LEVI_PLAYWRIGHT&&process.env.LEVI_CHROMIUM_EXECUTABLE){

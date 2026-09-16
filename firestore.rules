@@ -22,18 +22,6 @@ service cloud.firestore {
           && account.get('expiresAt', request.time) > request.time));
     }
 
-    function editableRoll(collectionId) {
-      let year = request.auth.token.staffYear.replace('/', '_');
-      let settings = 'yearly_settings_' + year;
-      let regularity = 'regolarita_' + year;
-      let config = get(/databases/$(database)/documents/artifacts/iis-levi-electoral-v3/public/data/config/$(settings)).data;
-      let state = get(/databases/$(database)/documents/artifacts/iis-levi-electoral-v3/public/data/$(regularity)/state).data;
-      return collectionId == 'tokens_' + year
-        && config.votingStartsAtMs > request.time.toMillis()
-        && state.get('voterRollFinal', false) != true
-        && state.get('procedureClosed', false) != true;
-    }
-
     function isCommission() {
       return roleIs('COMMISSIONE') && activeStaff() && request.auth.token.mustChangePassword != true;
     }
@@ -53,31 +41,18 @@ service cloud.firestore {
 
     match /artifacts/iis-levi-electoral-v3/public/data/{collectionId}/{documentId} {
       // Registro degli aventi diritto. Nessun documento può contenere un ID della
-      // scheda. La Commissione può leggerlo e creare nuove credenziali prima
-      // dell'apertura; i flag di voto non sono modificabili dal browser.
+      // scheda. La Commissione può leggerlo; la creazione passa dall’API
+      // autenticata con audit e controllo dello stato del registro.
       allow read: if isCommission()
         && collectionId == 'tokens_' + request.auth.token.staffYear.replace('/', '_');
 
-      allow create: if isCommission() && editableRoll(collectionId)
-        && collectionId.matches('tokens_[0-9]{4}_[0-9]{4}')
-        && request.resource.data.keys().hasOnly([
-          'nome', 'classe', 'indirizzo', 'tipo', 'hasVoted',
-          'voted_consiglio', 'voted_istituto', 'voted_consulta',
-          'voted_classe_studente', 'voted_classe_genitore'
-        ])
-        && request.resource.data.tipo in ['STUDENTE','GENITORE','DOCENTE','ATA']
-        && request.resource.data.hasVoted == false
-        && request.resource.data.voted_consiglio == false
-        && request.resource.data.voted_istituto == false
-        && request.resource.data.voted_consulta == false
-        && request.resource.data.voted_classe_studente == false
-        && request.resource.data.voted_classe_genitore == false;
+      // Importazione e generazione sono atomiche nel backend. Nessun client può
+      // scegliere ID o azzerare lo stato di voto tramite la creazione diretta.
+      allow create: if false;
 
-      // Solo correzioni anagrafiche, mai stato di voto/sessione.
-      allow update: if isCommission() && editableRoll(collectionId)
-        && collectionId.matches('tokens_[0-9]{4}_[0-9]{4}')
-        && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['nome','classe','indirizzo','tipo']);
+      // Anche le rettifiche devono passare da procedure server autorizzate e
+      // tracciate: nessuna scrittura può aggirare congelamento o audit via SDK.
+      allow update: if false;
 
       // La cancellazione del registro dal client è sempre vietata.
       allow delete: if false;

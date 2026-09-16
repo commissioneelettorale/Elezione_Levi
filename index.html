@@ -13,6 +13,7 @@
     
     <!-- Tailwind CSS per styling moderno e reattivo -->
     <script src="lib/election-policy.js"></script>
+    <script src="lib/voter-register.js"></script>
     <script src="lib/election-sandbox.js"></script>
     <script src="lib/election-sandbox-ui.js"></script>
     <script src="lib/legal-readiness.js"></script>
@@ -373,7 +374,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { initializeAuth, inMemoryPersistence, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, collection, query, getDocs, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, collection, query, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const appId = 'iis-levi-electoral-v3';
         
@@ -749,51 +750,6 @@
             }
         };
 
-        function randomThreeDigits() {
-            const bytes = new Uint16Array(1);
-            crypto.getRandomValues(bytes);
-            return String(bytes[0] % 1000).padStart(3, '0');
-        }
-
-        function voterTokenPrefix(componentType) {
-            const t = String(componentType || '').toUpperCase();
-            if (t === 'STUDENTE') return 'STU';
-            if (t === 'GENITORE') return 'GEN';
-            return t.slice(0,3) || 'TOK';
-        }
-
-        async function buildUsedTokenSet() {
-            const used = new Set((activeTokensList || []).map(t => String(t.id || '').toUpperCase()));
-            try {
-                const snap = await getDocs(getCollectionRef('tokens'));
-                snap.forEach(d => used.add(String(d.id || '').toUpperCase()));
-            } catch(e) {}
-            return used;
-        }
-
-        function nextUniqueThreeDigitToken(prefix, used) {
-            for (let attempt = 0; attempt < 2500; attempt++) {
-                const code = prefix + randomThreeDigits();
-                if (!used.has(code)) { used.add(code); return code; }
-            }
-            for (let i=0;i<1000;i++) {
-                const code = prefix + String(i).padStart(3,'0');
-                if (!used.has(code)) { used.add(code); return code; }
-            }
-            throw new Error('Esauriti i 1000 codici disponibili per il prefisso ' + prefix + '.');
-        }
-
-        async function ensureReferentiKeysForClasses(classes, tipo) {
-            const normalized = [...new Set((classes || []).map(c => String(c || '').trim().toUpperCase()).filter(Boolean))];
-            if (!normalized.length) return {};
-            const res = await SECURE_API.ensureReferentKeys({
-                classes: normalized,
-                tipo,
-                annoScolastico: configElezioni.annoScolastico
-            });
-            return res.data?.keys || {};
-        }
-
         let activeTokensList = [];
         let unsubscribeTokens = null;
 
@@ -923,7 +879,7 @@
                 snapshot.forEach(doc => {
                     activeTokensList.push({ id: doc.id, ...doc.data() });
                 });
-                if (auth.currentUser && activeAdminTab && (activeAdminTab.startsWith('cred_') || activeAdminTab === 'workflow_digitale')) {
+                if (!registerImportBusy && auth.currentUser && activeAdminTab && (activeAdminTab.startsWith('cred_') || activeAdminTab === 'workflow_digitale')) {
                     renderActiveAdminTab();
                 }
             }, (error) => {
@@ -3760,7 +3716,8 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                         <span class="font-bold text-emerald-800 flex items-center gap-1.5"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Carica Registro da File Excel</span>
                         <span class="text-[8px] bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded uppercase font-black">XLSX / XLS</span>
                     </div>
-                    <p class="text-[10px] text-slate-500 mb-3 leading-relaxed">Importa la lista per generare automaticamente i Token. Colonne supportate: <strong>Cognome, Nome, Classe, Indirizzo</strong>.</p>
+                    <p class="text-[10px] text-slate-500 mb-3 leading-relaxed">Importa la lista per generare automaticamente i Token. Colonne supportate: <strong>Cognome, Nome, Classe, Indirizzo</strong>. Fino a 10.000 righe, salvate in blocchi con conferma.</p>
+                    <p id="registerImportStatus_${componentType}" role="status" aria-live="polite" class="text-xs text-emerald-900 mb-2"></p>
                     <div class="flex gap-2">
                         <input type="file" id="excelFile_${componentType}" onchange="window.importExcelRegister('${componentType}')" class="hidden" accept=".xlsx, .xls">
                         <label for="excelFile_${componentType}" class="cursor-pointer bg-emerald-650 hover:bg-emerald-700 text-white font-black py-2 px-4 rounded-lg text-[10px] shadow transition-colors inline-flex items-center gap-1.5">
@@ -3935,85 +3892,51 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             lucide.createIcons();
         }
 
-        window.importExcelRegister = function(componentType) {
+        let registerImportBusy = false;
+        const pendingManualImports = new Map();
+        function registerImportError(error) {
+            const code = String(error?.code || '').replace(/^functions\//, '');
+            const message = code === 'unauthenticated' ? 'Sessione scaduta: accedi nuovamente come Commissione.'
+                : code === 'permission-denied' ? 'Accesso al registro negato. Verifica di essere entrato come Commissione per l’anno selezionato; se necessario, esci e accedi nuovamente.'
+                : error.message || 'Servizio non raggiungibile.';
+            return message + (Number.isInteger(error.confirmed)
+                ? ` Confermate ${error.confirmed} righe su ${error.totalRows}. Riprova con lo stesso file o gli stessi dati: i blocchi già ricevuti non saranno duplicati.` : '');
+        }
+        async function saveRegisterRows(componentType, rows, operationKey = 'excel-register-v1') {
+            const annoScolastico = configElezioni.annoScolastico;
+            const payload = JSON.stringify({ annoScolastico, tipo: componentType, rows, operationKey });
+            const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload));
+            const importId = Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, '0')).join('');
+            return LeviVoterRegister.importRows({ api: SECURE_API, annoScolastico, tipo: componentType, rows, importId,
+                onProgress: (confirmed, total) => {
+                    const status = document.getElementById(`registerImportStatus_${componentType}`);
+                    if (status) status.textContent = `Salvataggio: ${confirmed} di ${total} elettori confermati.`;
+                }
+            });
+        }
+        window.importExcelRegister = async function(componentType) {
             const fileInput = document.getElementById(`excelFile_${componentType}`);
-            const file = fileInput.files[0];
+            const file = fileInput?.files?.[0];
             if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = async function(e) {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-                if (jsonData.length === 0) {
-                    showNotification("Errore", "Il file Excel caricato è vuoto.", "error");
-                    return;
-                }
-
-                const batch = writeBatch(db);
-                let count = 0;
-                const prefix = voterTokenPrefix(componentType);
-                const generatedClasses = new Set();
-                const usedTokens = await buildUsedTokenSet();
-
-                for (let row of jsonData) {
-                    let cognome = row.Cognome || row.cognome || row.COGNOME || "";
-                    let nome = row.Nome || row.nome || row.NOME || "";
-                    let nomeCompleto = "";
-
-                    if (cognome || nome) {
-                        nomeCompleto = sanitizePersonName(`${cognome.trim()} ${nome.trim()}`);
-                    } else {
-                        nomeCompleto = row.Nominativo || row.nominativo || row.CognomeNome || row.Alunno || row.Docente || row.Elettore || "";
-                        nomeCompleto = sanitizePersonName(nomeCompleto);
-                    }
-
-                    if (!nomeCompleto) {
-                        const keys = Object.keys(row);
-                        nomeCompleto = sanitizePersonName(row[keys[0]] || "ELETTORE ANONIMO");
-                    }
-
-                    let classe = row.Classe || row.classe || "GEN";
-                    let indirizzo = row.Indirizzo || row.indirizzo || row.Sezione || row.sezione || "GEN";
-
-                    classe = normalizeName(classe).replace(/[^A-Z0-9 ._\/-]/g,'').slice(0,32);
-                    indirizzo = normalizeName(indirizzo).replace(/[^A-Z0-9 ._\/-]/g,'').slice(0,32);
-
-                    const uniqueToken = nextUniqueThreeDigitToken(prefix, usedTokens);
-                    if (componentType === 'STUDENTE' || componentType === 'GENITORE') generatedClasses.add(classe);
-
-                    const docRef = getDocumentRef('tokens', uniqueToken);
-                    batch.set(docRef, {
-                        nome: nomeCompleto,
-                        classe: classe,
-                        indirizzo: indirizzo,
-                        tipo: componentType,
-                        hasVoted: false,
-                        voted_consiglio: false,
-                        voted_istituto: false,
-                        voted_consulta: false,
-                        voted_classe_studente: false,
-                        voted_classe_genitore: false
-                    });
-                    count++;
-                    if (count >= 400) break; 
-                }
-
-                try {
-                    await batch.commit();
-                    if ((componentType === 'STUDENTE' || componentType === 'GENITORE') && generatedClasses.size > 0) {
-                        await ensureReferentiKeysForClasses([...generatedClasses], componentType);
-                    }
-                    showNotification("Successo", `Importati ${count} elettori nel registro ${componentType}`, "success");
-                    startTokensListener();
-                } catch (err) {
-                    showNotification("Errore importazione", err.message, "error");
-                }
-            };
-            reader.readAsArrayBuffer(file);
+            if (registerImportBusy) { fileInput.value = ''; showNotification('Importazione in corso', 'Attendi la conclusione del caricamento.', 'info'); return; }
+            registerImportBusy = true;
+            fileInput.disabled = true;
+            try {
+                if (file.size > 10 * 1024 * 1024) throw new Error('Il file supera il limite di 10 MB. Suddividi il registro in file più piccoli.');
+                const workbook = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                if (!sheet) throw new Error('Il file Excel non contiene fogli leggibili.');
+                const rows = LeviVoterRegister.fromExcelRows(XLSX.utils.sheet_to_json(sheet, { defval: '' }));
+                const result = await saveRegisterRows(componentType, rows);
+                showNotification('Successo', `Registro ${componentType}: ${result.confirmed} elettori confermati, ${result.created} nuovi. Le righe dello stesso caricamento già salvate non vengono duplicate.`, 'success');
+            } catch (error) {
+                showNotification('Errore importazione', registerImportError(error), 'error');
+            } finally {
+                registerImportBusy = false;
+                fileInput.disabled = false;
+                fileInput.value = '';
+                if (auth.currentUser && activeAdminTab?.startsWith('cred_')) renderActiveAdminTab();
+            }
         };
 
         window.generateClassTokensPDF = async function(componentType, mode = 'SINGLE') {
@@ -4149,6 +4072,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                     doc.setFont("helvetica", "bold");
                     doc.setFontSize(11);
                     doc.setTextColor(15, 23, 42);
+                    doc.setFontSize(Math.min(11, 11 * 74 / doc.getTextWidth(`TOKEN: ${t.id}`)));
                     doc.text(`TOKEN: ${t.id}`, 115, cellY + 10);
 
                     cellY += 27; 
@@ -4179,52 +4103,29 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
         };
 
         window.generateBulkTokens = async function(componentType) {
-            const qty = parseInt(document.getElementById('bulkQty')?.value) || 1;
-            const isClassBased = (componentType === 'STUDENTE' || componentType === 'GENITORE');
-            
-            let classe = 'GEN';
-            let indirizzo = 'GEN';
-
-            if (isClassBased) {
-                classe = document.getElementById('bulkClasse')?.value.trim().toUpperCase() || '';
-                indirizzo = document.getElementById('bulkIndirizzo')?.value.trim().toUpperCase() || '';
-                if (!classe) { showNotification("Attenzione", "Inserisci la classe.", "error"); return; }
-            }
-
-            const batch = writeBatch(db);
-            const prefix = voterTokenPrefix(componentType);
-            const generatedClasses = new Set();
-            const usedTokens = await buildUsedTokenSet();
-
-            for (let i = 0; i < qty; i++) {
-                const uniqueToken = nextUniqueThreeDigitToken(prefix, usedTokens);
-                if (isClassBased) generatedClasses.add(classe);
-
-                const docRef = getDocumentRef('tokens', uniqueToken);
-                batch.set(docRef, {
-                    nome: "ELETTORE ANONIMO",
-                    classe: classe,
-                    indirizzo: indirizzo,
-                    tipo: componentType,
-                    hasVoted: false,
-                    voted_consiglio: false,
-                    voted_istituto: false,
-                    voted_consulta: false,
-                    voted_classe_studente: false,
-                    voted_classe_genitore: false
-                });
-            }
-
+            if (registerImportBusy) return showNotification('Importazione in corso', 'Attendi la conclusione del caricamento.', 'info');
+            registerImportBusy = true;
+            let signature;
             try {
-                await batch.commit();
-
-                if (isClassBased && generatedClasses.size > 0) {
-                    await ensureReferentiKeysForClasses([...generatedClasses], componentType);
-                }
-
-                showNotification("Successo", `Generati con successo ${qty} token per ${componentType}.`, "success");
-            } catch (err) {
-                showNotification("Errore di rete", "Impossibile scrivere nel cloud: " + err.message, "error");
+                const qty = Number(document.getElementById('bulkQty')?.value);
+                if (!Number.isInteger(qty) || qty < 1 || qty > 100) throw new Error('Inserisci una quantità intera tra 1 e 100.');
+                const isClassBased = componentType === 'STUDENTE' || componentType === 'GENITORE';
+                const classe = isClassBased ? document.getElementById('bulkClasse')?.value.trim() : 'GEN';
+                const indirizzo = isClassBased ? document.getElementById('bulkIndirizzo')?.value.trim() || 'GEN' : 'GEN';
+                if (!classe) throw new Error('Inserisci la classe.');
+                const rows = LeviVoterRegister.normalizeRecords(Array.from({ length: qty }, () => ({ nome: 'ELETTORE ANONIMO', classe, indirizzo })));
+                signature = JSON.stringify({ annoScolastico: configElezioni.annoScolastico, componentType, rows });
+                if (!pendingManualImports.has(signature)) pendingManualImports.set(signature, crypto.randomUUID());
+                const result = await saveRegisterRows(componentType, rows, pendingManualImports.get(signature));
+                pendingManualImports.delete(signature);
+                showNotification('Successo', `Confermati ${result.confirmed} elettori nel registro ${componentType}.`, 'success');
+            } catch (error) {
+                // Un rifiuto esplicito non ha scritto dati; una risposta persa va invece ripresa.
+                if (['invalid-argument','permission-denied','unauthenticated','failed-precondition'].includes(error.code)) pendingManualImports.delete(signature);
+                showNotification('Errore generazione', registerImportError(error), 'error');
+            } finally {
+                registerImportBusy = false;
+                if (auth.currentUser && activeAdminTab?.startsWith('cred_')) renderActiveAdminTab();
             }
         };
 

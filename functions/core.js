@@ -29,6 +29,7 @@ const ElectionPolicy = require('../lib/election-policy');
 const BallotVault = require('../lib/ballot-vault');
 const LegalReadiness = require('../lib/legal-readiness');
 const VotingAdmission = require('../lib/voting-admission');
+const VoterRegister = require('../lib/voter-register');
 
 function initializeFirebaseAdmin() {
   if (getApps().length) return;
@@ -111,8 +112,9 @@ async function requireAuth(request, allowedRoles = []) {
   if (ALLOWED_STAFF_ROLES.has(role)) {
     const claims = request.auth.token;
     const year = String(claims.staffYear || '');
-    const requestedYear = request.data?.annoScolastico || request.data?.config?.annoScolastico || year;
-    if (!/^20\d{2}\/20\d{2}$/.test(year) || requestedYear !== year || !claims.staffAccountId) {
+    const requestedYears = [request.data?.annoScolastico, request.data?.config?.annoScolastico]
+      .filter(value => value !== undefined && value !== null);
+    if (!/^20\d{2}\/20\d{2}$/.test(year) || requestedYears.some(value => value !== year) || !claims.staffAccountId) {
       throw new HttpsError('permission-denied', 'Sessione non valida per questo anno. Effettuare nuovamente il login.');
     }
     const snap = await yearlyCollection('gestione_accessi', year).doc(claims.staffAccountId).get();
@@ -1643,6 +1645,95 @@ exports.saveElectionConfig = async (request) => {
   return { ok: true };
 };
 
+// Registro nominativo: il browser invia solo anagrafica. Stato di voto, ID,
+// autorizzazioni, ricevuta di importazione e audit sono gestiti dal server.
+exports.importVoterRegister = async (request) => {
+  const actor = await requireAuth(request, ['COMMISSIONE']);
+  const { annoScolastico: year, tipo, importId, offset, totalRows } = request.data || {};
+  if (!/^20\d{2}\/20\d{2}$/.test(year || '') || !VoterRegister.TYPES.includes(tipo) ||
+      !/^[a-f0-9]{64}$/.test(importId || '') || !Number.isInteger(offset) || offset < 0 ||
+      offset % VoterRegister.BATCH_SIZE !== 0 || !Number.isInteger(totalRows) ||
+      totalRows < 1 || totalRows > VoterRegister.MAX_ROWS || offset >= totalRows) {
+    throw new HttpsError('invalid-argument', 'Richiesta di importazione non valida.');
+  }
+  let rows;
+  try { rows = VoterRegister.normalizeRecords(request.data.rows); }
+  catch (error) { throw new HttpsError('invalid-argument', error.message); }
+  if (rows.length !== Math.min(VoterRegister.BATCH_SIZE, totalRows - offset)) {
+    throw new HttpsError('invalid-argument', 'Numero di righe del blocco non valido.');
+  }
+  const payloadHash = sha256(JSON.stringify({ year, tipo, totalRows, offset, rows }));
+  const receiptRef = yearlyCollection('importazioni_registro', year).doc(importId + '_' + offset);
+  const referentsRef = yearlyCollection('config', year).doc('referenti_keys');
+  const accountRef = yearlyCollection('gestione_accessi', year).doc(actor.claims.staffAccountId);
+  const auditRef = dataRoot().collection('audit_admin').doc();
+  return db.runTransaction(async tx => {
+    const [account, receipt, settings, regularity] = await Promise.all([
+      tx.get(accountRef), tx.get(receiptRef), tx.get(yearlyConfigRef(year)), tx.get(regularityStateRef(year))
+    ]);
+    const staff = account.exists ? account.data() : {};
+    if (!account.exists || staff.active === false || normalize(staff.role) !== 'COMMISSIONE' ||
+        Number(staff.sessionVersion || 0) !== Number(actor.claims.sessionVersion || 0) || staff.mustChangePassword === true) {
+      throw new HttpsError('permission-denied', 'Sessione Commissione revocata o da aggiornare. Effettuare nuovamente il login.');
+    }
+    if (receipt.exists) {
+      if (receipt.data().payloadHash !== payloadHash) throw new HttpsError('already-exists', 'Questo identificativo di importazione è già associato a dati diversi.');
+      return { confirmed: rows.length, created: 0 };
+    }
+    const config = settings.exists ? settings.data() : {};
+    const state = regularity.exists ? regularity.data() : {};
+    if (state.procedureClosed === true) throw new HttpsError('failed-precondition', 'Procedura chiusa: il registro non può essere modificato.');
+    if (state.voterRollFinal === true) throw new HttpsError('failed-precondition', 'Elenchi elettorali definitivi: l’importazione è bloccata. Verificare lo stato del registro nella sezione Regolarità.');
+    if (state.votingReview?.stage === 'AUTHORIZED') throw new HttpsError('failed-precondition', 'Votazione già autorizzata: il registro è congelato.');
+    const legacyStart = parseItalianDate(config.calendario?.votingStartDate, config.calendario?.votingStartTime);
+    const started = (Number(config.votingStartsAtMs) > 0 && Date.now() >= Number(config.votingStartsAtMs)) ||
+      (legacyStart && Date.now() >= +legacyStart) || Object.keys(ElectionPolicy.ELECTIONS)
+        .some(key => ElectionPolicy.windows(config, key).some(w => Date.now() >= +w.start));
+    if (started) throw new HttpsError('failed-precondition', 'Una finestra elettorale è già iniziata: il registro non può essere modificato.');
+    // Copre anche configurazioni storiche mancanti o incomplete: nessuna riapertura
+    // di registri già usati e nessuna modifica dopo l’emissione dei codici anonimi.
+    const occupied = await Promise.all([...BALLOT_COLLECTIONS, 'credenziali_anonime']
+      .map(name => tx.get(yearlyCollection(name, year).limit(1))));
+    if (occupied.some(snap => !snap.empty)) throw new HttpsError('failed-precondition', 'Sono già presenti schede o credenziali di voto anonime: il registro è congelato.');
+    const classBased = tipo === 'STUDENTE' || tipo === 'GENITORE';
+    let referents;
+    if (classBased) {
+      const snap = await tx.get(referentsRef);
+      referents = prepareReferentKeys(snap.exists ? snap.data() : {}, [...new Set(rows.map(row => row.classe))], tipo);
+    }
+    const prefix = { STUDENTE: 'STU', GENITORE: 'GEN', DOCENTE: 'DOC', ATA: 'ATA' }[tipo];
+    rows.forEach(row => {
+      // I codici non sono derivabili dal file nominativo o dal suo hash.
+      const id = prefix + crypto.randomBytes(12).toString('hex').toUpperCase();
+      tx.create(yearlyCollection('tokens', year).doc(id), { ...row, tipo,
+        hasVoted: false, voted_consiglio: false, voted_istituto: false, voted_consulta: false,
+        voted_classe_studente: false, voted_classe_genitore: false });
+    });
+    if (referents) tx.set(referentsRef, referents.current, { merge: false });
+    tx.create(receiptRef, { payloadHash, count: rows.length, at: FieldValue.serverTimestamp() });
+    tx.create(auditRef, { actorUid: actor.uid, actorRole: actor.role, action: 'IMPORT_VOTER_REGISTER',
+      details: { annoScolastico: year, tipo, count: rows.length }, at: FieldValue.serverTimestamp() });
+    return { confirmed: rows.length, created: rows.length };
+  });
+};
+
+function prepareReferentKeys(existing, classes, type) {
+  const current = { ...existing }, keys = {};
+  for (const cls of classes) {
+    let found = Object.entries(current).find(([, value]) => normalize(value?.classe) === cls && normalize(value?.tipo) === type);
+    if (!found) {
+      const prefix = type === 'STUDENTE' ? 'REF-STU' : 'REF-REF';
+      const available = Array.from({ length: 1000 }, (_, i) => prefix + String(i).padStart(3, '0')).filter(key => !current[key]);
+      if (!available.length) throw new HttpsError('resource-exhausted', 'Esauriti i codici referente disponibili per ' + prefix + '.');
+      const key = available[crypto.randomInt(available.length)];
+      current[key] = { classe: cls, tipo: type };
+      found = [key, current[key]];
+    }
+    keys[found[0]] = found[1];
+  }
+  return { current, keys };
+}
+
 exports.ensureReferentKeys = async (request) => {
   const actor = await requireAuth(request, ['COMMISSIONE']);
   const year = request.data?.annoScolastico;
@@ -1657,30 +1748,9 @@ exports.ensureReferentKeys = async (request) => {
   let result = {};
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    const current = snap.exists ? (snap.data() || {}) : {};
-    for (const cls of classes) {
-      let found = Object.entries(current).find(([, v]) => normalize(v?.classe) === cls && normalize(v?.tipo) === type);
-      if (!found) {
-        let key = null;
-        const prefix = type === 'STUDENTE' ? 'REF-STU' : 'REF-REF';
-        for (let attempt = 0; attempt < 2500 && !key; attempt++) {
-          const n = crypto.randomInt(0, 1000).toString().padStart(3, '0');
-          const candidate = prefix + n;
-          if (!current[candidate]) key = candidate;
-        }
-        if (!key) {
-          for (let i = 0; i < 1000 && !key; i++) {
-            const candidate = prefix + String(i).padStart(3, '0');
-            if (!current[candidate]) key = candidate;
-          }
-        }
-        if (!key) throw new HttpsError('resource-exhausted', 'Esauriti i codici referente disponibili per ' + prefix + '.');
-        current[key] = { classe: cls, tipo: type };
-        found = [key, current[key]];
-      }
-      result[found[0]] = found[1];
-    }
-    tx.set(ref, current, { merge: false });
+    const prepared = prepareReferentKeys(snap.exists ? (snap.data() || {}) : {}, classes, type);
+    result = prepared.keys;
+    tx.set(ref, prepared.current, { merge: false });
   });
   await auditAdmin(actor, 'ENSURE_REFERENT_KEYS', { tipo: type, classCount: classes.length });
   return { keys: result };

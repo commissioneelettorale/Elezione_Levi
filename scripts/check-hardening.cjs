@@ -20,6 +20,9 @@ await assert.rejects(context.exports.getPrivateTechnicalDocument({...request,dat
 record.active=false;await assert.rejects(t.requireAuth(request,['COMMISSIONE']),e=>e.code==='permission-denied');record.active=true;
 record.sessionVersion=1;await assert.rejects(t.requireAuth(request,['COMMISSIONE']),e=>e.code==='permission-denied');record.sessionVersion=0;
 await assert.rejects(t.requireAuth({...request,data:{annoScolastico:'2027/2028'}},['COMMISSIONE']),e=>e.code==='permission-denied');
+await assert.rejects(context.exports.saveElectionConfig({...request,data:{annoScolastico:'2026/2027',config:{annoScolastico:'2027/2028'}}}),e=>e.code==='permission-denied');
+await assert.rejects(context.exports.saveElectionConfig({...request,data:{annoScolastico:'2027/2028',config:{annoScolastico:'2026/2027'}}}),e=>e.code==='permission-denied');
+assert.equal(writes,0,'Conflicting school years must never reach a database write');
 assert.throws(()=>t.rejectExtraPreferences({p3:'EXTRA'},'p',2));t.rejectExtraPreferences({p1:'VALID'},'p',2);
 assert.throws(()=>t.assertAppealDeadlineElapsed({resultsPublished:true,appealDeadline:t.romeToday()}));
 t.assertAppealDeadlineElapsed({resultsPublished:true,appealDeadline:'2020-01-01'});

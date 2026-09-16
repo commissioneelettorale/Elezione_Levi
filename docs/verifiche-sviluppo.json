@@ -1,7 +1,18 @@
 {
   "format": "LEVI_DEVELOPMENT_EVIDENCE_V2",
-  "generatedAt": "2026-09-16T13:14:15.875Z",
+  "generatedAt": "2026-09-16T14:40:59.750Z",
   "evidence": [
+    {
+      "id": "register-import",
+      "requirement": "Importazione autenticata di 1501 elettori, ripresa senza duplicati, blocchi di sicurezza e atomicità con database simulato.",
+      "method": "Esecuzione del codice in scripts/check-register-import.cjs con dati fittizi; dipendenze Firebase simulate dove necessario.",
+      "expected": "Asserzioni completate senza errori.",
+      "observed": "PASS: preparation with missing regularity, zero/missing calendar and missing initial configuration\nPASS: no unauthenticated, wrong-role, wrong-year, revoked or password-change writes\nPASS: final rolls, closed procedure, authorized vote and every started schedule remain frozen\nPASS: existing ballots and anonymous credentials block edits even with missing config\nPASS: all 1501 rows imported beyond former 400-row and 1000-code limits; exact replay adds nothing\nPASS: lost response after commit: progress is honest and retry does not duplicate\nPASS: invalid values and forged vote flags are rejected before any write\nPASS: referent creation is atomic and existing keys are preserved\nPASS: concurrent replay and ID collision never overwrite an existing voter\nPASS: changes between preflight and transaction, commit failure, and read/write ordering\nPASS: Excel aliases, numeric cells, invalid headings and bad later rows before batching\n11 import checks passed (simulated database; no production writes).",
+      "outcome": "PASS",
+      "testedAt": "2026-09-16T14:40:35.823Z",
+      "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
+      "node": "v24.19.0"
+    },
     {
       "id": "access",
       "requirement": "Accessi revocati, ruoli/anno, preferenze, congelamento e completezza dei rapporti.",
@@ -9,7 +20,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: technical report outcomes, evidence requirements and authorization.\nPASS: active/revoked/versioned accounts; year isolation; preference limits; appeal dates; frozen lists.",
       "outcome": "PASS",
-      "testedAt": "2026-09-16T13:13:43.748Z",
+      "testedAt": "2026-09-16T14:40:36.055Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -18,9 +29,9 @@
       "requirement": "3000 flussi concorrenti sul backend con database simulato: integrità, doppio invio e ricevuta; non misura capacità cloud.",
       "method": "Esecuzione del codice in scripts/check-concurrent-votes.cjs con dati fittizi; dipendenze Firebase simulate dove necessario.",
       "expected": "Asserzioni completate senza errori.",
-      "observed": "PASS: 3000 concurrent synthetic login/vote flows through actual backend handlers; exact ballot count, encrypted records, replay rejection and concurrent duplicate submission. Local duration 12097 ms. Mock database, no network: NOT a Vercel/Firestore capacity test.",
+      "observed": "PASS: 3000 concurrent synthetic login/vote flows through actual backend handlers; exact ballot count, encrypted records, replay rejection and concurrent duplicate submission. Local duration 7066 ms. Mock database, no network: NOT a Vercel/Firestore capacity test.",
       "outcome": "PASS",
-      "testedAt": "2026-09-16T13:13:44.083Z",
+      "testedAt": "2026-09-16T14:40:36.173Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -31,7 +42,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: preliminary DPO review without configuration, authenticated and read-only; real voting still blocked.\nPASS: named credential mode cannot be admitted by checking documentary flags.\nPASS: actual anonymous pool, issuance limits, independent review, authorization, suspension/resume, stale-evidence rejection. All data and documentary claims are synthetic.\nPASS: Rome time boundaries/DST, split sessions, October/November isolation, per-election publications and freeze.\nPASS: sealed vote round trip, tamper/wrong-key rejection, no cleartext identity, repeat submission, closing race and live result embargo.\nPASS: technician denied migration; migration blocked between elections, lossless verified migration and idempotent retry.\nPASS: Commission receives aggregate projections only; original pairings cannot affect the response; counts, groups and blank totals preserved; architectural limitations remain explicit.\nPASS: one parent in two classes, distinct class/Council credentials, fixed verified quotas, legacy-code rejection, no duplicate Council vote, correct technical participation and receipt. Synthetic data only.\nPASS: explicit blank ballots, contradictory requests rejected, Consulta/ATA preference caps, approved names preserved and ambiguous candidates rejected.\nPASS: actual UI d’Hondt algorithm redistributes exhausted-list seats and compares exact quotients; existing deterministic tie simulation retained.",
       "outcome": "PASS",
-      "testedAt": "2026-09-16T13:13:56.360Z",
+      "testedAt": "2026-09-16T14:40:43.397Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -42,7 +53,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: 205 records across pages; no duplicates; cutoff preserved; interrupted export rejected; 12 unconfirmed test fields.",
       "outcome": "PASS",
-      "testedAt": "2026-09-16T13:13:56.566Z",
+      "testedAt": "2026-09-16T14:40:43.562Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -53,7 +64,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: distinct October/November acts and dates in Word; PDF appendix generation with embedded font.",
       "outcome": "PASS",
-      "testedAt": "2026-09-16T13:13:56.679Z",
+      "testedAt": "2026-09-16T14:40:43.683Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -64,7 +75,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: memory auth, no tracking integrations, one backend, no fallback on outage, no cookies sent by API and volatile test log.",
       "outcome": "PASS",
-      "testedAt": "2026-09-16T13:13:56.867Z",
+      "testedAt": "2026-09-16T14:40:43.845Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -75,7 +86,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: actual technical PDF includes admission, source version, configuration hash and architectural limitation.",
       "outcome": "PASS",
-      "testedAt": "2026-09-16T13:13:56.999Z",
+      "testedAt": "2026-09-16T14:40:43.955Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -86,7 +97,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: actual direct PDF and ZIP, authorization failure yields no download, ten entries with matching SHA-256, missing evidence remains unverified, interrupted export creates no archive.",
       "outcome": "PASS",
-      "testedAt": "2026-09-16T13:13:57.356Z",
+      "testedAt": "2026-09-16T14:40:44.164Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -97,7 +108,18 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: full application DOM with synthetic Commission login, private PDF button, teacher test-user generation, blank ballot confirmation, no vote API call, return to Collaudo and logout protection. Not a real browser/Production test.",
       "outcome": "PASS",
-      "testedAt": "2026-09-16T13:13:57.888Z",
+      "testedAt": "2026-09-16T14:40:44.573Z",
+      "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
+      "node": "v24.19.0"
+    },
+    {
+      "id": "register-import-ui",
+      "requirement": "Applicazione completa in DOM emulato: Excel reale, API autenticata, tutti i blocchi, errori e doppio invio; nessuna scrittura Firestore diretta.",
+      "method": "Esecuzione del codice in scripts/check-register-import-ui.cjs con dati fittizi; dipendenze Firebase simulate dove necessario.",
+      "expected": "Asserzioni completate senza errori.",
+      "observed": "PASS: real XLSX, all 805 rows through authenticated API, same-file replay, input re-enabled; direct database writes throw in this fixture.\nPASS: malformed/oversized files and invalid later rows fail visibly before sending a batch.\nPASS: session/permission errors are clear; the server reason for a frozen register remains visible.\nPASS: lost response recovery, partial progress, and duplicate-click guard.\nPASS: manual generation uses the same guarded API, retries its operation, and gives a fresh operation to a subsequent intentional generation.",
+      "outcome": "PASS",
+      "testedAt": "2026-09-16T14:40:45.999Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -108,7 +130,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: all synthetic voter components, separate windows, closed/missing schedule rejection, duplicate and empty submission rejection; 1500-user DOM generator, local scenario checks, zero network/storage, public DPO download absent.",
       "outcome": "PASS",
-      "testedAt": "2026-09-16T13:14:01.161Z",
+      "testedAt": "2026-09-16T14:40:48.398Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -119,7 +141,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: actual DOM banner close/reopen/focus, no cookies/storage/network; all three blank ballot forms clear preferences, retain the selection and show the correct summary; scoped rights hide unrelated ballots.\nPASS: actual private DPO dialog opens without saved election configuration; parent batch form requires the verified distinct-person quota and excludes the class for Council credentials. No real API was contacted.",
       "outcome": "PASS",
-      "testedAt": "2026-09-16T13:14:03.178Z",
+      "testedAt": "2026-09-16T14:40:49.384Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -130,7 +152,7 @@
       "expected": "Nessuna segnalazione nota nel perimetro npm.",
       "observed": "{\"info\":0,\"low\":0,\"moderate\":0,\"high\":0,\"critical\":0,\"total\":0}",
       "outcome": "PASS",
-      "testedAt": "2026-09-16T13:14:15.867Z",
+      "testedAt": "2026-09-16T14:40:59.747Z",
       "operator": "Verifica automatica di sviluppo",
       "limitation": "Non copre SDK remoti, librerie vendorizzate, configurazione cloud o vulnerabilità non note."
     }
@@ -138,19 +160,19 @@
   "source": [
     {
       "path": "index.html",
-      "sha256": "b67562d0b157170eddb9039591c85873041e04d0e08c0a617770c26beb5a9418"
+      "sha256": "1209d39224e50ac23f33d1ccddddd4b5d4aa02c1923ead032d4182923bc48693"
     },
     {
       "path": "functions/core.js",
-      "sha256": "20cd121279b30b736b3843883708957807fe96c8049293ac5376e29fdba809b3"
+      "sha256": "c7a1e96dc370323681f46aea4f1c9449434691be0b7189a9766ad95b8f3fac64"
     },
     {
       "path": "api/call.js",
-      "sha256": "593a53b94d0964e687c9e67ce2be1f75a9371717f2f8afc392a05ce86e90eb06"
+      "sha256": "72bf677330186e151a9d91342ba1520a45b5b679b574222374747444385da897"
     },
     {
       "path": "firestore.rules",
-      "sha256": "1aa32d2db3e2385fc816d6372e4d55c9b89cb95200084da64caea81fcc6d6aa9"
+      "sha256": "1088e00a4901cdc220b187b67280b065481b0b1436ba3c78fc39cc626422982f"
     },
     {
       "path": "vercel.json",
@@ -162,7 +184,7 @@
     },
     {
       "path": "scripts/build-public-site.cjs",
-      "sha256": "7289f13f005fa78695e33b3247f2fa46b98963c252c0d1b291abc8f64122ffde"
+      "sha256": "beda63f792da68ac2af19cce4ebb0b9851a25753c25edff57a7ba009ead49358"
     },
     {
       "path": "package-lock.json",
@@ -201,12 +223,20 @@
       "sha256": "eb7c60fbc2828dc7788e03c382aa0a5711dad72faf93f7dd2eef80a5a8d8da0e"
     },
     {
+      "path": "lib/voter-register.js",
+      "sha256": "b95797fa819e03866ce230c1d142d4223d2e9ce9c433157e23e519598f516789"
+    },
+    {
       "path": "lib/voting-admission.js",
       "sha256": "434d22e433c3107b79b00cb680a8e9845e67cdcfd59ed457e666ac04b445a823"
     },
     {
+      "path": "scripts/check-register-import.cjs",
+      "sha256": "ce4d3af0ee49bf02f56beaa266667942862904742789259a72a6bea4a7cd9ab4"
+    },
+    {
       "path": "scripts/check-hardening.cjs",
-      "sha256": "3526475483453b371c5aedfb1f3c633fb3ec70375a26055297f1d5e32ace4f5c"
+      "sha256": "44758da918a80515729bbf350a2d2b7b331ebe8e8cec2b52f9e0c77bb696fd8d"
     },
     {
       "path": "scripts/check-concurrent-votes.cjs",
@@ -241,6 +271,10 @@
       "sha256": "59b1aa81ed511724b02f142d9faa36d358d2888d5c242edb9fd05d0350c58003"
     },
     {
+      "path": "scripts/check-register-import-ui.cjs",
+      "sha256": "1db739c3350cbc545bc9d6fb7435c6028ad1f4342b1f3cf1200271c070baa761"
+    },
+    {
       "path": "scripts/check-sandbox.cjs",
       "sha256": "3ed6f4116821d254638592ea8d68996735294b20115b30d62d304fdd396ab466"
     },
@@ -250,7 +284,7 @@
     },
     {
       "path": "scripts/verify-release.cjs",
-      "sha256": "c0d9ee9035a9df9f7612373fcb9830f7ac19f06b9409d9dc57feec130543aac0"
+      "sha256": "906a5d654c512a6b1b415f6c945fba3dfdd0ee9f0eee1c2400d24c9e3a7e0c1f"
     }
   ],
   "notVerified": [

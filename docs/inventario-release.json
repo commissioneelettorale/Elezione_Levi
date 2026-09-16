@@ -20,8 +20,8 @@
     },
     {
       "path": "api/call.js",
-      "bytes": 7793,
-      "sha256": "593a53b94d0964e687c9e67ce2be1f75a9371717f2f8afc392a05ce86e90eb06"
+      "bytes": 7818,
+      "sha256": "72bf677330186e151a9d91342ba1520a45b5b679b574222374747444385da897"
     },
     {
       "path": "docs/19_FASCICOLO_DPO_E_RIPRESA.md",
@@ -30,8 +30,8 @@
     },
     {
       "path": "docs/verifiche-sviluppo.json",
-      "bytes": 15170,
-      "sha256": "9240eccf36111b11e67b1d0c8bd2ab8aa0af687df4f47ceee0183365d6ad9e7d"
+      "bytes": 18381,
+      "sha256": "ea7ef92714a8d60ccdc2e084739cd857fe66b7ebc2c6c20b5ca65ecb31c6a213"
     },
     {
       "path": "fascicolo-dpo.html",
@@ -40,18 +40,18 @@
     },
     {
       "path": "firestore.rules",
-      "bytes": 5111,
-      "sha256": "1aa32d2db3e2385fc816d6372e4d55c9b89cb95200084da64caea81fcc6d6aa9"
+      "bytes": 3683,
+      "sha256": "1088e00a4901cdc220b187b67280b065481b0b1436ba3c78fc39cc626422982f"
     },
     {
       "path": "functions/core.js",
-      "bytes": 106620,
-      "sha256": "20cd121279b30b736b3843883708957807fe96c8049293ac5376e29fdba809b3"
+      "bytes": 112063,
+      "sha256": "c7a1e96dc370323681f46aea4f1c9449434691be0b7189a9766ad95b8f3fac64"
     },
     {
       "path": "index.html",
-      "bytes": 503037,
-      "sha256": "b67562d0b157170eddb9039591c85873041e04d0e08c0a617770c26beb5a9418"
+      "bytes": 501029,
+      "sha256": "1209d39224e50ac23f33d1ccddddd4b5d4aa02c1923ead032d4182923bc48693"
     },
     {
       "path": "lib/ballot-vault.js",
@@ -94,6 +94,11 @@
       "sha256": "eb7c60fbc2828dc7788e03c382aa0a5711dad72faf93f7dd2eef80a5a8d8da0e"
     },
     {
+      "path": "lib/voter-register.js",
+      "bytes": 3311,
+      "sha256": "b95797fa819e03866ce230c1d142d4223d2e9ce9c433157e23e519598f516789"
+    },
+    {
       "path": "lib/voting-admission.js",
       "bytes": 1138,
       "sha256": "434d22e433c3107b79b00cb680a8e9845e67cdcfd59ed457e666ac04b445a823"
@@ -115,8 +120,8 @@
     },
     {
       "path": "scripts/build-public-site.cjs",
-      "bytes": 840,
-      "sha256": "7289f13f005fa78695e33b3247f2fa46b98963c252c0d1b291abc8f64122ffde"
+      "bytes": 864,
+      "sha256": "beda63f792da68ac2af19cce4ebb0b9851a25753c25edff57a7ba009ead49358"
     },
     {
       "path": "vendor/DEJAVU-LICENSE.txt",
