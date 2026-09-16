@@ -10,8 +10,8 @@
     },
     {
       "path": "_config.yml",
-      "bytes": 350,
-      "sha256": "46ace8129c0158549761e209ad0dbc55003587d0800beb6c725f0e41b608d90e"
+      "bytes": 419,
+      "sha256": "c8f7c7f39a9ec60c68192abca7ad1587a019d083f288aca7fe9c53cba242eb77"
     },
     {
       "path": "anonimato.html",
@@ -25,13 +25,13 @@
     },
     {
       "path": "docs/19_FASCICOLO_DPO_E_RIPRESA.md",
-      "bytes": 11594,
-      "sha256": "77a669c8dd1ad864aff0891566b9ca53bcbeddc8af726bbb4c5345b78f5c23f2"
+      "bytes": 11887,
+      "sha256": "401407ba12a161f4cc0378e498a26730a08c31b3f1f251d3da35c6dea3c6c1df"
     },
     {
       "path": "docs/verifiche-sviluppo.json",
-      "bytes": 18381,
-      "sha256": "ea7ef92714a8d60ccdc2e084739cd857fe66b7ebc2c6c20b5ca65ecb31c6a213"
+      "bytes": 19978,
+      "sha256": "00738701702535919528d595205820f5ada985ab5a371e724d160df97d42b17c"
     },
     {
       "path": "fascicolo-dpo.html",
@@ -45,8 +45,8 @@
     },
     {
       "path": "functions/core.js",
-      "bytes": 112063,
-      "sha256": "c7a1e96dc370323681f46aea4f1c9449434691be0b7189a9766ad95b8f3fac64"
+      "bytes": 112886,
+      "sha256": "0476adda92202cc9fa569c55c528c4bc8a55745a9cf44ce20cc6f7004820346e"
     },
     {
       "path": "index.html",
@@ -60,8 +60,8 @@
     },
     {
       "path": "lib/dpo-dossier.js",
-      "bytes": 22950,
-      "sha256": "a7f1094847211135e3a61d62efdb26452ab65c9e33179a0f1bb1db9f78ffec7f"
+      "bytes": 23034,
+      "sha256": "58ce42e8fd8d036f7d12ece090f98283637564887899c6b0b7201a7f404f94f3"
     },
     {
       "path": "lib/election-policy.js",
@@ -90,13 +90,23 @@
     },
     {
       "path": "lib/privacy-review-ui.js",
-      "bytes": 22728,
-      "sha256": "eb7c60fbc2828dc7788e03c382aa0a5711dad72faf93f7dd2eef80a5a8d8da0e"
+      "bytes": 22788,
+      "sha256": "f5cf8ff438ae61302125d908a6887c0181314332ae44ceaa06063f4326548d65"
     },
     {
       "path": "lib/voter-register.js",
       "bytes": 3311,
       "sha256": "b95797fa819e03866ce230c1d142d4223d2e9ce9c433157e23e519598f516789"
+    },
+    {
+      "path": "lib/voter-token-code.js",
+      "bytes": 2353,
+      "sha256": "76bf2e0e5b585febc7b077db050cfbfdaa9c4f7e01631d063f4deb1628678fb7"
+    },
+    {
+      "path": "lib/voter-token-migration.js",
+      "bytes": 8069,
+      "sha256": "eddcfb6335cd4da352e775c2fa38c2d77d373a27f5fd66d5feee95020e69ff0a"
     },
     {
       "path": "lib/voting-admission.js",

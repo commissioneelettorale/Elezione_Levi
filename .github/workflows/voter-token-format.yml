@@ -1,0 +1,46 @@
+name: Migrate voter token format
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "ops/voter-token-format-2026-2027.json"
+      - ".github/workflows/voter-token-format.yml"
+permissions:
+  contents: read
+concurrency:
+  group: voter-token-format-2026-2027
+  cancel-in-progress: false
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Install verified dependencies
+        run: npm ci
+      - name: Verify code generation and migration
+        run: |
+          node scripts/check-register-import.cjs
+          node scripts/check-token-format-migration.cjs
+      - name: Wait for the same release on Vercel Production
+        env:
+          EXPECTED_RELEASE: ${{ github.sha }}
+        run: node scripts/wait-production-release.cjs
+      - name: Migrate existing voter codes and verify counts
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_VOTAZIONI_LEVI }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_SERVICE_ACCOUNT"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-token-migration.json"
+          trap 'rm -f "$GOOGLE_APPLICATION_CREDENTIALS"' EXIT
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$GOOGLE_APPLICATION_CREDENTIALS"
+          chmod 600 "$GOOGLE_APPLICATION_CREDENTIALS"
+          unset FIREBASE_SERVICE_ACCOUNT
+          node functions/scripts/migrate-voter-token-format.js --apply

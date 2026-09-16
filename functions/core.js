@@ -30,6 +30,7 @@ const BallotVault = require('../lib/ballot-vault');
 const LegalReadiness = require('../lib/legal-readiness');
 const VotingAdmission = require('../lib/voting-admission');
 const VoterRegister = require('../lib/voter-register');
+const TokenCodes = require('../lib/voter-token-code');
 
 function initializeFirebaseAdmin() {
   if (getApps().length) return;
@@ -630,6 +631,7 @@ exports.validateVoterToken = async (request) => {
   await db.runTransaction(async (tx) => {
     const [snap,c,s] = await Promise.all([tx.get(tokenRef),tx.get(yearlyConfigRef(year)),tx.get(regularityStateRef(year))]);
     const current=c.data()||{},state=s.data()||{};
+    if(TokenCodes.migrationPending(state))throw new HttpsError('unavailable','Aggiornamento dei codici elettorali in corso. Riprovare tra poco.');
     if(state.emergencySuspended||state.procedureClosed||regularityMissing(state,current).length)throw new HttpsError('failed-precondition','Voto non ammesso: stato modificato durante l’accesso.');
     assertVotingOpen(current);
     if (!snap.exists) throw new HttpsError('not-found', 'Token non valido.');
@@ -1300,18 +1302,21 @@ exports.createAnonymousCredentials=async request=>{
   if(!['STUDENTE','GENITORE','DOCENTE','ATA'].includes(tipo)||!Number.isInteger(count)||count<1||count>250||!protocolRef||!/^[A-Z0-9 -]{0,30}$/.test(classe))throw new HttpsError('invalid-argument','Componente, classe, quantità (1–250) e verbale richiesti.');
   if(tipo==='GENITORE'&&(!['consiglio','classeGenitore'].includes(electionKey)||!Number.isInteger(eligibleCount)||eligibleCount<1))throw new HttpsError('invalid-argument','Per i genitori indicare la consultazione e il numero di persone distinte verificate dal seggio.');
   if((tipo==='STUDENTE'||electionKey==='classeGenitore')&&!classe)throw new HttpsError('invalid-argument','Classe obbligatoria.');
-  const codes=Array.from({length:count},()=>crypto.randomBytes(16).toString('hex').toUpperCase());
+  let codes=[];
   const poolRef=yearlyCollection('lotti_credenziali',year).doc(sha256(tipo+':'+classe+(electionKey?':'+electionKey:''))),eventRef=regularityEvents(year).doc();
   let rollQuery=yearlyCollection('tokens',year).where('tipo','==',tipo);
   if(electionKey!=='consiglio')rollQuery=rollQuery.where('classe','==',classe);
   await db.runTransaction(async tx=>{
     const [c,s,pool,roll]=await Promise.all([tx.get(yearlyConfigRef(year)),tx.get(regularityStateRef(year)),tx.get(poolRef),tx.get(rollQuery)]);
     const config=c.data()||{},state=s.data()||{},issued=Number(pool.data()?.issued)||0;
+    if(TokenCodes.migrationPending(state))throw new HttpsError('unavailable','Aggiornamento dei codici elettorali in corso. Riprovare tra poco.');
     if(config.privacyMode!==LegalReadiness.ANONYMOUS_MODE||!['BEFORE','UNCONFIGURED'].includes(electionPhase(config))||state.voterRollFinal!==true||state.votingReview?.stage==='AUTHORIZED')throw new HttpsError('failed-precondition','Prima definire gli elenchi, scegliere i codici non nominativi e restare nella fase preparatoria, prima dell’autorizzazione.');
     if(electionKey&&!ElectionPolicy.enabled(config).includes(electionKey))throw new HttpsError('failed-precondition','Consultazione non abilitata.');
     const eligible=tipo==='GENITORE'?eligibleCount:roll.size;
     if(eligible>roll.size||(pool.exists&&Number(pool.data().eligible)!==eligible)||issued+count>eligible)throw new HttpsError('failed-precondition','Quota degli aventi diritto superata o modificata: verificare persone distinte e lotti già emessi. Nessuna rigenerazione automatica.');
-    for(const code of codes)tx.create(yearlyCollection('credenziali_anonime',year).doc(sha256(year+':'+code)),{schema:LegalReadiness.ANONYMOUS_MODE,tipo,classe,...(electionKey?{electionKey}:{}),hasVoted:false,voted_consiglio:false,voted_istituto:false,voted_consulta:false,voted_classe_studente:false,voted_classe_genitore:false});
+    const credentials=yearlyCollection('credenziali_anonime',year),documentId=code=>sha256(year+':'+code.replace(/[ -]/g,''));
+    codes=await TokenCodes.allocate(tx,credentials,tipo,count,{randomInt:crypto.randomInt,documentId});
+    for(const code of codes)tx.create(credentials.doc(documentId(code)),{schema:LegalReadiness.ANONYMOUS_MODE,tipo,classe,...(electionKey?{electionKey}:{}),hasVoted:false,voted_consiglio:false,voted_istituto:false,voted_consulta:false,voted_classe_studente:false,voted_classe_genitore:false});
     tx.set(poolRef,{tipo,classe,...(electionKey?{electionKey}:{}),issued:issued+count,eligible});
     tx.create(eventRef,{type:'ANONYMOUS_BATCH',tipo,classe,electionKey,count,eligible,protocolRef,actorUid:actor.uid,at:FieldValue.serverTimestamp()});
     tx.set(regularityStateRef(year),{votingReview:{stage:'PREPARATION'},credentialRevision:crypto.randomUUID(),technicalTestPassed:false},{merge:true});
@@ -1381,6 +1386,7 @@ exports.advanceVotingReview=async request=>{
   const eventRef=regularityEvents(year).doc(),stateRef=regularityStateRef(year),now=new Date().toISOString();
   await db.runTransaction(async tx=>{
     const [c,s]=await Promise.all([tx.get(yearlyConfigRef(year)),tx.get(stateRef)]),config=c.data()||{},state=s.data()||{},binding=admissionBinding(config,state),previous=state.votingReview||{};
+    if(TokenCodes.migrationPending(state))throw new HttpsError('unavailable','Completare l’aggiornamento dei codici prima della revisione.');
     if(state.procedureClosed)throw new HttpsError('failed-precondition','Procedimento chiuso.');
     if(!binding.commit)throw new HttpsError('failed-precondition','Versione distribuita non attestata. Eseguire la procedura sul rilascio Vercel identificato.');
     if(!['BEFORE','UNCONFIGURED'].includes(electionPhase(config))&&!state.emergencySuspended)throw new HttpsError('failed-precondition','Durante la votazione sospendere il servizio prima di rivedere il collaudo.');
@@ -1604,6 +1610,7 @@ exports.saveElectionConfig = async (request) => {
     const regularity = await tx.get(regularityStateRef(year));
     const old = previous.exists ? previous.data() : {};
     const state = regularity.exists ? regularity.data() : {};
+    if(TokenCodes.migrationPending(state))throw new HttpsError('unavailable','Aggiornamento dei codici elettorali in corso. Riprovare tra poco.');
     if(old.modalitaProva!==true&&config.modalitaProva===true&&ElectionPolicy.enabled(old).some(k=>ElectionPolicy.profile(old,k).dedicated===true&&ElectionPolicy.windows(old,k).some(w=>Date.now()>=+w.start)))throw new HttpsError('failed-precondition','Non attivare la modalità prova globale dopo l’avvio delle consultazioni. Usare il simulatore locale del Collaudo.');
     if((ElectionPolicy.enabled(old).some(k=>ElectionPolicy.windows(old,k).some(w=>Date.now()>=+w.start))||state.votingReview?.stage==='AUTHORIZED')&&old.privacyMode!==config.privacyMode)throw new HttpsError('failed-precondition','Modalità credenziali congelata.');
     if(config.privacyMode&&!['PRESENTIAL_UNLINKED_V1','LEGACY_NAMED'].includes(config.privacyMode))throw new HttpsError('invalid-argument','Modalità credenziali non valida.');
@@ -1682,6 +1689,7 @@ exports.importVoterRegister = async (request) => {
     }
     const config = settings.exists ? settings.data() : {};
     const state = regularity.exists ? regularity.data() : {};
+    if(TokenCodes.migrationPending(state))throw new HttpsError('unavailable','Aggiornamento dei codici elettorali in corso. Riprovare tra poco.');
     if (state.procedureClosed === true) throw new HttpsError('failed-precondition', 'Procedura chiusa: il registro non può essere modificato.');
     if (state.voterRollFinal === true) throw new HttpsError('failed-precondition', 'Elenchi elettorali definitivi: l’importazione è bloccata. Verificare lo stato del registro nella sezione Regolarità.');
     if (state.votingReview?.stage === 'AUTHORIZED') throw new HttpsError('failed-precondition', 'Votazione già autorizzata: il registro è congelato.');
@@ -1701,10 +1709,9 @@ exports.importVoterRegister = async (request) => {
       const snap = await tx.get(referentsRef);
       referents = prepareReferentKeys(snap.exists ? snap.data() : {}, [...new Set(rows.map(row => row.classe))], tipo);
     }
-    const prefix = { STUDENTE: 'STU', GENITORE: 'GEN', DOCENTE: 'DOC', ATA: 'ATA' }[tipo];
-    rows.forEach(row => {
-      // I codici non sono derivabili dal file nominativo o dal suo hash.
-      const id = prefix + crypto.randomBytes(12).toString('hex').toUpperCase();
+    const ids = await TokenCodes.allocate(tx, yearlyCollection('tokens', year), tipo, rows.length, { randomInt: crypto.randomInt });
+    rows.forEach((row, index) => {
+      const id = ids[index];
       tx.create(yearlyCollection('tokens', year).doc(id), { ...row, tipo,
         hasVoted: false, voted_consiglio: false, voted_istituto: false, voted_consulta: false,
         voted_classe_studente: false, voted_classe_genitore: false });

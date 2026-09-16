@@ -31,8 +31,10 @@ non una certificazione dello stato dei dati di produzione.
   ripresentato: le ricevute impediscono di duplicare i blocchi già confermati.
   Questo non identifica la stessa persona in file diversi o riordinati; non si
   fondono automaticamente gli omonimi. Non viene cancellato alcun registro precedente.
-- Le nuove righe usano ID casuali a 96 bit, non derivabili dai nomi. I codici
-  già esistenti restano validi. Le stampe adeguano la dimensione del codice.
+- Le nuove righe usano il prefisso STU-, GEN-, DOC- o ATA- seguito da sei
+  caratteri alfanumerici casuali, non derivabili dai nomi, con verifica delle
+  collisioni. La migrazione dedicata aggiorna i codici preesistenti; le stampe
+  mostrano gli identificativi correnti.
 - Creazione del blocco, eventuali chiavi referenti, ricevuta e audit sono nella
   stessa transazione. L'audit contiene componente e numero di righe, senza nomi
   o codici degli elettori. I flag di voto sono stabiliti dal server.

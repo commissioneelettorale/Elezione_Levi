@@ -2,6 +2,7 @@
 // Reproducible development evidence. Never connects to an election database.
 const fs=require('node:fs'),crypto=require('node:crypto'),{spawnSync}=require('node:child_process');
 const tests=[
+ ['token-format-migration','scripts/check-token-format-migration.cjs','Codici casuali di sei caratteri e migrazione atomica/riprendibile con copia riservata, collisioni e blocchi pre-voto su database simulato.'],
  ['register-import','scripts/check-register-import.cjs','Importazione autenticata di 1501 elettori, ripresa senza duplicati, blocchi di sicurezza e atomicità con database simulato.'],
  ['access','scripts/check-hardening.cjs','Accessi revocati, ruoli/anno, preferenze, congelamento e completezza dei rapporti.'],
  ['concurrency-model','scripts/check-concurrent-votes.cjs','3000 flussi concorrenti sul backend con database simulato: integrità, doppio invio e ricevuta; non misura capacità cloud.'],

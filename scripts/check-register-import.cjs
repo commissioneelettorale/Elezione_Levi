@@ -9,7 +9,7 @@ const now=Date.parse('2026-09-16T10:00:00Z');
 class TestDate extends Date{static now(){return now;}}
 class HttpsError extends Error{constructor(code,message){super(message);this.code=code;}}
 let records=new Map(),counter=0,commitFailure=false,beforeTransaction=null,queue=Promise.resolve(),forceCollision=false;
-const testCrypto={...crypto,randomBytes:size=>forceCollision?Buffer.alloc(size,7):crypto.randomBytes(size)};
+const testCrypto={...crypto,randomBytes:size=>forceCollision?Buffer.alloc(size,7):crypto.randomBytes(size),randomInt:size=>forceCollision?0:crypto.randomInt(size)};
 class Ref{
  constructor(path,max=Infinity){this.path=path;this.max=max;this.id=path.split('/').pop();}
  collection(name){return new Ref(this.path+'/'+name);}
@@ -78,7 +78,7 @@ async function test(name,fn){await fn();passed++;console.log('PASS: '+name);}
   assert.deepEqual(await register.importRows(options),{confirmed:1501,created:1501});assert.equal(docs('tokens').length,1501);
   assert.deepEqual(await register.importRows(options),{confirmed:1501,created:0});assert.equal(docs('tokens').length,1501);
   assert.equal(docs('importazioni_registro').length,4);
-  for(const [,row]of docs('tokens')){assert.equal(row.hasVoted,false);assert.equal(row.voted_istituto,false);assert.equal(Object.keys(row).length,10);}
+  for(const [key,row]of docs('tokens')){assert.match(key.split('/').pop(),/^STU-[A-Z0-9]{6}$/);assert.equal(row.hasVoted,false);assert.equal(row.voted_istituto,false);assert.equal(Object.keys(row).length,10);}
   const audit=[...records].filter(([key])=>key.startsWith(root+'/audit_admin/'));assert.equal(audit.length,4);assert.ok(!JSON.stringify(audit).includes('ELETTTORE FITTIZIO'));
  });
  await test('lost response after commit: progress is honest and retry does not duplicate',async()=>{
@@ -98,8 +98,8 @@ async function test(name,fn){await fn();passed++;console.log('PASS: '+name);}
  });
  await test('concurrent replay and ID collision never overwrite an existing voter',async()=>{
   reset();const results=await Promise.all([invoke(),invoke()]);assert.equal(results.reduce((n,r)=>n+r.created,0),1);assert.equal(docs('tokens').length,1);
-  reset();forceCollision=true;const id='STU'+'07'.repeat(12);
-  records.set(path('tokens',id),{nome:'EXISTING',hasVoted:true});await rejectsWithoutWrites(request(),'already-exists');assert.equal(records.get(path('tokens',id)).hasVoted,true);
+  reset();forceCollision=true;const id=require('../lib/voter-token-code').generate('STUDENTE',()=>0);
+  records.set(path('tokens',id),{nome:'EXISTING',hasVoted:true});await rejectsWithoutWrites(request(),'resource-exhausted');assert.equal(records.get(path('tokens',id)).hasVoted,true);
  });
  await test('changes between preflight and transaction, commit failure, and read/write ordering',async()=>{
   reset();beforeTransaction=()=>records.set(accountPath,{active:false,role:'COMMISSIONE'});await assert.rejects(invoke(),error=>error.code==='permission-denied');assert.equal(docs('tokens').length,0);

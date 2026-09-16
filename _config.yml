@@ -15,3 +15,6 @@ exclude:
   - lib/dpo-dossier.js
   - lib/ballot-vault.js
   - lib/voting-admission.js
+  - lib/voter-token-code.js
+  - lib/voter-token-migration.js
+  - ops
