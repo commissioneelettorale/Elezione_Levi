@@ -1,0 +1,30 @@
+'use strict';
+// Full inline application in an emulated DOM. No browser or real service is used.
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),{JSDOM}=require(process.env.LEVI_JSDOM||'jsdom');
+const html=fs.readFileSync('index.html','utf8'),dom=new JSDOM(html,{url:'https://example.test/?view=commission',runScripts:'outside-only'}),w=dom.window,d=w.document;
+const fixture=fs.readFileSync('scripts/check-dpo-download-browser.cjs','utf8'),context={};
+vm.createContext(context);vm.runInContext(fixture.slice(fixture.indexOf('const stubs='),fixture.indexOf('(async()=>{'))+'this.fixture=stubs;',context);
+const calls=[],errors=[];w.addEventListener('error',event=>errors.push(event.message));
+w.lucide={createIcons(){}};w.scrollTo=()=>{};
+w.fetch=async(url,request)=>{assert.equal(url,'https://elezione-levi.vercel.app/api/call');const payload=JSON.parse(request.body);calls.push(payload.name);assert.equal(payload.name,'commissionLogin');return{ok:true,json:async()=>({data:{customToken:'SYNTHETIC-CUSTOM-TOKEN',profile:{role:'COMMISSIONE',mustChangePassword:false}}})};};
+const tick=()=>new Promise(resolve=>setImmediate(resolve));
+(async()=>{
+ for(const file of ['election-policy','legal-readiness','election-sandbox','election-sandbox-ui'])w.eval(fs.readFileSync('lib/'+file+'.js','utf8'));
+ const main=html.match(/<script type="module">([\s\S]*?)<\/script>/)[1].replace(/^\s*import .*;\s*$/gm,'');
+ w.eval(Object.values(context.fixture).join('\n').replace(/\bexport /g,'')+'\n'+main);
+ const boot=w.onload;w.onload=null;await boot();await tick();
+ assert.ok(d.getElementById('adminUsername'));assert.ok(![...d.querySelectorAll('button')].some(b=>b.textContent==='Scarica PDF DPO'));
+ d.getElementById('adminUsername').value='synthetic-commission';d.getElementById('adminPwd').value='TEST-ONLY-NOT-A-REAL-PASSWORD';await w.checkAdminLogin();await tick();
+ assert.ok([...d.querySelectorAll('button')].some(b=>b.textContent==='Scarica PDF DPO'));
+ const profile={dedicated:true,windows:[{date:'2026-10-10',from:'09:00',to:'10:00'}]};
+ Object.assign(w.configElezioni,{modalitaProva:false,consiglioAttivo:true,listeConsiglio:{DOCENTE:{A:{nome:'FITTIZIA',candidati:['UNO']}}},consultazioni:{consiglio:profile}});
+ w.switchAdminTab('collaudo');const form=d.querySelector('[data-batch]');assert.ok(form);
+ form.elements.kind.value='DOCENTE';form.elements.count.value='2';form.dispatchEvent(new w.Event('submit',{cancelable:true}));
+ d.querySelector('[data-user]').click();d.querySelector('[data-clock]').value='2026-10-10T09:30';d.querySelector('[data-start]').click();
+ assert.ok(d.getElementById('sandbox-return'));assert.match(d.getElementById('app-container').textContent,/DOCENTE/);
+ w.showPage('votoConsiglio');d.querySelector('input[value="__BIANCA__"]').checked=true;w.selectBlankBallot('consiglio');w.saveVotoConsiglio();w.showPage('riepilogo');await w.submitFinalVotes();
+ assert.ok(d.getElementById('sandbox-return'));assert.match(d.getElementById('app-container').textContent,/Prova completata/);assert.equal(w.configElezioni.modalitaProva,false);assert.deepEqual(calls,['commissionLogin']);
+ w.returnFromSchoolTest();assert.ok(d.querySelector('[data-batch]'));assert.match(d.getElementById('app-container').textContent,/Prove completate in questa sessione: 1/);
+ w.logoutAdmin();await tick();w.showPage('adminPanel');assert.ok(d.getElementById('adminUsername'));assert.ok(![...d.querySelectorAll('button')].some(b=>b.textContent==='Scarica PDF DPO'));assert.deepEqual(errors,[]);
+ console.log('PASS: full application DOM with synthetic Commission login, private PDF button, teacher test-user generation, blank ballot confirmation, no vote API call, return to Collaudo and logout protection. Not a real browser/Production test.');
+})().catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>w.close());

@@ -1,6 +1,8 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const html=fs.readFileSync('index.html','utf8');
+const notice=fs.readFileSync('lib/privacy-notice.js','utf8');
+for(const marker of ['document.cookie','localStorage','sessionStorage','indexedDB','fetch(','sendBeacon','XMLHttpRequest'])assert.ok(!notice.includes(marker),'privacy notice unexpectedly uses '+marker);
 assert.ok(html.includes('initializeAuth(app, { persistence: inMemoryPersistence })'));
 for(const marker of ['localStorage.setItem','sessionStorage.setItem','document.cookie','firebase-analytics','getAnalytics(','httpsCallable(','cloudfunctions.net','placehold.co','measurementId'])assert.ok(!html.includes(marker),marker);
 const source=html.slice(html.indexOf('        const VERCEL_BACKEND_URL'),html.indexOf('        const isAnonymousVoteMode'));

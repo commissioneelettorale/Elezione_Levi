@@ -2,6 +2,12 @@ name: Deploy Firestore rules and bootstrap
 
 on:
   workflow_dispatch:
+    inputs:
+      bootstrap_commission:
+        description: "Eseguire anche la preparazione iniziale dell'account Commissione"
+        type: boolean
+        required: false
+        default: false
   push:
     branches: ["main"]
     paths:
@@ -48,6 +54,7 @@ jobs:
       - name: Deploy Firestore Rules
         run: firebase deploy --project votazioni-levi --only firestore:rules --non-interactive
       - name: Prepara account Commissione e cambio password iniziale
+        if: github.event_name == 'workflow_dispatch' && inputs.bootstrap_commission == true
         shell: bash
         env:
           COMMISSIONE_INITIAL_PASSWORD: ${{ secrets.COMMISSIONE_INITIAL_PASSWORD }}

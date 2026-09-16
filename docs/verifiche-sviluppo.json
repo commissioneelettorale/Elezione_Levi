@@ -1,6 +1,6 @@
 {
   "format": "LEVI_DEVELOPMENT_EVIDENCE_V2",
-  "generatedAt": "2026-09-14T04:24:28.387Z",
+  "generatedAt": "2026-09-16T13:14:15.875Z",
   "evidence": [
     {
       "id": "access",
@@ -9,7 +9,18 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: technical report outcomes, evidence requirements and authorization.\nPASS: active/revoked/versioned accounts; year isolation; preference limits; appeal dates; frozen lists.",
       "outcome": "PASS",
-      "testedAt": "2026-09-14T04:24:09.441Z",
+      "testedAt": "2026-09-16T13:13:43.748Z",
+      "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
+      "node": "v24.19.0"
+    },
+    {
+      "id": "concurrency-model",
+      "requirement": "3000 flussi concorrenti sul backend con database simulato: integrità, doppio invio e ricevuta; non misura capacità cloud.",
+      "method": "Esecuzione del codice in scripts/check-concurrent-votes.cjs con dati fittizi; dipendenze Firebase simulate dove necessario.",
+      "expected": "Asserzioni completate senza errori.",
+      "observed": "PASS: 3000 concurrent synthetic login/vote flows through actual backend handlers; exact ballot count, encrypted records, replay rejection and concurrent duplicate submission. Local duration 12097 ms. Mock database, no network: NOT a Vercel/Firestore capacity test.",
+      "outcome": "PASS",
+      "testedAt": "2026-09-16T13:13:44.083Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -18,9 +29,9 @@
       "requirement": "Lotti, ammissione, indipendenza, sospensione/ripresa, anonimizzazione applicativa, doppio voto, tempi e ricevuta.",
       "method": "Esecuzione del codice in scripts/check-consultations.cjs con dati fittizi; dipendenze Firebase simulate dove necessario.",
       "expected": "Asserzioni completate senza errori.",
-      "observed": "PASS: preliminary DPO review without configuration, authenticated and read-only; real voting still blocked.\nPASS: named credential mode cannot be admitted by checking documentary flags.\nPASS: actual anonymous pool, issuance limits, independent review, authorization, suspension/resume, stale-evidence rejection. All data and documentary claims are synthetic.\nPASS: Rome time boundaries/DST, split sessions, October/November isolation, per-election publications and freeze.\nPASS: sealed vote round trip, tamper/wrong-key rejection, no cleartext identity, repeat submission, closing race and live result embargo.\nPASS: technician denied migration; migration blocked between elections, lossless verified migration and idempotent retry.\nPASS: Commission receives aggregate projections only; original pairings cannot affect the response; counts, groups and blank totals preserved; architectural limitations remain explicit.",
+      "observed": "PASS: preliminary DPO review without configuration, authenticated and read-only; real voting still blocked.\nPASS: named credential mode cannot be admitted by checking documentary flags.\nPASS: actual anonymous pool, issuance limits, independent review, authorization, suspension/resume, stale-evidence rejection. All data and documentary claims are synthetic.\nPASS: Rome time boundaries/DST, split sessions, October/November isolation, per-election publications and freeze.\nPASS: sealed vote round trip, tamper/wrong-key rejection, no cleartext identity, repeat submission, closing race and live result embargo.\nPASS: technician denied migration; migration blocked between elections, lossless verified migration and idempotent retry.\nPASS: Commission receives aggregate projections only; original pairings cannot affect the response; counts, groups and blank totals preserved; architectural limitations remain explicit.\nPASS: one parent in two classes, distinct class/Council credentials, fixed verified quotas, legacy-code rejection, no duplicate Council vote, correct technical participation and receipt. Synthetic data only.\nPASS: explicit blank ballots, contradictory requests rejected, Consulta/ATA preference caps, approved names preserved and ambiguous candidates rejected.\nPASS: actual UI d’Hondt algorithm redistributes exhausted-list seats and compares exact quotients; existing deterministic tie simulation retained.",
       "outcome": "PASS",
-      "testedAt": "2026-09-14T04:24:09.517Z",
+      "testedAt": "2026-09-16T13:13:56.360Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -31,7 +42,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: 205 records across pages; no duplicates; cutoff preserved; interrupted export rejected; 12 unconfirmed test fields.",
       "outcome": "PASS",
-      "testedAt": "2026-09-14T04:24:09.644Z",
+      "testedAt": "2026-09-16T13:13:56.566Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -42,7 +53,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: distinct October/November acts and dates in Word; PDF appendix generation with embedded font.",
       "outcome": "PASS",
-      "testedAt": "2026-09-14T04:24:09.707Z",
+      "testedAt": "2026-09-16T13:13:56.679Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -53,7 +64,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: memory auth, no tracking integrations, one backend, no fallback on outage, no cookies sent by API and volatile test log.",
       "outcome": "PASS",
-      "testedAt": "2026-09-14T04:24:09.810Z",
+      "testedAt": "2026-09-16T13:13:56.867Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -64,7 +75,7 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: actual technical PDF includes admission, source version, configuration hash and architectural limitation.",
       "outcome": "PASS",
-      "testedAt": "2026-09-14T04:24:09.865Z",
+      "testedAt": "2026-09-16T13:13:56.999Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -75,29 +86,40 @@
       "expected": "Asserzioni completate senza errori.",
       "observed": "PASS: actual direct PDF and ZIP, authorization failure yields no download, ten entries with matching SHA-256, missing evidence remains unverified, interrupted export creates no archive.",
       "outcome": "PASS",
-      "testedAt": "2026-09-14T04:24:09.981Z",
+      "testedAt": "2026-09-16T13:13:57.356Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
     {
-      "id": "interface-browser",
-      "requirement": "Browser Chromium reale con servizi Firebase/API simulati: avvio completo, clic, mobile, indisponibilità opzionali, PDF DPO, ruoli e documenti non pubblicati.",
-      "method": "Esecuzione del codice in scripts/check-interface-browser.cjs con dati fittizi; dipendenze Firebase simulate dove necessario.",
+      "id": "sandbox-flow",
+      "requirement": "Applicazione completa in DOM emulato: login fittizio, download riservato, utente docente, scheda bianca senza API reali e ritorno al collaudo.",
+      "method": "Esecuzione del codice in scripts/check-sandbox-flow.cjs con dati fittizi; dipendenze Firebase simulate dove necessario.",
       "expected": "Asserzioni completate senza errori.",
-      "observed": "PASS browser: normal\nPASS browser: status-offline\nPASS browser: optional-library-missing\nPASS browser: uncluttered login, notices popup, fresh open/closed status, footer links, urn, main navigation, black Commission input, visible login button, optional service failures, Commission dossier/direct PDF, technical role scope, session cleanup, mobile navigation and unpublished private files.",
+      "observed": "PASS: full application DOM with synthetic Commission login, private PDF button, teacher test-user generation, blank ballot confirmation, no vote API call, return to Collaudo and logout protection. Not a real browser/Production test.",
       "outcome": "PASS",
-      "testedAt": "2026-09-14T04:24:10.260Z",
+      "testedAt": "2026-09-16T13:13:57.888Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
     {
-      "id": "dpo-login-download",
-      "requirement": "Pagina completa e login Commissione simulato: download PDF reale su desktop/mobile, sessione preservata, ripresa dopo login, fascicolo preliminare, errori visibili e annullamento dopo logout.",
-      "method": "Esecuzione del codice in scripts/check-dpo-download-browser.cjs con dati fittizi; dipendenze Firebase simulate dove necessario.",
+      "id": "sandbox-ui",
+      "requirement": "Utenti fittizi di tutte le componenti, orari separati, doppio invio, isolamento e PDF DPO assente dalla pagina pubblica.",
+      "method": "Esecuzione del codice in scripts/check-sandbox.cjs con dati fittizi; dipendenze Firebase simulate dove necessario.",
       "expected": "Asserzioni completate senza errori.",
-      "observed": "PASS: actual Commission login and bearer adapter, direct PDF download on desktop/mobile, retry link, public privacy page preserves original session, pending download resumes after login, visible export errors, authorization denial, cancellation on logout. All authentication/data are synthetic.",
+      "observed": "PASS: all synthetic voter components, separate windows, closed/missing schedule rejection, duplicate and empty submission rejection; 1500-user DOM generator, local scenario checks, zero network/storage, public DPO download absent.",
       "outcome": "PASS",
-      "testedAt": "2026-09-14T04:24:15.338Z",
+      "testedAt": "2026-09-16T13:14:01.161Z",
+      "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
+      "node": "v24.19.0"
+    },
+    {
+      "id": "school-ui-dom",
+      "requirement": "DOM emulato con jsdom: avviso senza persistenza, schede bianche e riepilogo, diritti distinti, modulo genitori e fascicolo DPO preliminare. Non è un test browser Production.",
+      "method": "Esecuzione del codice in scripts/check-school-ui.cjs con dati fittizi; dipendenze Firebase simulate dove necessario.",
+      "expected": "Asserzioni completate senza errori.",
+      "observed": "PASS: actual DOM banner close/reopen/focus, no cookies/storage/network; all three blank ballot forms clear preferences, retain the selection and show the correct summary; scoped rights hide unrelated ballots.\nPASS: actual private DPO dialog opens without saved election configuration; parent batch form requires the verified distinct-person quota and excludes the class for Council credentials. No real API was contacted.",
+      "outcome": "PASS",
+      "testedAt": "2026-09-16T13:14:03.178Z",
       "operator": "Verifica automatica di sviluppo (non collaudatore indipendente)",
       "node": "v24.19.0"
     },
@@ -108,7 +130,7 @@
       "expected": "Nessuna segnalazione nota nel perimetro npm.",
       "observed": "{\"info\":0,\"low\":0,\"moderate\":0,\"high\":0,\"critical\":0,\"total\":0}",
       "outcome": "PASS",
-      "testedAt": "2026-09-14T04:24:28.384Z",
+      "testedAt": "2026-09-16T13:14:15.867Z",
       "operator": "Verifica automatica di sviluppo",
       "limitation": "Non copre SDK remoti, librerie vendorizzate, configurazione cloud o vulnerabilità non note."
     }
@@ -116,11 +138,11 @@
   "source": [
     {
       "path": "index.html",
-      "sha256": "7a6607f6c4c2365599e32bf46e7ab140601d8a3336bcb13cdf428f876d8859cd"
+      "sha256": "b67562d0b157170eddb9039591c85873041e04d0e08c0a617770c26beb5a9418"
     },
     {
       "path": "functions/core.js",
-      "sha256": "2c7b1019c29f38909d22c99f99b27957a1bc5f4b8ae6a2bf92b294554b3ce912"
+      "sha256": "20cd121279b30b736b3843883708957807fe96c8049293ac5376e29fdba809b3"
     },
     {
       "path": "api/call.js",
@@ -128,11 +150,11 @@
     },
     {
       "path": "firestore.rules",
-      "sha256": "d7a84a1f30d7e3485b67ba286bfce804190d8b892c773ac6c42839310d0873b7"
+      "sha256": "1aa32d2db3e2385fc816d6372e4d55c9b89cb95200084da64caea81fcc6d6aa9"
     },
     {
       "path": "vercel.json",
-      "sha256": "5a77cd8bbcd02938e59e355fa66d4d0441e4d46b8311ddff300915199185be21"
+      "sha256": "0a27c84b9426abb6c8572bb1555f64289bfdad75abc29ff2ef333076916b1f5d"
     },
     {
       "path": "_config.yml",
@@ -140,7 +162,7 @@
     },
     {
       "path": "scripts/build-public-site.cjs",
-      "sha256": "12719b8f233499ca3653e804877965fde3321517baed3cb4acae33fed0a5ac7e"
+      "sha256": "7289f13f005fa78695e33b3247f2fa46b98963c252c0d1b291abc8f64122ffde"
     },
     {
       "path": "package-lock.json",
@@ -156,27 +178,43 @@
     },
     {
       "path": "lib/election-policy.js",
-      "sha256": "bedd0292c4e4cb96626b622b761a26f0b454895f4efc326e6186053bf9843d8a"
+      "sha256": "e41c3feda49b87193fb5e5c375e017272b1c3f211f1a561b9aecd6790a971e52"
+    },
+    {
+      "path": "lib/election-sandbox-ui.js",
+      "sha256": "8f44249dcb0d3fbfda1ffceb79cf00e8bb944ece95ab9af85e9859849dcc7059"
+    },
+    {
+      "path": "lib/election-sandbox.js",
+      "sha256": "2b8c7e72ab9183728b4542a695462dfe42f66cc63c5ba071e0889d7230d37655"
     },
     {
       "path": "lib/legal-readiness.js",
       "sha256": "11f5415617c1fd738bc3ba6d3768a743d291b1944151ddfa5498e7cb9e29f87e"
     },
     {
+      "path": "lib/privacy-notice.js",
+      "sha256": "8b151a57c2f67f36aaee370bff4d9ecebd51c9c6989991b4add0d5a13df05469"
+    },
+    {
       "path": "lib/privacy-review-ui.js",
-      "sha256": "69a65d557dab960da74efb7bee31dad29bda534bc6d6c501c602a566be1947a7"
+      "sha256": "eb7c60fbc2828dc7788e03c382aa0a5711dad72faf93f7dd2eef80a5a8d8da0e"
     },
     {
       "path": "lib/voting-admission.js",
-      "sha256": "54926007f93b770f17d7eb8c1d9ecbe02f512d90040c82f1e636a6da76a4bc31"
+      "sha256": "434d22e433c3107b79b00cb680a8e9845e67cdcfd59ed457e666ac04b445a823"
     },
     {
       "path": "scripts/check-hardening.cjs",
       "sha256": "3526475483453b371c5aedfb1f3c633fb3ec70375a26055297f1d5e32ace4f5c"
     },
     {
+      "path": "scripts/check-concurrent-votes.cjs",
+      "sha256": "040f474bcb43137421dc402586c7d89fabbea9ada77ec37d7a9658a105bb2442"
+    },
+    {
       "path": "scripts/check-consultations.cjs",
-      "sha256": "ec3c03af2ba473aa0350839870c84023f65397980b99df764d66ca3c5426ad8d"
+      "sha256": "a98eccdbaaffee9a613f1397b128006fcf4812c92f0139979231f353be08a494"
     },
     {
       "path": "scripts/check-technical-export.cjs",
@@ -188,7 +226,7 @@
     },
     {
       "path": "scripts/check-privacy-surface.cjs",
-      "sha256": "354bcf744d46373edd7933f12fe0d4065373be94646d55107694b7a9739c76ad"
+      "sha256": "9f6ed7d850388b5c78fe562f73fb040be40f01e070aeb7aec206733fb0b3ed5f"
     },
     {
       "path": "scripts/check-legal-evidence.cjs",
@@ -199,19 +237,24 @@
       "sha256": "769f2cb8a2b8b859261745c997e94c83f8e6e2d8f36b0e2d75edd6e661b73416"
     },
     {
-      "path": "scripts/check-interface-browser.cjs",
-      "sha256": "eddb8a1a5ac94f0da600bc8688080e3638e659b95ccb171bef2b9c455be53fe4"
+      "path": "scripts/check-sandbox-flow.cjs",
+      "sha256": "59b1aa81ed511724b02f142d9faa36d358d2888d5c242edb9fd05d0350c58003"
     },
     {
-      "path": "scripts/check-dpo-download-browser.cjs",
-      "sha256": "d3d6101e58a8bb81b57e13285e44d13ba8d33545b680f08541a663756f9c498d"
+      "path": "scripts/check-sandbox.cjs",
+      "sha256": "3ed6f4116821d254638592ea8d68996735294b20115b30d62d304fdd396ab466"
+    },
+    {
+      "path": "scripts/check-school-ui.cjs",
+      "sha256": "9ad00ea06bb1af823519092c7e8c145d1772515ecfdc208f8ce3ffd8445b6e55"
     },
     {
       "path": "scripts/verify-release.cjs",
-      "sha256": "72a8c464e2397715f50addc63ccd77c46fd32851f2e0b6513e4cec0e81ad1043"
+      "sha256": "c0d9ee9035a9df9f7612373fcb9830f7ac19f06b9409d9dc57feec130543aac0"
     }
   ],
   "notVerified": [
+    "Capacità e tempi di risposta con oltre 1500 utenti reali simultanei su Vercel/Firestore; richiede ambiente cloud di collaudo isolato e monitoraggio dei provider.",
     "Login Production con credenziali reali, dispositivi della scuola e storage dei servizi remoti; il test browser registrato usa risposte Firebase/API fittizie.",
     "Firebase Rules distribuite, IAM/MFA e log dei provider Production.",
     "Backup, ripristino reale, custodi e conservazione scolastica.",

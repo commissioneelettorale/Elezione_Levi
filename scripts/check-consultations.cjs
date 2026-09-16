@@ -36,7 +36,7 @@ class HttpsError extends Error{constructor(code,message){super(message);this.cod
 // The crypto module is injected with the same synthetic environment used by this test.
 const testVault={...vault,keyMaterial:()=>vault.keyMaterial(env),seal:(...a)=>vault.seal(...a,env),open:(...a)=>vault.open(...a,env)};
 const context={exports:{},require:n=>n==='../lib/legal-readiness'?legal:n==='../lib/voting-admission'?require('../lib/voting-admission'):n==='../lib/election-policy'?policy:n==='../lib/ballot-vault'?testVault:n==='crypto'?crypto:n==='firebase-functions/v2/https'?{HttpsError}:n==='firebase-admin/app'?{getApps:()=>[{}]}:n==='firebase-admin/firestore'?{getFirestore:()=>db,FieldValue:{serverTimestamp:()=>new TestDate(),delete:()=>null,increment:x=>x},Timestamp:{fromMillis:ms=>({toMillis:()=>ms}),fromDate:d=>({toMillis:()=>+d})}}:{getAuth:()=>({})},console,Date:TestDate,Buffer,Intl,URL,Set,Map,process:{env}};
-vm.createContext(context);vm.runInContext(fs.readFileSync('functions/core.js','utf8')+'\nexports._test={sanitizeStoredBallot,assertAllPublicationDeadlines,makeAggregateProjection,privacyArchitectureAssessment,configurationHash};',context);
+vm.createContext(context);vm.runInContext(fs.readFileSync('functions/core.js','utf8')+'\nexports._test={sanitizeStoredBallot,assertAllPublicationDeadlines,makeAggregateProjection,privacyArchitectureAssessment,configurationHash,validateListBallot,validateClassBallot};',context);
 const api=context.exports,path=(name,id)=>root+'/'+name+'_'+year.replace('/','_')+(id?'/'+id:'');
 const configPath=root+'/config/yearly_settings_2026_2027',statePath=path('regolarita','state');
 const profile=(date,period,from='09:00',to='11:00')=>({dedicated:true,period,kind:'RINNOVO',windows:[{date,from,to}],acts:[{authority:'Istituto',protocol:'TEST-'+period,date:'2026-09-01',subject:'Dati fittizi',url:'https://example.edu.test/atto'}]});
@@ -73,7 +73,7 @@ async function check(){
  assert.deepEqual(legal.structuralBlockers(),['structuralSecrecy']);
  const publicStatus=await api.getPublicServiceStatus();assert.equal(publicStatus.secretVotingEnabled,false);
  await assert.rejects(api.validateVoterToken({data:{annoScolastico:year,token:'TEST-NEVER-ACTUAL'}}),e=>e.code==='failed-precondition');
- await assert.rejects(api.castVote({data:{annoScolastico:year,sessionId:'TEST-NEVER-ACTUAL',ballots:{consulta:{lista:'A'}}}}),e=>e.code==='failed-precondition');
+ await assert.rejects(api.castVote({data:{annoScolastico:year,sessionId:'INVALID-NEVER-ACTUAL',ballots:{consulta:{lista:'A'}}}}),e=>e.code==='failed-precondition');
  assert.equal(stores.size,preGateStores,'admission must not create a session or ballot');
  const readiness=await api.getRegularityState(commission());assert.equal(readiness.readyForVoting,false);assert.ok(readiness.missing.includes('structuralSecrecy'));
  await assert.rejects(api.setRegularityControl(commission({control:'technicalTestPassed',value:true,note:'TEST',reportId:'TEST'})),e=>e.code==='failed-precondition');
@@ -131,7 +131,7 @@ async function check(){
  assert.equal((await api.getVoterSessionStatus({data:{sessionId,annoScolastico:year}})).status,'PENDING');
  const result=await api.castVote(vote);assert.equal((await api.getVoterSessionStatus({data:{sessionId,annoScolastico:year}})).status,'COMMITTED');assert.equal(result.recordedBallots,1);assert.equal(result.fullyCompleted,false);
  const ballot=(await new Ref(path('voti_consulta')).get()).docs[0].data();assert.equal(ballot.schema,'LEVI_SEALED_V1');assert.deepEqual(vault.open(ballot,year,'voti_consulta',env),clear);
- assert.ok(!stores.get(path('tokens','named-one')).hasVoted,'nominal register not updated by voting');const participation=await api.getAnonymousParticipation(commission());assert.equal(participation.totalParticipated,1);assert.equal(participation.totalEligible,2);assert.equal(participation.stats.STUDENTE.completed,0);assert.ok(!JSON.stringify(participation).includes('SYNTHETIC PERSON'));
+ assert.ok(!stores.get(path('tokens','named-one')).hasVoted,'nominal register not updated by voting');const participation=await api.getAnonymousParticipation(commission());assert.equal(participation.totalParticipated,1);assert.equal(participation.totalEligible,4);assert.equal(participation.stats.STUDENTE.completed,0);assert.ok(!JSON.stringify(participation).includes('SYNTHETIC PERSON'));
  await assert.rejects(api.castVote(vote));assert.equal((await new Ref(path('voti_consulta')).get()).size,1);
  const live=await api.getAnonymousBallots(commission({collection:'voti_consulta'}));assert.equal(live.phase,'OPEN');assert.ok(live.ballots.every(b=>!b.p1&&!b.lista));
  const closingSession=await token('TEST-TWO');beforeTransaction=()=>{clock=+new Date('2026-10-10T09:00:00Z');};
@@ -154,6 +154,7 @@ async function check(){
  assert.throws(()=>api._test.assertAllPublicationDeadlines(config,stores.get(statePath)));
  await assert.rejects(api.resolveTechnicalIssue(staff('ASSISTENTE_TECNICO',{action:'protectDatabase'})),e=>e.code==='permission-denied');
  await assert.rejects(api.resolveTechnicalIssue(commission({action:'protectDatabase'})),e=>e.code==='failed-precondition');
+ await assert.rejects(api.saveElectionConfig(commission({config:{...config,modalitaProva:true}})),e=>e.code==='failed-precondition');
  const changed=structuredClone(config);changed.consultazioni.consulta.acts[0].protocol='MODIFICATO';await assert.rejects(api.saveElectionConfig(commission({config:changed})),e=>e.code==='failed-precondition');
  const freezeBefore=structuredClone(config);freezeBefore.consultazioni.istituto.frozen=true;stores.set(configPath,freezeBefore);
  const unfreeze=structuredClone(freezeBefore);unfreeze.consultazioni.istituto.frozen=false;await assert.rejects(api.saveElectionConfig(commission({config:unfreeze})),e=>e.code==='failed-precondition');
@@ -168,4 +169,65 @@ async function check(){
  console.log('PASS: technician denied migration; migration blocked between elections, lossless verified migration and idempotent retry.');
  console.log('PASS: Commission receives aggregate projections only; original pairings cannot affect the response; counts, groups and blank totals preserved; architectural limitations remain explicit.');
 }
-check().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>{global.Date=RealDate;});
+async function checkSchoolRights(){
+ stores.clear();clock=+new Date('2026-09-20T07:00:00Z');
+ config={annoScolastico:year,privacyMode:legal.ANONYMOUS_MODE,consiglioAttivo:true,rappresentantiClasseGenitoriAttivo:true,maxPrefConsiglio:2,maxPrefClasseGenitori:1,
+  listeConsiglio:{GENITORE:{A:{candidati:['Genitore Fittizio']}},ATA:{A:{candidati:['ATA UNO','ATA DUE']}}},
+  consultazioni:{consiglio:profile('2026-10-10','OTTOBRE'),classeGenitore:profile('2026-10-10','OTTOBRE')}};
+ stores.set(configPath,config);stores.set(statePath,Object.fromEntries(pre.map(k=>[k,true])));
+ for(const role of ['COMMISSIONE','ASSISTENTE_TECNICO'])stores.set(path('gestione_accessi',role),{role,active:true});
+ for(const classe of ['1A','2B'])stores.set(path('tokens','PARENT-'+classe),{tipo:'GENITORE',classe,nome:'GENITORE FITTIZIO'});
+ await assert.rejects(api.createAnonymousCredentials(commission({tipo:'GENITORE',classe:'1A',count:1,protocolRef:'TEST'})),e=>e.code==='invalid-argument');
+ const batch=(electionKey,classe,extra={})=>api.createAnonymousCredentials(commission({tipo:'GENITORE',electionKey,classe,count:1,eligibleCount:1,protocolRef:'TEST-FIXTURE',...extra}));
+ const c1=await batch('classeGenitore','1A'),c2=await batch('classeGenitore','2B'),council=await batch('consiglio','');
+ await assert.rejects(batch('consiglio',''),e=>e.code==='failed-precondition');
+ await assert.rejects(batch('consiglio','',{eligibleCount:2}),e=>e.code==='failed-precondition');
+ const parentReport=await report();await api.setRegularityControl(commission({control:'technicalTestPassed',value:true,note:'TEST ONLY',reportId:parentReport}));
+ await propose(parentReport);await verify();await authorize();clock=+new Date('2026-10-10T07:00:00Z');
+ const login=async b=>api.validateVoterToken({data:{token:b.codes[0],annoScolastico:year}});
+ const first=await login(c1);assert.equal(first.electionKey,'classeGenitore');assert.equal(JSON.stringify(first.openElections),JSON.stringify(['classeGenitore']));
+ const deposit=(sessionId,ballots)=>api.castVote({data:{annoScolastico:year,sessionId,ballots}});
+ await assert.rejects(deposit(first.sessionId,{consiglio:{isBianca:true}}),e=>e.code==='permission-denied');
+ assert.equal((await deposit(first.sessionId,{classeGenitore:{candidate1:'GENITORE FITTIZIO'}})).fullyCompleted,true);
+ const second=await login(c2);await deposit(second.sessionId,{classeGenitore:{isBianca:true}});
+ const third=await login(council);assert.equal(JSON.stringify(third.openElections),JSON.stringify(['consiglio']));
+ await assert.rejects(deposit(third.sessionId,{classeGenitore:{isBianca:true}}),e=>e.code==='permission-denied');
+ await deposit(third.sessionId,{consiglio:{isBianca:true}});
+ assert.equal((await api.getVoterSessionStatus({data:{annoScolastico:year,sessionId:third.sessionId}})).status,'COMMITTED');
+ await assert.rejects(deposit(third.sessionId,{consiglio:{isBianca:true}}));
+ const repeat=await login(council);await assert.rejects(deposit(repeat.sessionId,{consiglio:{isBianca:true}}));
+ assert.equal((await new Ref(path('voti_consiglio')).get()).size,1);
+ assert.equal((await new Ref(path('voti_classe_genitori')).get()).size,2);
+ const participation=await api.getAnonymousParticipation(commission());assert.equal(participation.totalEligible,3);assert.equal(participation.totalParticipated,3);
+ assert.equal(participation.byElection.find(x=>x.electionKey==='consiglio').cast,1);assert.equal(participation.byElection.find(x=>x.electionKey==='classeGenitore').cast,2);
+ assert.ok(!JSON.stringify(participation).includes('GENITORE FITTIZIO'));
+ const legacy='F'.repeat(32);stores.set(path('credenziali_anonime',crypto.createHash('sha256').update(year+':'+legacy).digest('hex')),{schema:legal.ANONYMOUS_MODE,tipo:'GENITORE',classe:'1A'});
+ await assert.rejects(login({codes:[legacy]}),e=>e.code==='failed-precondition');
+ console.log('PASS: one parent in two classes, distinct class/Council credentials, fixed verified quotas, legacy-code rejection, no duplicate Council vote, correct technical participation and receipt. Synthetic data only.');
+ const lists={...config,maxPrefConsulta:2,listeConsulta:{A:{candidati:['UNO','DUE']}},listeIstituto:{A:{candidati:['MARIO ROSSI','ROSSI MARIO']}}};
+ for(const key of ['consiglio','istituto','consulta']){
+  assert.equal(api._test.validateListBallot({isBianca:true},lists,key,'GENITORE').isBianca,true);
+  assert.throws(()=>api._test.validateListBallot({isBianca:true,lista:'A'},lists,key,'GENITORE'));
+  assert.throws(()=>api._test.validateListBallot({isBianca:true,p1:'UNO'},lists,key,'GENITORE'));
+ }
+ assert.throws(()=>api._test.validateListBallot({lista:'A',p1:'ATA UNO',p2:'ATA DUE'},lists,'consiglio','ATA'));
+ assert.throws(()=>api._test.validateListBallot({lista:'A',p1:'UNO',p2:'DUE'},lists,'consulta','STUDENTE'));
+ const distinct=api._test.validateListBallot({lista:'A',p1:'MARIO ROSSI',p2:'ROSSI MARIO'},lists,'istituto','STUDENTE');assert.equal(distinct.p2,'ROSSI MARIO');
+ assert.equal(api._test.validateListBallot({lista:'A',p1:'genitore fittizio'},lists,'consiglio','GENITORE').p1,'Genitore Fittizio');
+ assert.throws(()=>api._test.validateListBallot({lista:'A',p1:'FITTIZIO GENITORE'},lists,'consiglio','GENITORE'));
+ assert.throws(()=>api._test.validateListBallot({lista:'A',p1:'UNO'},{...lists,listeConsulta:{A:{candidati:['UNO','UNO']}}},'consulta','STUDENTE'));
+ await assert.rejects(api._test.validateClassBallot({isBianca:true,candidate1:'GENITORE FITTIZIO'},lists,'GENITORE','1A',year));
+ stores.set(path('tokens','HOMONYM'),{tipo:'GENITORE',classe:'1A',nome:'GENITORE FITTIZIO'});
+ await assert.rejects(api._test.validateClassBallot({candidate1:'GENITORE FITTIZIO'},lists,'GENITORE','1A',year),e=>e.code==='failed-precondition');
+ console.log('PASS: explicit blank ballots, contradictory requests rejected, Consulta/ATA preference caps, approved names preserved and ambiguous candidates rejected.');
+ const html=fs.readFileSync('index.html','utf8'),tally={};vm.createContext(tally);
+ const dhondt=html.slice(html.indexOf('        function calculateDHondtSteps('),html.indexOf('        async function fetchScrutinioData('));
+ const ties=html.slice(html.indexOf('        const EX_AEQUO_CP'),html.indexOf('        async function renderScrutinioTab('));
+ vm.runInContext(ties+dhondt,tally);
+ const result=tally.calculateDHondtSteps({A:100,B:30},4,{A:{nome:'A',candidati:['A1']},B:{nome:'B',candidati:['B1','B2','B3']}});
+ assert.equal(result.seatsAllocated.A,1);assert.equal(result.seatsAllocated.B,3);assert.equal(result.quotients.filter(x=>x.isWinner).length,4);
+ const exact=tally.sortQuotientsWithExAequo([{votes:1,divisor:10001,quotient:1/10001},{votes:1,divisor:10000,quotient:1/10000}]);assert.equal(exact[0].divisor,10000);
+ console.log('PASS: actual UI d’Hondt algorithm redistributes exhausted-list seats and compares exact quotients; existing deterministic tie simulation retained.');
+}
+if(require.main===module)check().then(checkSchoolRights).catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>{global.Date=RealDate;});
+else module.exports={api,db,stores,path,configPath,statePath,env,year,pre,profile,RealDate,clock:value=>{clock=value;},resetDate:()=>{global.Date=RealDate;}};

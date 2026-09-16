@@ -64,7 +64,8 @@ const stubs={
   await dialog.locator('[data-close]').click();
   const popupEvent=page.waitForEvent('popup');await page.getByRole('link',{name:'DPO e privacy',exact:true}).click();const popup=await popupEvent;
   await popup.waitForLoadState();assert.equal(page.url(),initialUrl);assert.equal(await page.getByRole('button',{name:'Scarica PDF DPO',exact:true}).count(),1);
-  await popup.getByRole('link',{name:'Accedi e scarica il PDF DPO',exact:true}).click();
+  assert.equal(await popup.getByRole('link',{name:/scarica.*pdf/i}).count(),0);
+  await popup.goto(origin+'/?view=commission&document=dpo');
   await popup.getByText('Accedi con il tuo account Commissione:',{exact:false}).waitFor();
   const afterLogin=popup.waitForEvent('download',{timeout:15000});await login(popup);const resumed=await afterLogin;
   assert.equal(resumed.suggestedFilename(),'Fascicolo_DPO_2026_2027.pdf');assert.equal(await resumed.failure(),null);assert.equal(await popup.locator('#adminUsername').count(),0);assert.equal(new URL(popup.url()).searchParams.has('document'),false);await popup.close();

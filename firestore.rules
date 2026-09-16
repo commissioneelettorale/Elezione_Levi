@@ -16,7 +16,10 @@ service cloud.firestore {
       let account = get(/databases/$(database)/documents/artifacts/iis-levi-electoral-v3/public/data/$(accounts)/$(request.auth.token.staffAccountId)).data;
       return account.active != false && account.role == request.auth.token.role
         && account.get('sessionVersion', 0) == request.auth.token.get('sessionVersion', 0)
-        && account.get('mustChangePassword', false) != true;
+        && account.get('mustChangePassword', false) != true
+        && (request.auth.token.role == 'COMMISSIONE' || (
+          request.auth.token.get('staffExpiresAt', 0) * 1000 > request.time.toMillis()
+          && account.get('expiresAt', request.time) > request.time));
     }
 
     function editableRoll(collectionId) {
@@ -53,7 +56,7 @@ service cloud.firestore {
       // scheda. La Commissione può leggerlo e creare nuove credenziali prima
       // dell'apertura; i flag di voto non sono modificabili dal browser.
       allow read: if isCommission()
-        && collectionId.matches('tokens_[0-9]{4}_[0-9]{4}');
+        && collectionId == 'tokens_' + request.auth.token.staffYear.replace('/', '_');
 
       allow create: if isCommission() && editableRoll(collectionId)
         && collectionId.matches('tokens_[0-9]{4}_[0-9]{4}')
@@ -81,12 +84,11 @@ service cloud.firestore {
 
       // Chiavi referenti: sola lettura Commissione; scrittura solo Admin SDK.
       allow read: if isCommission()
-        && collectionId.matches('config_[0-9]{4}_[0-9]{4}');
+        && collectionId == 'config_' + request.auth.token.staffYear.replace('/', '_');
       allow write: if false;
 
-      // Account gestionali: consultabili dalla Commissione, modifiche server-side.
-      allow read: if isCommission()
-        && collectionId.matches('gestione_accessi_[0-9]{4}_[0-9]{4}');
+      // Account: consultazione attraverso getStaffAccounts, senza hash/salt delle password.
+      allow read: if false;
       allow write: if false;
 
       // URNE: nessun client, neppure Commissione/Dirigenza, legge o scrive
@@ -94,9 +96,9 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Audit amministrativo: lettura istituzionale, scrittura solo Admin SDK.
+    // Audit amministrativo: accesso solo attraverso API autorizzate e minimizzate.
     match /artifacts/iis-levi-electoral-v3/public/data/audit_admin/{documentId} {
-      allow read: if isInstitutionalStaff();
+      allow read: if false;
       allow write: if false;
     }
 

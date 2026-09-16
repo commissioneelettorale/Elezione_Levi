@@ -13,6 +13,8 @@
     
     <!-- Tailwind CSS per styling moderno e reattivo -->
     <script src="lib/election-policy.js"></script>
+    <script src="lib/election-sandbox.js"></script>
+    <script src="lib/election-sandbox-ui.js"></script>
     <script src="lib/legal-readiness.js"></script>
     <script src="vendor/tailwindcss.js"></script>
     <!-- SheetJS per importazione dei registri Excel -->
@@ -137,6 +139,7 @@
         }
 
     </style>
+<script src="lib/privacy-notice.js" defer></script>
 </head>
 <body class="flex flex-col justify-between relative min-h-screen">
     <a href="#app-container" class="skip-link">Vai al contenuto</a>
@@ -431,8 +434,9 @@
         const anonymousParticipation=async()=>isAnonymousVoteMode()?(await SECURE_API.getAnonymousParticipation({annoScolastico:configElezioni.annoScolastico})).data:null;
         // Optional dossier setup happens on demand, after the main interface is ready.
         let pendingDpoDownload=false;
+        let commissionSessionReady=false;
         window.openPrivacyReview=async(options={})=>{
-            if(!auth.currentUser){pendingDpoDownload=options.download==='pdf';showPage('adminLogin');return;}
+            if(!auth.currentUser||(options.download==='pdf'&&!commissionSessionReady)){pendingDpoDownload=options.download==='pdf';showPage('adminLogin');return;}
             const ui=window.LeviPrivacyReview;
             if(!ui?.configure||!ui?.show){showNotification('Fascicolo non disponibile','Ricarica la pagina per riprovare. Gli altri accessi restano disponibili.','error');return;}
             ui.configure({api:SECURE_API,config:()=>configElezioni,logs:()=>fetchCompleteTechnicalLog(),notify:(...args)=>window.showNotification(...args),
@@ -500,7 +504,7 @@
                 if(!dialog.open)return;
                 calendar.innerHTML=config?LeviElectionPolicy.enabled(config).map(key=>{
                     const profile=LeviElectionPolicy.profile(config,key),cal=config.calendario||{};
-                    const schedule=profile.dedicated?(profile.windows||[]).map(w=>`${String(w.date||'').split('-').reverse().join('/')} · ${w.from}–${w.to}`).join(' · '):`${cal.votingStartDate||''} ${cal.votingStartTime||''} – ${cal.votingEndDate||''} ${cal.votingEndTime||''}`;
+                    const schedule=profile.dedicated?(profile.windows||[]).map(w=>`${String(w.date||'').split('-').reverse().join('/')} · ${w.from}–${w.to}`).join(' · '):'Fasce dedicate da comunicare';
                     return `<div class="py-3 border-b last:border-0"><b>${technicalEscape(LeviElectionPolicy.ELECTIONS[key].label)}</b><p>${technicalEscape(!schedule.trim()||schedule.includes('XX')||!/[0-9]/.test(schedule)?'Date e orari da comunicare':schedule)}</p></div>`;
                 }).join(''):'<p>Calendario da comunicare dalla Commissione.</p>';
             }).catch(()=>{if(dialog.open)calendar.textContent='Calendario non disponibile in questo momento.';});
@@ -536,7 +540,7 @@
             divietoVotoDisgiunto: true,
             maxPrefConsiglio: 2,
             maxPrefIstituto: 2,
-            maxPrefConsulta: 2,
+            maxPrefConsulta: 1,
             maxPrefClasseStudenti: 1,
             maxPrefClasseGenitori: 1,
             calendario: {
@@ -810,7 +814,7 @@
         function getCanonicalName(name) {
             if (!name) return "";
             const clean = normalizeName(name);
-            return clean.split(' ').filter(Boolean).sort().join(' ');
+            return clean;
         }
 
         window.showNotification = function(title, message, type = 'info') {
@@ -997,7 +1001,11 @@
         }
 
         window.showPage = function(pageId, extraParam) {
-            if(pageId==='studentLogin')pendingDpoDownload=false;
+            if(pageId==='studentLogin'){pendingDpoDownload=false;lastVoteWasTest=false;}
+            document.getElementById('sandbox-return')?.remove();
+            if(sandboxReturnAvailable && auth.currentUser && ['dashboard','votoConsiglio','votoIstituto','votoConsulta','votoClasseStudenti','votoClasseGenitori','riepilogo','success'].includes(pageId)){
+                const back=document.createElement('button');back.id='sandbox-return';back.textContent='SIMULAZIONE — Torna al collaudo';back.className='block mx-auto my-3 bg-amber-200 text-black font-bold p-3 rounded-xl';back.onclick=window.returnFromSchoolTest;document.getElementById('app-container').before(back);
+            }
             currentView = pageId;
             const container = document.getElementById('app-container');
             container.innerHTML = '';
@@ -1024,6 +1032,7 @@
             }
             updateHeaderActions();
             updateSecureCabinState();
+            updateTestModeBanner();
             lucide.createIcons();
         };
 
@@ -1062,7 +1071,8 @@
         }
 
         function votingWindowStatus(key) {
-            if(configElezioni.modalitaProva) return {configured:true,open:true,reason:'test'};
+            if(key && currentUserData?.electionKey && currentUserData.electionKey!==key) return {configured:true,open:false,reason:'not-entitled'};
+            if(configElezioni.modalitaProva||currentUserData?.isTest===true){const options=LeviSandboxUI.settings();if(options.ignoreSchedule)return {configured:true,open:true,reason:'test'};const phase=key?LeviElectionPolicy.phase(configElezioni,key,options.now??Date.now()):LeviElectionPolicy.globalPhase(configElezioni,options.now??Date.now());return {configured:phase!=='UNCONFIGURED',open:phase==='OPEN',reason:phase.toLowerCase()};}
             const phase=key?LeviElectionPolicy.phase(configElezioni,key):LeviElectionPolicy.globalPhase(configElezioni);
             return {configured:true,open:phase==='OPEN',reason:phase==='BEFORE'?'before':phase==='PAUSED'?'pause':phase==='UNCONFIGURED'?'unconfigured':'after'};
         }
@@ -1071,7 +1081,7 @@
             const p=LeviElectionPolicy.profile(configElezioni,key);
             if(p.dedicated===true) return (p.windows||[]).map(w=>`${String(w.date||'').split('-').reverse().join('/')} dalle ${w.from} alle ${w.to}`).join(' · ');
             const c=configElezioni.calendario||{};
-            return `${c.votingStartDate||'Da definire'} ${c.votingStartTime||''} - ${c.votingEndDate||''} ${c.votingEndTime||''} (calendario generale)`;
+            return 'Fasce dedicate da configurare: questa consultazione non può aprirsi con il solo calendario generale.';
         }
         function consultationSummaryHTML() {
             return LeviElectionPolicy.enabled(configElezioni).map(key=>`<div class="py-2 border-b border-slate-100 last:border-0"><b>${technicalEscape(LeviElectionPolicy.ELECTIONS[key].label)}</b><br>${technicalEscape(consultationScheduleText(key))}</div>`).join('');
@@ -1088,7 +1098,7 @@
                 ${key==='consulta'?'<p class="text-xs p-3 bg-amber-50 rounded-xl mt-2">La Consulta segue il mandato biennale. Verificare se nell’anno siano previste elezioni di rinnovo, suppletive o surroghe; il mese non determina da solo la procedura.</p>':''}
                 <form onsubmit="event.preventDefault();window.saveConsultationSettings(this)" class="space-y-4 mt-4">
                     <div class="grid md:grid-cols-2 gap-3"><label class="text-xs">Periodo organizzativo<select name="period" class="w-full border rounded-lg p-2"><option value="OTTOBRE" ${p.period==='OTTOBRE'?'selected':''}>Ottobre</option><option value="NOVEMBRE" ${p.period==='NOVEMBRE'?'selected':''}>Novembre</option><option value="ALTRO" ${!p.period||p.period==='ALTRO'?'selected':''}>Altro / da definire</option></select></label><label class="text-xs">Tipo di procedura<select name="kind" class="w-full border rounded-lg p-2">${['DA_VERIFICARE','RINNOVO','SUPPLETIVE'].map(kind=>`<option value="${kind}" ${(p.kind||'DA_VERIFICARE')===kind?'selected':''}>${kind.replace('_',' ')}</option>`).join('')}</select></label></div>
-                    <label class="flex gap-2 text-xs"><input type="checkbox" name="dedicated" ${p.dedicated===true?'checked':''}> Usa calendario e atti dedicati a questa elezione</label>
+                    <label class="flex gap-2 text-xs"><input type="checkbox" name="dedicated" checked disabled> Calendario e atti dedicati obbligatori per questa elezione</label>
                     <div><b class="text-xs">Fasce di voto (ora italiana)</b><p class="text-xs text-slate-600 mb-2">Una riga per giornata: ad esempio domenica e lunedì hanno due fasce separate. Lascia vuote le righe inutilizzate.</p>${slots.map((w,i)=>`<div class="grid grid-cols-3 gap-2 mb-2"><label class="text-xs">Data<input name="date${i}" type="date" value="${technicalEscape(w.date||'')}" class="w-full border rounded-lg p-2"></label><label class="text-xs">Dalle ore<input name="from${i}" type="time" value="${technicalEscape(w.from||'')}" class="w-full border rounded-lg p-2"></label><label class="text-xs">Alle ore<input name="to${i}" type="time" value="${technicalEscape(w.to||'')}" class="w-full border rounded-lg p-2"></label></div>`).join('')}</div>
                     <div><b class="text-xs">Atti pertinenti a questa consultazione</b>${acts.map((a,i)=>`<fieldset class="border rounded-xl p-3 mt-2"><legend class="text-xs">Atto ${i+1}</legend><div class="grid md:grid-cols-3 gap-2"><input name="authority${i}" value="${technicalEscape(a.authority||'')}" placeholder="Ente: MIM / USR / UST / Istituto" aria-label="Ente atto ${i+1}" class="p-2 border rounded-lg text-xs"><input name="protocol${i}" value="${technicalEscape(a.protocol||'')}" placeholder="Protocollo / numero" aria-label="Protocollo atto ${i+1}" class="p-2 border rounded-lg text-xs"><input name="actDate${i}" type="date" value="${technicalEscape(a.date||'')}" aria-label="Data atto ${i+1}" class="p-2 border rounded-lg text-xs"></div><input name="subject${i}" value="${technicalEscape(a.subject||'')}" placeholder="Oggetto e indicazioni applicabili" aria-label="Oggetto atto ${i+1}" class="w-full p-2 border rounded-lg text-xs mt-2"><input name="url${i}" type="url" value="${technicalEscape(a.url||'')}" placeholder="https:// indirizzo dell’atto ufficiale" aria-label="Link atto ${i+1}" class="w-full p-2 border rounded-lg text-xs mt-2"></fieldset>`).join('')}</div>
                     <div class="grid md:grid-cols-2 gap-3"><label class="text-xs">Pubblicazione esiti: data<input type="date" name="releaseDate" value="${technicalEscape(p.releaseDate||'')}" class="w-full p-2 border rounded-lg"></label><label class="text-xs">Dalle ore<input type="time" name="releaseTime" value="${technicalEscape(p.releaseTime||'')}" class="w-full p-2 border rounded-lg"></label></div>
@@ -1101,7 +1111,7 @@
         window.selectConsultation=key=>{selectedConsultation=key;const box=document.getElementById('consultation-settings');if(box)box.outerHTML=renderConsultationSettings();};
         window.saveConsultationSettings=async form=>{
             const button=form.querySelector('button[type="submit"]'),status=form.querySelector('[data-schedule-status]'),data=new FormData(form),key=selectedConsultation;
-            const profile={dedicated:data.has('dedicated'),period:data.get('period'),kind:data.get('kind'),windows:[],acts:[],releaseDate:data.get('releaseDate'),releaseTime:data.get('releaseTime'),frozen:data.has('frozen'),finalized:data.has('finalized')};
+            const profile={dedicated:true,period:data.get('period'),kind:data.get('kind'),windows:[],acts:[],releaseDate:data.get('releaseDate'),releaseTime:data.get('releaseTime'),frozen:data.has('frozen'),finalized:data.has('finalized')};
             for(let i=0;i<6;i++)if(data.get('date'+i)||data.get('from'+i)||data.get('to'+i))profile.windows.push({date:data.get('date'+i),from:data.get('from'+i),to:data.get('to'+i)});
             for(let i=0;i<6;i++)if(data.get('protocol'+i)||data.get('authority'+i)||data.get('subject'+i)||data.get('actDate'+i)||data.get('url'+i))profile.acts.push({authority:data.get('authority'+i).trim(),protocol:data.get('protocol'+i).trim(),date:data.get('actDate'+i),subject:data.get('subject'+i).trim(),url:data.get('url'+i).trim()});
             try {LeviElectionPolicy.validateProfile(profile);button.disabled=true;status.textContent='Salvataggio...';const next={...configElezioni,consultazioni:{...(configElezioni.consultazioni||{}),[key]:profile}};await SECURE_API.saveElectionConfig({config:next,annoScolastico:next.annoScolastico});configElezioni=next;window.configElezioni=next;status.textContent='Calendario e atti salvati. I verbali useranno i riferimenti di questa consultazione.';}
@@ -1155,13 +1165,13 @@
                 let d;
                 if(configElezioni.modalitaProva) {
                     d = makeTestVoter(token);
-                    if(!d) throw new Error('Modalità prova attiva: utilizzare PROVA-STUDENTE-1A oppure PROVA-GENITORE-1A.');
+                    if(!d) throw new Error('Usare un codice fittizio generato nel Collaudo.');
                 } else {
                     const res=await SECURE_API.validateVoterToken({token, annoScolastico:configElezioni.annoScolastico});
                     d=res.data;
                 }
                 secureVotingSession=d.sessionId;
-                currentUserData={ id:'SESSIONE', nome:'Elettore', classe:d.classe||'Generale', tipo:d.tipo, indirizzo:d.indirizzo||'Generale',
+                currentUserData={ isTest:d.isTest===true,electionKey:d.electionKey||null,id:'SESSIONE', nome:'Elettore', classe:d.classe||'Generale', tipo:d.tipo, indirizzo:d.indirizzo||'Generale',
                     voted_consiglio:!!d.voted_consiglio, voted_istituto:!!d.voted_istituto, voted_consulta:!!d.voted_consulta,
                     voted_classe_studente:!!d.voted_classe_studente, voted_classe_genitore:!!d.voted_classe_genitore };
                 cartVotes={consiglio:null,istituto:null,consulta:null,classeStudente:null,classeGenitore:null};
@@ -1284,8 +1294,8 @@
                 submitBtnHTML = `
                     <div class="mt-8 text-center bg-emerald-50 border border-emerald-150 p-6 rounded-2xl max-w-md mx-auto font-semibold">
                         <i data-lucide="shield-check" class="w-10 h-10 text-emerald-600 mx-auto mb-2"></i>
-                        <h4 class="font-bold text-slate-800 text-sm">Cabina Elettorale Completata</h4>
-                        <p class="text-slate-500 text-xs mt-1 leading-relaxed">Hai espresso tutte le schede associate a questo Token.</p>
+                        <h4 class="font-bold text-slate-800 text-sm">Nessuna scheda aperta da compilare</h4>
+                        <p class="text-slate-500 text-xs mt-1 leading-relaxed">Le schede disponibili in questa fascia risultano completate oppure la relativa consultazione non è aperta. Le altre votazioni restano soggette ai propri orari.</p>
                     </div>
                 `;
             }
@@ -1327,6 +1337,14 @@
             `;
         }
 
+        function blankBallotOption(key, radioName) {
+            return `<label class="flex items-center gap-3 border border-slate-300 rounded-xl p-4 bg-white text-black cursor-pointer"><input type="radio" name="${radioName}" value="__BIANCA__" ${cartVotes[key]?.isBianca?'checked':''} onchange="selectBlankBallot('${key}')" class="w-5 h-5"><span class="text-sm font-bold">Scheda bianca <span class="block text-xs font-normal">Nessuna lista e nessuna preferenza.</span></span></label>`;
+        }
+        window.selectBlankBallot = function(key) {
+            const prefix={consiglio:'pref-options-',istituto:'ist-pref-options-',consulta:'consul-pref-options-'}[key];
+            if(prefix)document.querySelectorAll(`[id^="${prefix}"]`).forEach(el=>{el.innerHTML='';});
+        };
+
         function renderVotoConsiglio(container) {
             let headerHTML = getCardHeaderHTML("Consiglio d'Istituto (" + currentUserData.tipo + ")");
             const subListe = configElezioni.listeConsiglio[currentUserData.tipo] || {};
@@ -1346,10 +1364,11 @@
             container.innerHTML = `
                 <div class="bg-white p-6 rounded-2xl shadow-lg border border-slate-200 max-w-2xl mx-auto animate-fade-in w-full font-semibold">
                     ${headerHTML}
-                    <p class="text-xs text-slate-500 mb-4 font-semibold">Esprimi il voto per una lista e fino a un massimo di **${configElezioni.maxPrefConsiglio} preferenze nominali** della medesima lista.</p>
+                    <p class="text-xs text-slate-500 mb-4 font-semibold">Esprimi il voto per una lista e fino a un massimo di ${LeviElectionPolicy.preferenceLimit(configElezioni, 'consiglio', currentUserData?.tipo)} preferenze nominali della medesima lista.</p>
                     
                     <div class="space-y-4">
                         ${listsHTML}
+                        ${blankBallotOption('consiglio','listaConsiglio')}
                     </div>
 
                     <div class="mt-8 flex justify-between">
@@ -1372,7 +1391,7 @@
             const el = document.getElementById(`pref-options-${listaKey}`);
             if (!el) return;
 
-            const maxPref = parseInt(configElezioni.maxPrefConsiglio) || 0;
+            const maxPref = LeviElectionPolicy.preferenceLimit(configElezioni, 'consiglio', currentUserData?.tipo);
             if (maxPref <= 0) {
                 el.innerHTML = '<p class="text-[10px] text-slate-400 italic">Nessuna preferenza consentita.</p>';
                 return;
@@ -1410,9 +1429,10 @@
             let selectedLista = null;
             for(let r of rads) { if(r.checked) selectedLista = r.value; }
 
-            if (!selectedLista) { showNotification("Attenzione", "Seleziona una lista per esprimere il tuo voto.", "error"); return; }
+            if (selectedLista === '__BIANCA__') { cartVotes.consiglio={isBianca:true}; showPage('dashboard'); return; }
+            if (!selectedLista) { showNotification("Attenzione", "Seleziona una lista o la scheda bianca per esprimere il tuo voto.", "error"); return; }
 
-            const maxPref = parseInt(configElezioni.maxPrefConsiglio) || 0;
+            const maxPref = LeviElectionPolicy.preferenceLimit(configElezioni, 'consiglio', currentUserData?.tipo);
             let votesData = { lista: selectedLista };
             let prefValues = [];
 
@@ -1450,10 +1470,11 @@
             container.innerHTML = `
                 <div class="bg-white p-6 rounded-2xl shadow-lg border border-slate-200 max-w-2xl mx-auto animate-fade-in w-full font-semibold">
                     ${headerHTML}
-                    <p class="text-xs text-slate-500 mb-4 font-semibold">Scegli una lista ed esprimi fino a un massimo di **${configElezioni.maxPrefIstituto} preferenze nominali**.</p>
+                    <p class="text-xs text-slate-500 mb-4 font-semibold">Scegli una lista ed esprimi fino a un massimo di ${LeviElectionPolicy.preferenceLimit(configElezioni, 'istituto', currentUserData?.tipo)} preferenze nominali.</p>
                     
                     <div class="space-y-4">
                         ${listelst}
+                        ${blankBallotOption('istituto','listaIstituto')}
                     </div>
 
                     <div class="mt-8 flex justify-between">
@@ -1475,7 +1496,7 @@
             const el = document.getElementById(`ist-pref-options-${listaKey}`);
             if (!el) return;
 
-            const maxPref = parseInt(configElezioni.maxPrefIstituto) || 0;
+            const maxPref = LeviElectionPolicy.preferenceLimit(configElezioni, 'istituto', currentUserData?.tipo);
             if (maxPref <= 0) {
                 el.innerHTML = '<p class="text-[10px] text-slate-400 italic">Nessuna preferenza consentita.</p>';
                 return;
@@ -1513,9 +1534,10 @@
             let selectedLista = null;
             for(let r of rads) { if(r.checked) selectedLista = r.value; }
 
-            if (!selectedLista) { showNotification("Attenzione", "Seleziona una lista per esprimere il voto.", "error"); return; }
+            if (selectedLista === '__BIANCA__') { cartVotes.istituto={isBianca:true}; showPage('dashboard'); return; }
+            if (!selectedLista) { showNotification("Attenzione", "Seleziona una lista o la scheda bianca per esprimere il voto.", "error"); return; }
 
-            const maxPref = parseInt(configElezioni.maxPrefIstituto) || 0;
+            const maxPref = LeviElectionPolicy.preferenceLimit(configElezioni, 'istituto', currentUserData?.tipo);
             let votesData = { lista: selectedLista };
             let prefValues = [];
 
@@ -1553,10 +1575,11 @@
             container.innerHTML = `
                 <div class="bg-white p-6 rounded-2xl shadow-lg border border-slate-200 max-w-2xl mx-auto animate-fade-in w-full font-semibold">
                     ${headerHTML}
-                    <p class="text-xs text-slate-500 mb-4 font-semibold">Scegli la lista ed esprimi fino a un max di **${configElezioni.maxPrefConsulta} preferenze nominali**.</p>
+                    <p class="text-xs text-slate-500 mb-4 font-semibold">Scegli la lista ed esprimi fino a un max di ${LeviElectionPolicy.preferenceLimit(configElezioni, 'consulta', currentUserData?.tipo)} preferenze nominali.</p>
                     
                     <div class="space-y-4">
                         ${listacon}
+                        ${blankBallotOption('consulta','listaConsulta')}
                     </div>
 
                     <div class="mt-8 flex justify-between">
@@ -1578,7 +1601,7 @@
             const el = document.getElementById(`consul-pref-options-${listaKey}`);
             if (!el) return;
 
-            const maxPref = parseInt(configElezioni.maxPrefConsulta) || 0;
+            const maxPref = LeviElectionPolicy.preferenceLimit(configElezioni, 'consulta', currentUserData?.tipo);
             if (maxPref <= 0) {
                 el.innerHTML = '<p class="text-[10px] text-slate-400 italic">Nessuna preferenza consentita.</p>';
                 return;
@@ -1616,9 +1639,10 @@
             let selectedLista = null;
             for(let r of rads) { if(r.checked) selectedLista = r.value; }
 
-            if (!selectedLista) { showNotification("Attenzione", "Seleziona una lista per procedere.", "error"); return; }
+            if (selectedLista === '__BIANCA__') { cartVotes.consulta={isBianca:true}; showPage('dashboard'); return; }
+            if (!selectedLista) { showNotification("Attenzione", "Seleziona una lista o la scheda bianca per procedere.", "error"); return; }
 
-            const maxPref = parseInt(configElezioni.maxPrefConsulta) || 0;
+            const maxPref = LeviElectionPolicy.preferenceLimit(configElezioni, 'consulta', currentUserData?.tipo);
             let votesData = { lista: selectedLista };
             let prefValues = [];
 
@@ -1641,7 +1665,7 @@
 
         function renderVotoClasseStudenti(container) {
             let headerHTML = getCardHeaderHTML("Rappresentanti di Classe (Studenti)");
-            const maxPref = parseInt(configElezioni.maxPrefClasseStudenti) || 1;
+            const maxPref = LeviElectionPolicy.preferenceLimit(configElezioni, 'classeStudente', currentUserData?.tipo);
             let inputsHTML = '';
             for (let i = 1; i <= maxPref; i++) {
                 let val = cartVotes.classeStudente?.[`candidate${i}`] || '';
@@ -1672,7 +1696,7 @@
         }
 
         window.saveVotoClasseStudenti = function() {
-            const maxPref = parseInt(configElezioni.maxPrefClasseStudenti) || 1;
+            const maxPref = LeviElectionPolicy.preferenceLimit(configElezioni, 'classeStudente', currentUserData?.tipo);
             let votesData = { isBianca: true };
             for (let i = 1; i <= maxPref; i++) {
                 let rawVal = document.getElementById(`stuCandidate${i}`)?.value;
@@ -1688,7 +1712,7 @@
 
         function renderVotoClasseGenitori(container) {
             let headerHTML = getCardHeaderHTML("Rappresentanti di Classe (Genitori)");
-            const maxPref = parseInt(configElezioni.maxPrefClasseGenitori) || 1;
+            const maxPref = LeviElectionPolicy.preferenceLimit(configElezioni, 'classeGenitore', currentUserData?.tipo);
             let inputsHTML = '';
             for (let i = 1; i <= maxPref; i++) {
                 let val = cartVotes.classeGenitore?.[`candidate${i}`] || '';
@@ -1719,7 +1743,7 @@
         }
 
         window.saveVotoClasseGenitori = function() {
-            const maxPref = parseInt(configElezioni.maxPrefClasseGenitori) || 1;
+            const maxPref = LeviElectionPolicy.preferenceLimit(configElezioni, 'classeGenitore', currentUserData?.tipo);
             let votesData = { isBianca: true };
             for (let i = 1; i <= maxPref; i++) {
                 let rawVal = document.getElementById(`genCandidate${i}`)?.value;
@@ -1737,16 +1761,17 @@
             let rowsHTML = '';
             
             if (configElezioni.consiglioAttivo && votingWindowStatus('consiglio').open && currentUserData.tipo !== 'STUDENTE' && !currentUserData.voted_consiglio) {
-                let text = "Non compilata (Astenuto)";
+                let text = "Non compilata: nessuna scheda sarà depositata";
                 if (cartVotes.consiglio) {
                     const subListe = configElezioni.listeConsiglio[currentUserData.tipo] || {};
                     text = `Voto Lista: ${subListe[cartVotes.consiglio.lista]?.nome || cartVotes.consiglio.lista}`;
                     let prefs = [];
-                    const maxPref = parseInt(configElezioni.maxPrefConsiglio) || 0;
+                    const maxPref = LeviElectionPolicy.preferenceLimit(configElezioni, 'consiglio', currentUserData?.tipo);
                     for (let i = 1; i <= maxPref; i++) {
                         if (cartVotes.consiglio[`p${i}`]) prefs.push(cartVotes.consiglio[`p${i}`]);
                     }
                     if (prefs.length > 0) text += ` • Pref: ${prefs.join(', ')}`;
+                    if (cartVotes.consiglio.isBianca) text = 'Scheda bianca';
                 }
                 rowsHTML += `
                     <div class="p-4 border-b border-slate-100 flex justify-between items-center font-semibold">
@@ -1760,15 +1785,16 @@
             }
 
             if (configElezioni.rappresentantiIstitutoAttivo && votingWindowStatus('istituto').open && currentUserData.tipo === 'STUDENTE' && !currentUserData.voted_istituto) {
-                let text = "Non compilata (Astenuto)";
+                let text = "Non compilata: nessuna scheda sarà depositata";
                 if (cartVotes.istituto) {
                     text = `Voto Lista: ${configElezioni.listeIstituto[cartVotes.istituto.lista]?.nome || cartVotes.istituto.lista}`;
                     let prefs = [];
-                    const maxPref = parseInt(configElezioni.maxPrefIstituto) || 0;
+                    const maxPref = LeviElectionPolicy.preferenceLimit(configElezioni, 'istituto', currentUserData?.tipo);
                     for (let i = 1; i <= maxPref; i++) {
                         if (cartVotes.istituto[`p${i}`]) prefs.push(cartVotes.istituto[`p${i}`]);
                     }
                     if (prefs.length > 0) text += ` • Pref: ${prefs.join(', ')}`;
+                    if (cartVotes.istituto.isBianca) text = 'Scheda bianca';
                 }
                 rowsHTML += `
                     <div class="p-4 border-b border-slate-100 flex justify-between items-center font-semibold">
@@ -1782,15 +1808,16 @@
             }
 
             if (configElezioni.consultaAttiva && votingWindowStatus('consulta').open && currentUserData.tipo === 'STUDENTE' && !currentUserData.voted_consulta) {
-                let text = "Non compilata (Astenuto)";
+                let text = "Non compilata: nessuna scheda sarà depositata";
                 if (cartVotes.consulta) {
                     text = `Voto Lista: ${configElezioni.listeConsulta[cartVotes.consulta.lista]?.nome || cartVotes.consulta.lista}`;
                     let prefs = [];
-                    const maxPref = parseInt(configElezioni.maxPrefConsulta) || 0;
+                    const maxPref = LeviElectionPolicy.preferenceLimit(configElezioni, 'consulta', currentUserData?.tipo);
                     for (let i = 1; i <= maxPref; i++) {
                         if (cartVotes.consulta[`p${i}`]) prefs.push(cartVotes.consulta[`p${i}`]);
                     }
                     if (prefs.length > 0) text += ` • Pref: ${prefs.join(', ')}`;
+                    if (cartVotes.consulta.isBianca) text = 'Scheda bianca';
                 }
                 rowsHTML += `
                     <div class="p-4 border-b border-slate-100 flex justify-between items-center font-semibold">
@@ -1804,13 +1831,13 @@
             }
 
             if (configElezioni.rappresentantiClasseStudentiAttivo && votingWindowStatus('classeStudente').open && currentUserData.tipo === 'STUDENTE' && !currentUserData.voted_classe_studente) {
-                let text = "Non compilata (Astenuto)";
+                let text = "Non compilata: nessuna scheda sarà depositata";
                 if (cartVotes.classeStudente) {
                     if (cartVotes.classeStudente.isBianca) {
                         text = "Scheda Bianca";
                     } else {
                         let prefs = [];
-                        const maxPref = parseInt(configElezioni.maxPrefClasseStudenti) || 1;
+                        const maxPref = LeviElectionPolicy.preferenceLimit(configElezioni, 'classeStudente', currentUserData?.tipo);
                         for (let i = 1; i <= maxPref; i++) {
                             if (cartVotes.classeStudente[`candidate${i}`]) prefs.push(cartVotes.classeStudente[`candidate${i}`]);
                         }
@@ -1829,13 +1856,13 @@
             }
 
             if (configElezioni.rappresentantiClasseGenitoriAttivo && votingWindowStatus('classeGenitore').open && currentUserData.tipo === 'GENITORE' && !currentUserData.voted_classe_genitore) {
-                let text = "Non compilata (Astenuto)";
+                let text = "Non compilata: nessuna scheda sarà depositata";
                 if (cartVotes.classeGenitore) {
                     if (cartVotes.classeGenitore.isBianca) {
                         text = "Scheda Bianca";
                     } else {
                         let prefs = [];
-                        const maxPref = parseInt(configElezioni.maxPrefClasseGenitori) || 1;
+                        const maxPref = LeviElectionPolicy.preferenceLimit(configElezioni, 'classeGenitore', currentUserData?.tipo);
                         for (let i = 1; i <= maxPref; i++) {
                             if (cartVotes.classeGenitore[`candidate${i}`]) prefs.push(cartVotes.classeGenitore[`candidate${i}`]);
                         }
@@ -1882,14 +1909,15 @@
                 if(!secureVotingSession) throw new Error('Sessione di voto non valida. Accedere nuovamente.');
                 const payload={ sessionId:secureVotingSession, annoScolastico:configElezioni.annoScolastico, ballots:cartVotes };
                 let res;
-                if(configElezioni.modalitaProva) {
+                if(currentUserData?.isTest===true) {
                     const types = Object.entries(cartVotes).filter(([,v]) => !!v).map(([k]) => k);
                     const rows = readElectionTestLog();
                     rows.push({ at:new Date().toISOString(), tipo:currentUserData?.tipo||'TEST', classe:currentUserData?.classe||'', schede:types });
+                    res={data:electionSandbox.submit(secureVotingSession,{...configElezioni,modalitaProva:true},cartVotes,LeviSandboxUI.settings())};
                     writeElectionTestLog(rows);
-                    res={data:{fullyCompleted:true,testMode:true}};
                     showNotification('Voto di prova completato','Percorso verificato. Nessuna scheda è stata scritta nelle urne reali.','success');
                 } else {
+                    if(configElezioni.modalitaProva===true||/^PROVA-/.test(secureVotingSession))throw new Error('La sessione fittizia non può inviare voti reali.');
                     try {res=await SECURE_API.castVote(payload);}
                     catch(sendError){
                         let status;try{status=(await SECURE_API.getVoterSessionStatus({sessionId:secureVotingSession,annoScolastico:configElezioni.annoScolastico})).data;}catch(_){throw new Error('Esito non verificabile: non richiedere un altro codice. Conserva la pagina e riprova quando torna la connessione, oppure segnala il problema al seggio senza mostrare le scelte.');}
@@ -1898,14 +1926,15 @@
                         else throw new Error('Sessione scaduta o non riconosciuta. Accedi nuovamente con lo stesso codice: il sistema mantiene le schede già depositate.');
                     }
                 }
+                lastVoteWasTest=res.data.testMode===true;
                 secureVotingSession=null; currentUserData=null; cartVotes={consiglio:null,istituto:null,consulta:null,classeStudente:null,classeGenitore:null};
                 showPage('success', !!res.data.fullyCompleted);
             } catch(err){ showNotification('Verifica esito del voto',err.message||'Esito da verificare con la stessa credenziale.','error'); btn.innerHTML=`<i data-lucide="send" class="w-4 h-4"></i> <span>Invia nell'Urna Elettronica</span>`; btn.disabled=false; lucide.createIcons(); }
         };
 
         function renderSuccess(container, isFullyCompleted = true) {
-            const titleText = isFullyCompleted ? "Scheda Registrata!" : "Voto Parziale Registrato!";
-            const descText = isFullyCompleted 
+            const titleText = lastVoteWasTest ? "Prova completata" : isFullyCompleted ? "Scheda Registrata!" : "Voto Parziale Registrato!";
+            const descText = lastVoteWasTest ? "Simulazione completata nel browser. Nessuna scheda è stata inserita nelle urne reali; questo esito non è una ricevuta di voto." : isFullyCompleted
                 ? "Il tuo voto è stato registrato nell'urna digitale, con il contenuto protetto e senza il tuo nominativo nella scheda."
                 : "Le schede compilate sono state registrate. Conserva il tuo codice personale: potrai usarlo nelle fasce previste per le altre consultazioni ancora da votare.";
 
@@ -1981,7 +2010,7 @@
             let nameCounts = {};
             votiClasseFiltrati.forEach(v => {
                 if (v.isBianca) return;
-                const maxPref = parseInt(configElezioni.maxPrefClasseStudenti) || 1; 
+                const maxPref = 4; // Include ogni preferenza presente nelle proiezioni aggregate storiche.
                 for (let i = 1; i <= maxPref; i++) {
                     let name = v[`candidate${i}`];
                     if (name) {
@@ -2021,7 +2050,7 @@
                     rigaSorteggioHTML = `
                         <div class="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl text-[11px] leading-relaxed space-y-1 font-semibold">
                             <p class="font-bold">⚡ Riscontro di Parità (Ex-Aequo):</p>
-                            <p>I candidati ${tieCandidates.map(c => `<strong>${c.display}</strong> (${c.count} voti)`).join(', ')} hanno ottenuto pari voti. È stato applicato esclusivamente il sorteggio matematico deterministico previsto: <code>S_seed = (Σ ASCII(Carattere_i)) mod C_p</code>, con <strong>C_p = ${exAequoDrawResult.cp}</strong> e <strong>S_seed = ${exAequoDrawResult.seed}</strong>. Nessun criterio alfabetico è utilizzato. Esito del sorteggio: <strong>${sortedWinner.display}</strong>.</p>
+                            <p>I candidati ${tieCandidates.map(c => `<strong>${c.display}</strong> (${c.count} voti)`).join(', ')} hanno ottenuto pari voti. Simulazione deterministica di supporto, da verificare e verbalizzare dal seggio secondo la disciplina applicabile: <code>S_seed = (Σ ASCII(Carattere_i)) mod C_p</code>, con <strong>C_p = ${exAequoDrawResult.cp}</strong> e <strong>S_seed = ${exAequoDrawResult.seed}</strong>. Nessun criterio alfabetico è utilizzato. Esito del sorteggio: <strong>${sortedWinner.display}</strong>.</p>
                         </div>
                     `;
                 } else {
@@ -2129,6 +2158,7 @@
                     showPage('commissionPasswordChange');
                     return;
                 }
+                commissionSessionReady=true;
                 activeAdminTab = 'config';
                 startTokensListener();
                 showPage('adminPanel');
@@ -2186,6 +2216,7 @@
                 });
                 await signOut(auth);
                 await signInWithCustomToken(auth, res.data.customToken);
+                commissionSessionReady=true;
                 activeAdminTab = 'config';
                 startTokensListener();
                 resetIdleTimer();
@@ -2199,6 +2230,7 @@
         };
 
         function renderAdminPanel(container) {
+            if(!auth.currentUser||!commissionSessionReady){showPage('adminLogin');return;}
             const tabs = [
                 { id: 'apertura', label: 'APERTURA VOTAZIONI' },
                 { id: 'config', label: '1. Configurazione & Regole' },
@@ -2277,24 +2309,29 @@
         function updateTestModeBanner() {
             const banner = document.getElementById('test-mode-banner');
             if (!banner) return;
-            banner.classList.toggle('hidden', configElezioni.modalitaProva !== true);
+            banner.classList.toggle('hidden', configElezioni.modalitaProva !== true && currentUserData?.isTest!==true && !(lastVoteWasTest&&currentView==='success'));
         }
 
+        const electionSandbox = LeviElectionSandbox.create();
+        let sandboxReturnAvailable = false;
+        let lastVoteWasTest = false;
         function makeTestVoter(token) {
-            const t = String(token || '').trim().toUpperCase();
-            const common = {
-                sessionId: `TEST-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-                indirizzo: 'COLLAUDO',
-                voted_consiglio: false,
-                voted_istituto: false,
-                voted_consulta: false,
-                voted_classe_studente: false,
-                voted_classe_genitore: false
-            };
-            if (t === 'PROVA-STUDENTE-1A') return { ...common, tipo: 'STUDENTE', classe: '1A' };
-            if (t === 'PROVA-GENITORE-1A') return { ...common, tipo: 'GENITORE', classe: '1A' };
-            return null;
+            return electionSandbox.begin(token, configElezioni, LeviSandboxUI.settings());
         }
+        function enterTestBallot(d) {
+            secureVotingSession=d.sessionId;currentUserData={...d,id:'SIMULAZIONE',nome:'Utente fittizio'};
+            cartVotes={consiglio:null,istituto:null,consulta:null,classeStudente:null,classeGenitore:null};
+            resetIdleTimer();showPage('dashboard');
+        }
+        window.beginSchoolTest = token => {
+            if(!auth.currentUser||!commissionSessionReady)throw new Error('Accedere all’area Commissione per avviare il collaudo.');
+            const voter=electionSandbox.begin(token,{...configElezioni,modalitaProva:true},LeviSandboxUI.settings());sandboxReturnAvailable=true;lastVoteWasTest=false;enterTestBallot(voter);
+        };
+        window.returnFromSchoolTest = () => {
+            secureVotingSession=null;currentUserData=null;cartVotes={consiglio:null,istituto:null,consulta:null,classeStudente:null,classeGenitore:null};
+            sandboxReturnAvailable=false;lastVoteWasTest=false;
+            activeAdminTab='collaudo';showPage(auth.currentUser?'adminPanel':'adminLogin');
+        };
 
         let electionTestLog = [];
         // Solo rimozione del registro delle versioni precedenti, senza leggerlo.
@@ -2377,16 +2414,16 @@
             const last = log.length ? log[log.length - 1] : null;
             container.innerHTML = `
                 <div class="space-y-5">
-                    <div class="rounded-2xl border-2 ${active ? 'border-amber-400 bg-amber-50' : 'border-emerald-200 bg-emerald-50'} p-5 shadow-sm">
+                    <div class="rounded-2xl border-2 ${active ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-slate-50'} p-5 shadow-sm">
                         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                             <div>
-                                <div class="text-[10px] font-black uppercase tracking-widest ${active ? 'text-amber-700' : 'text-emerald-700'}">Stato collaudo</div>
-                                <h3 class="text-lg font-black text-slate-900 mt-1">${active ? 'VERSIONE DI PROVA ATTIVA' : 'MODALITÀ REALE / PRODUZIONE'}</h3>
-                                <p class="text-xs text-slate-600 mt-2 max-w-3xl">Quando la modalità prova è attiva, i token di collaudo percorrono tutte le schermate di voto ma l'invio finale viene simulato nel browser e non scrive nelle urne Firestore reali.</p>
+                                <div class="text-[10px] font-black uppercase tracking-widest ${active ? 'text-amber-700' : 'text-slate-700'}">Stato collaudo</div>
+                                <h3 class="text-lg font-black text-slate-900 mt-1">${active ? 'MODALITÀ PROVA GLOBALE ATTIVA' : 'MODALITÀ PROVA GLOBALE DISATTIVATA'}</h3>
+                                <p class="text-xs text-slate-600 mt-2 max-w-3xl">Le prove con utenti fittizi qui sotto funzionano localmente anche senza attivare la modalità prova globale. Non scrivono nelle urne reali. La modalità globale riguarda invece l’accesso dalla pagina pubblica e non deve essere modificata durante le votazioni.</p>
                             </div>
                             <div class="flex flex-wrap gap-2">
                                 ${active
-                                    ? `<button onclick="setElectionTestMode(false)" class="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-black">DISATTIVA PROVA E TORNA AL REALE</button>`
+                                    ? `<button onclick="setElectionTestMode(false)" class="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-black">DISATTIVA MODALITÀ PROVA</button>`
                                     : `<button onclick="setElectionTestMode(true)" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black">ATTIVA VERSIONE DI PROVA</button>`}
                             </div>
                         </div>
@@ -2394,12 +2431,7 @@
 
                     <div class="grid md:grid-cols-2 gap-4">
                         <div class="bg-white rounded-2xl border p-5">
-                            <h4 class="font-black text-slate-900 text-sm mb-3">Token di collaudo</h4>
-                            <div class="space-y-2 text-xs">
-                                <div class="p-3 bg-slate-50 border rounded-xl"><b>Studente 1A:</b> <code class="font-black">PROVA-STUDENTE-1A</code></div>
-                                <div class="p-3 bg-slate-50 border rounded-xl"><b>Genitore 1A:</b> <code class="font-black">PROVA-GENITORE-1A</code></div>
-                            </div>
-                            <p class="text-[11px] text-slate-500 mt-3">Questi token funzionano esclusivamente quando la modalità prova è attiva e non corrispondono a credenziali reali presenti nel registro elettorale.</p>
+                            <div id="school-test-users"></div>
                         </div>
                         <div class="bg-white rounded-2xl border p-5">
                             <h4 class="font-black text-slate-900 text-sm mb-3">Diagnostica tecnica reale</h4>
@@ -2447,18 +2479,13 @@
                         </div>
                     </div>
                 </div>`;
+            LeviSandboxUI.mount(container.querySelector('#school-test-users'),{sandbox:electionSandbox,start:window.beginSchoolTest});
             if (window.lucide) lucide.createIcons();
         }
 
         window.setElectionTestMode = async function(enabled) {
             if (!auth.currentUser) return showNotification('Autenticazione richiesta','Accedere come Commissione per modificare la modalità di esercizio.','error');
-            if (enabled !== true) {
-                const readiness = await verifyProductionReadiness();
-                if (!readiness.ok) {
-                    return showNotification('Modalità reale BLOCCATA', readiness.errors.join(' | '), 'error');
-                }
-                if (!window.confirm('Tutti i controlli tecnici, MIM, privacy/DPO e organizzativi risultano completati. Confermare il passaggio alla MODALITÀ REALE?')) return;
-            }
+            if (enabled !== true && !window.confirm('Disattivare la modalità prova? Questa operazione non apre le votazioni: restano necessari gli orari dedicati, i controlli e l’ammissione registrata.')) return;
             const previous = configElezioni.modalitaProva === true;
             configElezioni.modalitaProva = enabled === true;
             configElezioni.modalitaProvaUpdatedAt = new Date().toISOString();
@@ -2488,13 +2515,14 @@
                 if (out) out.innerHTML = '<div class="p-3 rounded-xl bg-blue-50 border border-blue-200 text-black font-bold">Collegamento autenticato al backend riuscito. Questo controllo non verifica anonimato, ripristino, regole Firebase o correttezza dello scrutinio. Completare le prove e registrare il verbale nella sezione Regolarità.</div>';
                 showNotification('Collegamento verificato','Il collaudo completo richiede prove documentate e conferma della Commissione.','info');
             } catch (e) {
-                if (out) out.innerHTML = `<div class="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 font-black">✕ ${e?.message || 'Test non superato'}</div>`;
+                if (out) out.innerHTML = `<div class="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 font-black">✕ ${technicalEscape(e?.message || 'Test non superato')}</div>`;
                 showNotification('Test tecnico non superato', e?.message || 'Verificare l’accesso Commissione e il backend.', 'error');
             }
         };
 
         window.clearElectionTestLog = function() {
             electionTestLog = [];
+            electionSandbox.reset();
             renderCollaudoTab(document.getElementById('admin-tab-content'));
             showNotification('Registro prove azzerato','Sono stati eliminati solo i log locali di collaudo.','success');
         };
@@ -2720,23 +2748,23 @@
                                 <div class="grid grid-cols-2 gap-3">
                                     <div>
                                         <label class="block text-[10px] uppercase text-slate-500 mb-1 font-bold">Max Pref. Consiglio</label>
-                                        <input type="number" value="${configElezioni.maxPrefConsiglio}" onchange="configElezioni.maxPrefConsiglio = parseInt(this.value); saveConfigToDB();" min="0" max="10" class="w-full p-2 border rounded-lg font-bold text-slate-800">
+                                        <input type="number" value="${configElezioni.maxPrefConsiglio}" onchange="configElezioni.maxPrefConsiglio = parseInt(this.value); saveConfigToDB();" min="1" max="2" class="w-full p-2 border rounded-lg font-bold text-slate-800">
                                     </div>
                                     <div>
                                         <label class="block text-[10px] uppercase text-slate-500 mb-1 font-bold">Max Pref. Istituto</label>
-                                        <input type="number" value="${configElezioni.maxPrefIstituto}" onchange="configElezioni.maxPrefIstituto = parseInt(this.value); saveConfigToDB();" min="0" max="10" class="w-full p-2 border rounded-lg font-bold text-slate-800">
+                                        <input type="number" value="${configElezioni.maxPrefIstituto}" onchange="configElezioni.maxPrefIstituto = parseInt(this.value); saveConfigToDB();" min="1" max="2" class="w-full p-2 border rounded-lg font-bold text-slate-800">
                                     </div>
                                     <div>
                                         <label class="block text-[10px] uppercase text-slate-500 mb-1 font-bold">Max Pref. Consulta</label>
-                                        <input type="number" value="${configElezioni.maxPrefConsulta}" onchange="configElezioni.maxPrefConsulta = parseInt(this.value); saveConfigToDB();" min="0" max="10" class="w-full p-2 border rounded-lg font-bold text-slate-800">
+                                        <input type="number" value="${configElezioni.maxPrefConsulta}" onchange="configElezioni.maxPrefConsulta = parseInt(this.value); saveConfigToDB();" min="1" max="1" class="w-full p-2 border rounded-lg font-bold text-slate-800">
                                     </div>
                                     <div>
                                         <label class="block text-[10px] uppercase text-slate-500 mb-1 font-bold">Max Pref. Classe Studenti</label>
-                                        <input type="number" value="${configElezioni.maxPrefClasseStudenti}" onchange="configElezioni.maxPrefClasseStudenti = parseInt(this.value); saveConfigToDB();" min="1" max="10" class="w-full p-2 border rounded-lg font-bold text-slate-800">
+                                        <input type="number" value="${configElezioni.maxPrefClasseStudenti}" onchange="configElezioni.maxPrefClasseStudenti = parseInt(this.value); saveConfigToDB();" min="1" max="1" class="w-full p-2 border rounded-lg font-bold text-slate-800">
                                     </div>
                                     <div>
                                         <label class="block text-[10px] uppercase text-slate-500 mb-1 font-bold">Max Pref. Classe Genitori</label>
-                                        <input type="number" value="${configElezioni.maxPrefClasseGenitori}" onchange="configElezioni.maxPrefClasseGenitori = parseInt(this.value); saveConfigToDB();" min="1" max="10" class="w-full p-2 border rounded-lg font-bold text-slate-800">
+                                        <input type="number" value="${configElezioni.maxPrefClasseGenitori}" onchange="configElezioni.maxPrefClasseGenitori = parseInt(this.value); saveConfigToDB();" min="1" max="1" class="w-full p-2 border rounded-lg font-bold text-slate-800">
                                     </div>
                                 </div>
                             </div>
@@ -2958,13 +2986,13 @@
 
                 let affluenzaContent = `
                     <h2>Riepilogo Generale della Partecipazione</h2>
-                    <p>Percentuale globale di affluenza per l'anno scolastico <strong>A.S. ${configElezioni.annoScolastico}</strong>: <strong style="font-size: 16px; color: #1e3a8a;">${globalPercent}%</strong> (Votanti totali: <strong>${totalVoted}</strong> su <strong>${totalGenerated}</strong> aventi diritto con credenziale).</p>
+                    <p>${anonSummary?technicalEscape(anonSummary.definition):'Percentuale di partecipazione sui codici registrati.'}</p><p>Partecipazione per l'anno scolastico <strong>A.S. ${configElezioni.annoScolastico}</strong>: <strong style="font-size: 16px; color: #1e3a8a;">${globalPercent}%</strong> (Schede/diritti utilizzati: <strong>${totalVoted}</strong> su <strong>${totalGenerated}</strong> disponibili).</p>
                     
                     <table>
                         <thead>
                             <tr>
                                 <th>Componente Scolastica</th>
-                                <th>${isAnonymousVoteMode()?'Aventi diritto':'Credenziali Rilasciate (Token)'}</th>
+                                <th>${isAnonymousVoteMode()?'Diritti abilitati dai codici':'Credenziali Rilasciate (Token)'}</th>
                                 <th>Voti Espressi ed Acquisiti</th>
                                 <th>Percentuale Affluenza</th>
                             </tr>
@@ -3691,8 +3719,9 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
         async function renderRegisterTab(componentType, container) {
             const filteredTokens = activeTokensList.filter(t => t.tipo === componentType);
             
-            const total = filteredTokens.length;
+            let total = filteredTokens.length;
             let anonSummary;try{anonSummary=await anonymousParticipation();}catch(e){container.innerHTML='<p class="text-black p-4">Riepilogo non disponibile: riprovare.</p>';return;}
+            if(anonSummary)total=anonSummary.stats[componentType].generated;
             const voted = anonSummary?anonSummary.stats[componentType].voted:filteredTokens.filter(t => t.hasVoted).length;
             const remaining = total - voted;
 
@@ -3783,7 +3812,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                         <div>
                             <span class="text-[9px] bg-blue-900 text-white font-black px-2 py-0.5 rounded uppercase">REGISTRO ELETTORALE</span>
                             <h3 class="text-base font-extrabold text-slate-800 mt-0.5">Componente: ${componentType}</h3>
-                            <p class="text-[11px] text-slate-500">${isAnonymousVoteMode()?'Registro degli aventi diritto. I nuovi codici e la partecipazione non sono associati ai nominativi. I conteggi indicano almeno una scheda depositata.':'Gestione del registro elettorale e delle credenziali storiche.'}</p>
+                            <p class="text-[11px] text-slate-500">${isAnonymousVoteMode()?'Registro degli aventi diritto. I nuovi codici e la partecipazione non sono associati ai nominativi. I conteggi indicano diritti abilitati dai codici e schede depositate; non persone uniche o affluenza ufficiale.':'Gestione del registro elettorale e delle credenziali storiche.'}</p>
                         </div>
                         <div class="flex gap-2">
                             <button onclick="purgeComponentTokens('${componentType}')" class="bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 px-3 rounded-lg text-[10px] flex items-center gap-1.5">
@@ -3794,7 +3823,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
 
                     <div class="grid grid-cols-3 gap-4 mb-6 text-center text-xs">
                         <div class="p-3 bg-slate-50 border rounded-xl">
-                            <span class="text-slate-450 uppercase text-[9px] block">Totale Generati</span>
+                            <span class="text-slate-450 uppercase text-[9px] block">${anonSummary?"Diritti abilitati":"Totale generati"}</span>
                             <strong class="text-base text-slate-800">${total}</strong>
                         </div>
                         <div class="p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
@@ -4262,13 +4291,12 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             let seatsAllocated = {};
             Object.keys(listsVotes).forEach(k => seatsAllocated[k] = 0);
 
-            for (let i = 0; i < Math.min(totalSeats, quotients.length); i++) {
-                if (quotients[i].quotient > 0) {
-                    quotients[i].isWinner = true;
-                    quotients[i].seatIndex = i + 1;
-                    seatsAllocated[quotients[i].listKey]++;
-                } else {
-                    quotients[i].isWinner = false;
+            let assigned=0;
+            for (const row of quotients) {
+                const capacity=(subListe[row.listKey]?.candidati||[]).length;
+                row.isWinner=false;
+                if(assigned<totalSeats && row.votes>0 && seatsAllocated[row.listKey]<capacity){
+                    row.isWinner=true;row.seatIndex=++assigned;seatsAllocated[row.listKey]++;
                 }
             }
 
@@ -4496,7 +4524,8 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
 
         function sortQuotientsWithExAequo(items, context = 'ATTRIBUZIONE_SEGGI') {
             const base = [...items].sort((a, b) => {
-                if (Math.abs(Number(a.quotient) - Number(b.quotient)) >= 0.0001) return Number(b.quotient) - Number(a.quotient);
+                const left=BigInt(a.votes)*BigInt(b.divisor),right=BigInt(b.votes)*BigInt(a.divisor);
+                if(left!==right)return left>right?-1:1;
                 if (Number(a.votes) !== Number(b.votes)) return Number(b.votes) - Number(a.votes);
                 return 0;
             });
@@ -4505,7 +4534,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             while (i < base.length) {
                 const group = [base[i]];
                 let j = i + 1;
-                while (j < base.length && Math.abs(Number(base[j].quotient) - Number(base[i].quotient)) < 0.0001 && Number(base[j].votes) === Number(base[i].votes)) {
+                while (j < base.length && BigInt(base[j].votes)*BigInt(base[i].divisor) === BigInt(base[i].votes)*BigInt(base[j].divisor) && Number(base[j].votes) === Number(base[i].votes)) {
                     group.push(base[j]); j++;
                 }
                 if (group.length > 1) out.push(...drawExAequo(group, context + '|Q=' + Number(base[i].quotient).toFixed(8) + '|V=' + Number(base[i].votes)).ordered);
@@ -4699,7 +4728,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             let isClasse = (currentScrutinioSection === 'classe_st' || currentScrutinioSection === 'classe_ge');
             let isConsiglio = currentScrutinioSection === 'consiglio';
 
-            let seggiDisponibiliKey = isConsiglio ? `consiglio_${currentScrutinioSubComponent}` : colName;
+            let seggiDisponibiliKey = isConsiglio ? `consiglio_${currentScrutinioSubComponent}` : currentScrutinioSection;
             let currentSeats = (localVotiScrutinio.seggiDisponibili[seggiDisponibiliKey] || (isClasse ? 2 : 4));
 
             let outputHTML = '';
@@ -4999,11 +5028,11 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 doc.setTextColor(30, 41, 59);
                 doc.setFont("helvetica", "bold");
                 doc.setFontSize(11);
-                doc.text(`FOGLIO DI PROCLAMAZIONE DEGLI ELETTI`, 15, 48);
+                doc.text(`PROSPETTO DI ATTRIBUZIONE - DA CONVALIDARE`, 15, 48);
 
                 doc.setFont("helvetica", "normal");
                 doc.setFontSize(9);
-                let preamble = `La Commissione Elettorale d'Istituto presieduta da ${configElezioni.commissione[0]?.nome || 'Laura Iavarone'} si è riunita per convalidare ed attribuire i seggi disponibili per l'anno scolastico ${configElezioni.annoScolastico}, proclamando eletti alla carica i candidati in conformità alla vigente ordinanza ministeriale.`;
+                let preamble = `Prospetto tecnico per la verifica dell’attribuzione dei seggi nell’anno scolastico ${configElezioni.annoScolastico}. Deve essere controllato e sottoscritto dai soggetti competenti. Il calcolo degli ex aequo è una simulazione deterministica di supporto: non sostituisce il sorteggio previsto dalla disciplina applicabile né il verbale di proclamazione.`;
                 let splitText = doc.splitTextToSize(preamble, 180);
                 doc.text(splitText, 15, 55);
 
@@ -5043,7 +5072,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                         listVotes[lKey] = officialVotiScrutinio.liste[colName][lKey] || 0;
                     });
 
-                    let seggiDisponibiliKey = section === 'consiglio' ? `consiglio_${subComponent}` : colName;
+                    let seggiDisponibiliKey = section === 'consiglio' ? `consiglio_${subComponent}` : section;
                     let currentSeats = localVotiScrutinio.seggiDisponibili[seggiDisponibiliKey] || 4;
                     
                     let { quotients, seatsAllocated } = calculateDHondtSteps(listVotes, currentSeats, subListe);
@@ -5064,7 +5093,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
 
                         for (let s = 0; s < Math.min(seats, listCandidates.length); s++) {
                             let cand = listCandidates[s];
-                            rows.push([cand.name.toUpperCase(), cand.listName, `${cand.prefs} pref.`, "ELETTO PROCLAMATO"]);
+                            rows.push([cand.name.toUpperCase(), cand.listName, `${cand.prefs} pref.`, "ESITO DA CONVALIDARE"]);
                         }
                     });
 
@@ -5153,7 +5182,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                             <span class="text-sm font-black ${textClass}">${p}%</span>
                         </div>
                         <div class="text-xs text-slate-500 mb-3 font-semibold">
-                            Hanno votato: <strong>${val.voted}</strong> su <strong>${val.generated}</strong> token generati.
+                            ${anonSummary?"Schede/diritti utilizzati":"Codici utilizzati"}: <strong>${val.voted}</strong> su <strong>${val.generated}</strong> disponibili.
                         </div>
                         <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
                             <div class="${colorClass} h-3 rounded-full transition-all duration-500" style="width: ${p}%"></div>
@@ -5171,17 +5200,17 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                     <div class="border-b border-slate-100 pb-3 mb-6">
                         <span class="text-[9px] bg-indigo-100 text-indigo-800 font-black px-2 py-0.5 rounded uppercase">STATISTICHE</span>
                         <h3 class="text-base font-extrabold text-slate-800 mt-0.5">Partecipazione & Affluenza in Tempo Reale</h3>
-                        <p class="text-[11px] text-slate-500">Monitoraggio asincrono dei flussi elettorali totali.</p>
+                        <p class="text-[11px] text-slate-500">${anonSummary?technicalEscape(anonSummary.definition):'Monitoraggio dei codici utilizzati.'}</p>
                     </div>
 
                     <div class="grid lg:grid-cols-12 gap-6 mb-6">
                         <div class="bg-gradient-to-br from-blue-900 to-slate-900 text-white p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between shadow">
                             <div class="space-y-2">
-                                <h4 class="text-yellow-400 font-black text-xs uppercase tracking-wider">Affluenza Generale</h4>
+                                <h4 class="text-yellow-400 font-black text-xs uppercase tracking-wider">${anonSummary?'Partecipazione tecnica':'Partecipazione generale'}</h4>
                                 <div class="text-4xl font-black mt-2">${globalPercent}%</div>
-                                <p class="text-[11px] text-slate-300 mt-1 max-w-[200px]">Elettori totali che hanno concluso le operazioni di voto.</p>
+                                <p class="text-[11px] text-slate-300 mt-1 max-w-[200px]">${anonSummary?'Schede depositate rispetto ai diritti abilitati dai codici emessi.':'Codici che hanno concluso le operazioni di voto.'}</p>
                                 <div class="text-xs border-t border-white/10 pt-2">
-                                    <span>Votanti globali: <strong>${globalVoted}</strong> / ${globalGen}</span>
+                                    <span>Utilizzati: <strong>${globalVoted}</strong> / ${globalGen}</span>
                                 </div>
                             </div>
                             <div class="relative w-28 h-28 mt-4 md:mt-0 flex items-center justify-center">
@@ -6345,7 +6374,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             }
 
             onAuthStateChanged(auth, async (user) => {
-                if (!user) {electionTestLog=[];window.LeviPrivacyReview?.clear?.();document.querySelectorAll('[data-private-document]').forEach(node=>node.remove());}
+                if (!user) {commissionSessionReady=false;sandboxReturnAvailable=false;electionSandbox.reset();electionTestLog=[];window.LeviPrivacyReview?.clear?.();document.querySelectorAll('[data-private-document]').forEach(node=>node.remove());}
                 if (user) {
                     try {
                         await syncConfigFromDB();

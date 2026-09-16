@@ -83,7 +83,7 @@ const yearlyConfigRef = (year) => dataRoot().collection('config').doc(`yearly_se
 const globalConfigRef = () => dataRoot().collection('config').doc('settings_v3');
 const sha256 = (value) => crypto.createHash('sha256').update(String(value)).digest('hex');
 const normalize = (value) => String(value || '').trim().toUpperCase().replace(/\s+/g, ' ');
-const canonicalName = (value) => normalize(value).split(' ').filter(Boolean).sort().join(' ');
+const canonicalName = (value) => normalize(value);
 
 function safeEqualHex(a, b) {
   const aa = Buffer.from(String(a || ''), 'hex');
@@ -173,8 +173,8 @@ function electionPhase(config, key) {
 function assertVotingOpen(config, key) {
   if (electionPhase(config,key)!=='OPEN') throw new HttpsError('failed-precondition','La consultazione non è aperta in questa fascia oraria (Europe/Rome).');
 }
-function activeVoterKeys(config,type) {
-  return ElectionPolicy.enabled(config).filter(k=>k==='consiglio'?type!=='STUDENTE':k==='classeGenitore'?type==='GENITORE':type==='STUDENTE');
+function activeVoterKeys(config,type,credential={}) {
+  return ElectionPolicy.enabled(config).filter(k=>(!credential.electionKey||credential.electionKey===k)&&(k==='consiglio'?type!=='STUDENTE':k==='classeGenitore'?type==='GENITORE':type==='STUDENTE'));
 }
 async function auditAdmin(actor, action, details = {}) {
   // Mai registrare token di voto, preferenze, sessionId o altri elementi
@@ -432,19 +432,24 @@ function assertAppealDeadlineElapsed(state) {
 
 function validateListBallot(ballot, config, component, voterType) {
   if (!ballot || typeof ballot !== 'object') return null;
+  if (ballot.isBianca === true) {
+    if (normalize(ballot.lista) || Object.entries(ballot).some(([k,v])=>/^p\d+$/.test(k)&&normalize(v))) {
+      throw new HttpsError('invalid-argument', 'Una scheda bianca non può contenere lista o preferenze.');
+    }
+    return { isBianca: true };
+  }
   const lists = getListConfig(config, component, voterType);
   const listKey = String(ballot.lista || '');
   if (!listKey || !Object.prototype.hasOwnProperty.call(lists, listKey)) {
     throw new HttpsError('invalid-argument', `Lista non valida per ${component}.`);
   }
-  const maxMap = {
-    consiglio: Number(config.maxPrefConsiglio || 0),
-    istituto: Number(config.maxPrefIstituto || 0),
-    consulta: Number(config.maxPrefConsulta || 0)
-  };
-  const max = Math.max(0, Math.min(10, maxMap[component] || 0));
+  const max = ElectionPolicy.preferenceLimit(config, component, voterType);
   rejectExtraPreferences(ballot, 'p', max);
-  const allowedCandidates = new Set((lists[listKey].candidati || []).map(canonicalName));
+  const allowedCandidates = new Map();
+  for (const name of lists[listKey].candidati || []) {
+    const key=canonicalName(name);
+    allowedCandidates.set(key, allowedCandidates.has(key) ? null : name);
+  }
   const prefs = [];
   for (let i = 1; i <= max; i++) {
     const value = normalize(ballot[`p${i}`]);
@@ -452,10 +457,11 @@ function validateListBallot(ballot, config, component, voterType) {
     if (!allowedCandidates.has(canonicalName(value))) {
       throw new HttpsError('invalid-argument', `Preferenza non valida per ${component}.`);
     }
+    if (allowedCandidates.get(canonicalName(value)) === null) throw new HttpsError('failed-precondition', 'Nominativo ambiguo nella lista: la Commissione deve verificare i candidati.');
     if (prefs.some((x) => canonicalName(x) === canonicalName(value))) {
       throw new HttpsError('invalid-argument', 'Preferenze duplicate non ammesse.');
     }
-    prefs.push(value);
+    prefs.push(allowedCandidates.get(canonicalName(value)));
   }
   const clean = { lista: listKey };
   prefs.forEach((p, idx) => { clean[`p${idx + 1}`] = p; });
@@ -465,7 +471,7 @@ function validateListBallot(ballot, config, component, voterType) {
 async function validateClassBallot(ballot, config, voterType, voterClass, year) {
   if (!ballot || typeof ballot !== 'object') return null;
   const isStudent = voterType === 'STUDENTE';
-  const max = Math.max(1, Math.min(4, Number(isStudent ? config.maxPrefClasseStudenti : config.maxPrefClasseGenitori) || 1));
+  const max = ElectionPolicy.preferenceLimit(config, isStudent ? 'classeStudente' : 'classeGenitore', voterType);
   rejectExtraPreferences(ballot, 'candidate', max);
   const values = [];
   for (let i = 1; i <= max; i++) {
@@ -473,6 +479,7 @@ async function validateClassBallot(ballot, config, voterType, voterClass, year) 
     if (value) values.push(value);
   }
   if (!values.length) return { isBianca: true };
+  if (ballot.isBianca === true) throw new HttpsError('invalid-argument', 'Una scheda bianca non può contenere preferenze.');
   if (new Set(values.map(canonicalName)).size !== values.length) {
     throw new HttpsError('invalid-argument', 'Candidati duplicati non ammessi.');
   }
@@ -483,10 +490,10 @@ async function validateClassBallot(ballot, config, voterType, voterClass, year) 
     .where('tipo', '==', voterType)
     .where('classe', '==', voterClass)
     .get();
-  const eligible = new Set();
+  const eligible = new Map();
   candidatesSnap.forEach((d) => {
     const name = d.data()?.nome;
-    if (name && normalize(name) !== 'ELETTORE ANONIMO') eligible.add(canonicalName(name));
+    if (name && normalize(name) !== 'ELETTORE ANONIMO') eligible.set(canonicalName(name),(eligible.get(canonicalName(name))||0)+1);
   });
   if (!eligible.size) throw new HttpsError('failed-precondition', 'Elenco eleggibili non disponibile: scheda non registrata.');
   if (eligible.size) {
@@ -494,6 +501,7 @@ async function validateClassBallot(ballot, config, voterType, voterClass, year) 
       if (!eligible.has(canonicalName(value))) {
         throw new HttpsError('invalid-argument', 'Il candidato indicato non risulta tra gli aventi diritto della classe.');
       }
+      if (eligible.get(canonicalName(value)) > 1) throw new HttpsError('failed-precondition', 'Nominativo ambiguo nell’elenco: la Commissione deve verificare gli omonimi prima del voto.');
     }
   }
   const clean = { isBianca: false };
@@ -606,7 +614,7 @@ function makeAggregateProjection(rows, collectionName) {
 exports.validateVoterToken = async (request) => {
   const token = normalize(request.data?.token);
   const year = request.data?.annoScolastico;
-  if (!token || token.length > 80) throw new HttpsError('invalid-argument', 'Token non valido.');
+  if (!token || token.length > 80 || /^PROVA-/.test(token)) throw new HttpsError('invalid-argument', 'Token non valido.');
   const config = await loadElectionConfig(year);
   await assertElectionReadyForVoting(year,config);
   assertVotingOpen(config);
@@ -615,7 +623,7 @@ exports.validateVoterToken = async (request) => {
   const tokenRef = yearlyCollection(anonymous?'credenziali_anonime':'tokens', year).doc(anonymous?sha256(year+':'+token.replace(/[ -]/g,'')):token);
   const sessionId = crypto.randomBytes(32).toString('base64url');
   const sessionHash = sha256(sessionId);
-  let voterData;
+  let voterData, admittedConfig;
 
   await db.runTransaction(async (tx) => {
     const [snap,c,s] = await Promise.all([tx.get(tokenRef),tx.get(yearlyConfigRef(year)),tx.get(regularityStateRef(year))]);
@@ -625,7 +633,8 @@ exports.validateVoterToken = async (request) => {
     if (!snap.exists) throw new HttpsError('not-found', 'Token non valido.');
     voterData = snap.data() || {};
     if(anonymous&&!VotingAdmission.anonymousRecord(voterData))throw new HttpsError('failed-precondition','Archivio credenziali non valido.');
-    if(!activeVoterKeys(config,normalize(voterData.tipo)).some(k=>electionPhase(config,k)==='OPEN')) throw new HttpsError('failed-precondition','Nessuna scheda della tua componente è aperta in questa fascia oraria.');
+    admittedConfig=current;
+    if(!activeVoterKeys(current,normalize(voterData.tipo),voterData).some(k=>electionPhase(current,k)==='OPEN')) throw new HttpsError('failed-precondition','Nessuna scheda della tua componente è aperta in questa fascia oraria.');
     const expires = voterData.sessionExpiresAt?.toMillis?.() || 0;
     if (voterData.activeSessionHash && expires > Date.now()) {
       throw new HttpsError('already-exists', 'Esiste già una sessione di voto attiva per questa credenziale. Attendere la scadenza o completare la sessione aperta.');
@@ -638,8 +647,9 @@ exports.validateVoterToken = async (request) => {
 
   return {
     sessionId,
-    openElections: activeVoterKeys(config,normalize(voterData.tipo)).filter(k=>electionPhase(config,k)==='OPEN'),
+    openElections: activeVoterKeys(admittedConfig,normalize(voterData.tipo),voterData).filter(k=>electionPhase(admittedConfig,k)==='OPEN'),
     tipo: voterData.tipo,
+    electionKey: voterData.electionKey || null,
     classe: voterData.classe || null,
     indirizzo: voterData.indirizzo || null,
     voted_consiglio: !!voterData.voted_consiglio,
@@ -654,7 +664,7 @@ exports.castVote = async (request) => {
   const sessionId = String(request.data?.sessionId || '');
   const year = request.data?.annoScolastico;
   const submitted = request.data?.ballots || {};
-  if (!sessionId || sessionId.length > 200) throw new HttpsError('unauthenticated', 'Sessione di voto non valida.');
+  if (!sessionId || sessionId.length > 200 || /^(PROVA-|TEST-)/.test(sessionId)) throw new HttpsError('unauthenticated', 'Sessione di voto non valida.');
   const config = await loadElectionConfig(year);
   await assertElectionReadyForVoting(year,config);
   assertVotingOpen(config);
@@ -670,7 +680,7 @@ exports.castVote = async (request) => {
   const cleanBallots = {};
   const voterType = normalize(tokenDataBefore.tipo);
   const voterClass = normalize(tokenDataBefore.classe);
-  const eligibleKeys=activeVoterKeys(config,voterType);
+  const eligibleKeys=activeVoterKeys(config,voterType,tokenDataBefore);
   for(const key of Object.keys(submitted)) {
     if(!submitted[key]) continue;
     if(!eligibleKeys.includes(key)) throw new HttpsError('permission-denied','Scheda non prevista per la componente.');
@@ -701,14 +711,14 @@ exports.castVote = async (request) => {
     if(state.emergencySuspended||state.procedureClosed) throw new HttpsError('failed-precondition','Votazione sospesa o chiusa.');
     if(regularityMissing(state,current).length) throw new HttpsError('failed-precondition','I controlli di regolarità non sono completi.');
     for(const key of Object.keys(cleanBallots)) {
-      if(!activeVoterKeys(current,voterType).includes(key)) throw new HttpsError('failed-precondition','La consultazione non è più abilitata.');
+      if(!activeVoterKeys(current,voterType,tokenDataBefore).includes(key)) throw new HttpsError('failed-precondition','La consultazione non è più abilitata.');
       assertVotingOpen(current,key);
     }
 
     if (!tokenSnap.exists) throw new HttpsError('not-found', 'Credenziale non disponibile.');
     const t = tokenSnap.data() || {};
     if(current.privacyMode===LegalReadiness.ANONYMOUS_MODE&&!VotingAdmission.anonymousRecord(t))throw new HttpsError('failed-precondition','Archivio credenziali non valido.');
-    if(normalize(t.tipo)!==voterType||normalize(t.classe)!==voterClass) throw new HttpsError('failed-precondition','Credenziale modificata: accedere nuovamente.');
+    if(normalize(t.tipo)!==voterType||normalize(t.classe)!==voterClass||t.electionKey!==tokenDataBefore.electionKey) throw new HttpsError('failed-precondition','Credenziale modificata: accedere nuovamente.');
     if (t.activeSessionHash !== sessionHash || !t.sessionExpiresAt || t.sessionExpiresAt.toMillis() < Date.now()) {
       throw new HttpsError('deadline-exceeded', 'Sessione scaduta o non valida.');
     }
@@ -740,14 +750,9 @@ exports.castVote = async (request) => {
     writes.forEach(([ref, value]) => tx.create(ref, value));
 
     const flag = (name) => updates[name] === true || t[name] === true;
-    let eligible = 0;
-    let completed = 0;
-    const count = (active, done) => { if (active) { eligible++; if (done) completed++; } };
-    count(config.consiglioAttivo && voterType !== 'STUDENTE', flag('voted_consiglio'));
-    count(config.rappresentantiIstitutoAttivo && voterType === 'STUDENTE', flag('voted_istituto'));
-    count(config.consultaAttiva && voterType === 'STUDENTE', flag('voted_consulta'));
-    count(config.rappresentantiClasseStudentiAttivo && voterType === 'STUDENTE', flag('voted_classe_studente'));
-    count(config.rappresentantiClasseGenitoriAttivo && voterType === 'GENITORE', flag('voted_classe_genitore'));
+    const keys=activeVoterKeys(current,voterType,t);
+    const flags={consiglio:'voted_consiglio',istituto:'voted_istituto',consulta:'voted_consulta',classeStudente:'voted_classe_studente',classeGenitore:'voted_classe_genitore'};
+    const eligible=keys.length,completed=keys.filter(k=>flag(flags[k])).length;
     updates.hasVoted = eligible > 0 && completed >= eligible;
     // Receipt identifies only the random session, never a ballot or a choice.
     updates.completedSessionHash=sessionHash;
@@ -862,7 +867,7 @@ function vaultSelfTest(year) {
 async function technicalDiagnostics(config,state,year) {
   const privacy=await databasePrivacyStatus(year);
   const scheduleOk=ElectionPolicy.enabled(config).length>0 && ElectionPolicy.enabled(config).every(k=>{
-    try {ElectionPolicy.validateProfile(ElectionPolicy.profile(config,k));return ElectionPolicy.windows(config,k).length>0;}catch(_){return false;}
+    try {if(ElectionPolicy.profile(config,k).dedicated!==true)return false;ElectionPolicy.validateProfile(ElectionPolicy.profile(config,k));return ElectionPolicy.windows(config,k).length>0;}catch(_){return false;}
   });
   return [
     {id:'connectivity',ok:true,label:'Collegamento autenticato ai servizi',action:'recheck',detail:'Risposta ricevuta dal backend e dal database.'},
@@ -1287,27 +1292,35 @@ exports.getRegularityState = async (request) => {
 // Anonymous credentials are created independently of individuals. No code/name export exists.
 exports.createAnonymousCredentials=async request=>{
   const actor=await requireAuth(request,['COMMISSIONE']),year=actor.claims.staffYear;
-  const tipo=normalize(request.data?.tipo),classe=normalize(request.data?.classe),count=Number(request.data?.count),protocolRef=evidenceText(request.data?.protocolRef,200);
+  const tipo=normalize(request.data?.tipo),electionKey=tipo==='GENITORE'?String(request.data?.electionKey||''):'';
+  const classe=tipo==='GENITORE'&&electionKey==='consiglio'?'':normalize(request.data?.classe),count=Number(request.data?.count),protocolRef=evidenceText(request.data?.protocolRef,200);
+  const eligibleCount=Number(request.data?.eligibleCount);
   if(!['STUDENTE','GENITORE','DOCENTE','ATA'].includes(tipo)||!Number.isInteger(count)||count<1||count>250||!protocolRef||!/^[A-Z0-9 -]{0,30}$/.test(classe))throw new HttpsError('invalid-argument','Componente, classe, quantità (1–250) e verbale richiesti.');
-  if(['STUDENTE','GENITORE'].includes(tipo)&&!classe)throw new HttpsError('invalid-argument','Classe obbligatoria.');
+  if(tipo==='GENITORE'&&(!['consiglio','classeGenitore'].includes(electionKey)||!Number.isInteger(eligibleCount)||eligibleCount<1))throw new HttpsError('invalid-argument','Per i genitori indicare la consultazione e il numero di persone distinte verificate dal seggio.');
+  if((tipo==='STUDENTE'||electionKey==='classeGenitore')&&!classe)throw new HttpsError('invalid-argument','Classe obbligatoria.');
   const codes=Array.from({length:count},()=>crypto.randomBytes(16).toString('hex').toUpperCase());
-  const poolRef=yearlyCollection('lotti_credenziali',year).doc(sha256(tipo+':'+classe)),eventRef=regularityEvents(year).doc();
+  const poolRef=yearlyCollection('lotti_credenziali',year).doc(sha256(tipo+':'+classe+(electionKey?':'+electionKey:''))),eventRef=regularityEvents(year).doc();
+  let rollQuery=yearlyCollection('tokens',year).where('tipo','==',tipo);
+  if(electionKey!=='consiglio')rollQuery=rollQuery.where('classe','==',classe);
   await db.runTransaction(async tx=>{
-    const [c,s,pool,roll]=await Promise.all([tx.get(yearlyConfigRef(year)),tx.get(regularityStateRef(year)),tx.get(poolRef),tx.get(yearlyCollection('tokens',year).where('tipo','==',tipo).where('classe','==',classe))]);
+    const [c,s,pool,roll]=await Promise.all([tx.get(yearlyConfigRef(year)),tx.get(regularityStateRef(year)),tx.get(poolRef),tx.get(rollQuery)]);
     const config=c.data()||{},state=s.data()||{},issued=Number(pool.data()?.issued)||0;
     if(config.privacyMode!==LegalReadiness.ANONYMOUS_MODE||!['BEFORE','UNCONFIGURED'].includes(electionPhase(config))||state.voterRollFinal!==true||state.votingReview?.stage==='AUTHORIZED')throw new HttpsError('failed-precondition','Prima definire gli elenchi, scegliere i codici non nominativi e restare nella fase preparatoria, prima dell’autorizzazione.');
-    if(issued+count>roll.size)throw new HttpsError('failed-precondition','La quantità supera gli aventi diritto del gruppo o i codici sono già stati emessi. Nessuna rigenerazione automatica.');
-    for(const code of codes)tx.create(yearlyCollection('credenziali_anonime',year).doc(sha256(year+':'+code)),{schema:LegalReadiness.ANONYMOUS_MODE,tipo,classe,hasVoted:false,voted_consiglio:false,voted_istituto:false,voted_consulta:false,voted_classe_studente:false,voted_classe_genitore:false});
-    tx.set(poolRef,{tipo,classe,issued:issued+count,eligible:roll.size});
-    tx.create(eventRef,{type:'ANONYMOUS_BATCH',tipo,classe,count,protocolRef,actorUid:actor.uid,at:FieldValue.serverTimestamp()});
+    if(electionKey&&!ElectionPolicy.enabled(config).includes(electionKey))throw new HttpsError('failed-precondition','Consultazione non abilitata.');
+    const eligible=tipo==='GENITORE'?eligibleCount:roll.size;
+    if(eligible>roll.size||(pool.exists&&Number(pool.data().eligible)!==eligible)||issued+count>eligible)throw new HttpsError('failed-precondition','Quota degli aventi diritto superata o modificata: verificare persone distinte e lotti già emessi. Nessuna rigenerazione automatica.');
+    for(const code of codes)tx.create(yearlyCollection('credenziali_anonime',year).doc(sha256(year+':'+code)),{schema:LegalReadiness.ANONYMOUS_MODE,tipo,classe,...(electionKey?{electionKey}:{}),hasVoted:false,voted_consiglio:false,voted_istituto:false,voted_consulta:false,voted_classe_studente:false,voted_classe_genitore:false});
+    tx.set(poolRef,{tipo,classe,...(electionKey?{electionKey}:{}),issued:issued+count,eligible});
+    tx.create(eventRef,{type:'ANONYMOUS_BATCH',tipo,classe,electionKey,count,eligible,protocolRef,actorUid:actor.uid,at:FieldValue.serverTimestamp()});
     tx.set(regularityStateRef(year),{votingReview:{stage:'PREPARATION'},credentialRevision:crypto.randomUUID(),technicalTestPassed:false},{merge:true});
   });
-  return {ok:true,codes,tipo,classe,warning:'Stampa unica: mescolare cedolini chiusi e distribuirli casualmente dopo il riconoscimento in presenza. Non annotare il codice accanto al nome. Se il file va perso, i codici non sono recuperabili: verbalizzare la gestione del lotto prima di procedere.'};
+  return {ok:true,codes,tipo,classe,electionKey,warning:'Stampa unica: mescolare cedolini chiusi e distribuirli casualmente dopo il riconoscimento in presenza. Il seggio consegna un solo codice per persona e consultazione (per i genitori uno per classe, non per figlio, e uno distinto per il Consiglio). Non annotare il codice accanto al nome. Ritirare i vecchi cedolini genitori privi di consultazione, non più ammessi. In caso di perdita verbalizzare la gestione del lotto: nessuna rigenerazione automatica.'};
 };
 
 function reviewPerson(actor){return {id:actor.claims.staffAccountId,name:technicalActorName(actor),role:actor.role};}
 function assertDifferentPerson(actor,previous){
-  if(!previous||previous.id===actor.claims.staffAccountId||canonicalName(previous.name)===canonicalName(technicalActorName(actor)))throw new HttpsError('permission-denied','La verifica richiede una persona diversa, con un proprio account nominativo.');
+  const personKey=name=>normalize(name).split(' ').sort().join(' ');
+  if(!previous||previous.id===actor.claims.staffAccountId||personKey(previous.name)===personKey(technicalActorName(actor)))throw new HttpsError('permission-denied','La verifica richiede una persona diversa, con un proprio account nominativo.');
 }
 exports.getVotingReview=async request=>{
   const actor=await requireAuth(request,['COMMISSIONE','ASSISTENTE_TECNICO','DIRIGENTE']),year=actor.claims.staffYear;
@@ -1322,18 +1335,28 @@ exports.getVotingReview=async request=>{
   }
   const batches=await yearlyCollection('lotti_credenziali',year).get();
   return {year,role:actor.role,release:releaseIdentity(),configurationAvailable,configurationSha256:configurationAvailable?configurationHash(config):null,credentialRevision:state.credentialRevision||null,privacyMode:config.privacyMode||'LEGACY_NAMED',review:state.votingReview||{stage:'PREPARATION'},suspended:state.emergencySuspended===true,closed:state.procedureClosed===true,
-    assessment,privacy:privacyArchitectureAssessment(config),batches:batches.docs.map(d=>{const x=d.data();return {tipo:x.tipo,classe:x.classe,issued:x.issued,eligible:x.eligible};})};
+    assessment,privacy:privacyArchitectureAssessment(config),batches:batches.docs.map(d=>{const x=d.data();return {tipo:x.tipo,classe:x.classe,electionKey:x.electionKey||null,issued:x.issued,eligible:x.eligible};})};
 };
 exports.getAnonymousParticipation=async request=>{
   const actor=await requireAuth(request,['COMMISSIONE','DIRIGENTE','VICEPRESIDE','DSGA','SEGRETERIA']),year=actor.claims.staffYear;
   const config=await loadElectionConfig(year);
   if(config.privacyMode!==LegalReadiness.ANONYMOUS_MODE)throw new HttpsError('failed-precondition','Riepilogo riservato al processo con codici non nominativi.');
-  const flags=['voted_consiglio','voted_istituto','voted_consulta','voted_classe_studente','voted_classe_genitore'];
-  const [roll,credentials]=await Promise.all([yearlyCollection('tokens',year).select('tipo').get(),yearlyCollection('credenziali_anonime',year).select('tipo','hasVoted',...flags).get()]);
+  const flags={consiglio:'voted_consiglio',istituto:'voted_istituto',consulta:'voted_consulta',classeStudente:'voted_classe_studente',classeGenitore:'voted_classe_genitore'};
+  const [roll,credentials]=await Promise.all([yearlyCollection('tokens',year).select('tipo').get(),yearlyCollection('credenziali_anonime',year).select('schema','tipo','classe','electionKey','hasVoted',...Object.values(flags)).get()]);
   const stats=Object.fromEntries(['STUDENTE','GENITORE','DOCENTE','ATA'].map(k=>[k,{generated:0,issued:0,voted:0,completed:0}]));
-  roll.forEach(d=>{const row=stats[d.data()?.tipo];if(row)row.generated++;});
-  credentials.forEach(d=>{const value=d.data(),row=stats[value.tipo];if(row){row.issued++;if(flags.some(k=>value[k]===true))row.voted++;if(value.hasVoted===true)row.completed++;}});
-  return {stats,totalEligible:roll.size,totalIssued:credentials.size,totalParticipated:Object.values(stats).reduce((n,s)=>n+s.voted,0),definition:'Codici con almeno una scheda depositata; conteggi aggregati senza collegamento al nome.'};
+  const byElection=new Map();let totalIssued=0,excludedLegacyCredentials=0;
+  credentials.forEach(d=>{
+    const value=d.data(),row=stats[value.tipo];
+    if(!row||!VotingAdmission.anonymousRecord(value)){excludedLegacyCredentials++;return;}
+    totalIssued++;if(value.hasVoted===true)row.completed++;
+    for(const key of activeVoterKeys(config,value.tipo,value)){
+      row.generated++;row.issued++;if(value[flags[key]]===true)row.voted++;
+      const group=key+':'+value.tipo;
+      if(!byElection.has(group))byElection.set(group,{electionKey:key,tipo:value.tipo,issuedRights:0,cast:0});
+      const item=byElection.get(group);item.issuedRights++;if(value[flags[key]]===true)item.cast++;
+    }
+  });
+  return {stats,totalEligible:Object.values(stats).reduce((n,s)=>n+s.generated,0),totalIssued,nominalRollEntries:roll.size,excludedLegacyCredentials,totalParticipated:Object.values(stats).reduce((n,s)=>n+s.voted,0),byElection:[...byElection.values()],definition:'Partecipazione tecnica sui diritti abilitati dai codici emessi: schede depositate / diritti disponibili. Non indica persone uniche né l’affluenza ufficiale sugli elenchi definitivi. Il seggio verifica separatamente le consegne per persona e consultazione.'};
 };
 exports.getVotingReviewEvents=async request=>{
   const actor=await requireAuth(request,['COMMISSIONE','ASSISTENTE_TECNICO']),year=actor.claims.staffYear;
@@ -1343,7 +1366,7 @@ exports.getVotingReviewEvents=async request=>{
   const cursor=String(request.data?.cursor||'');
   if(cursor){if(!/^[A-Za-z0-9_-]{1,128}$/.test(cursor))throw new HttpsError('invalid-argument','Cursore non valido.');const previous=await collection.doc(cursor).get();if(!previous.exists)throw new HttpsError('failed-precondition','Evento non più disponibile: ripetere l’esportazione.');query=query.startAfter(previous);}
   const snap=await query.limit(101).get(),page=snap.docs.slice(0,100);
-  const allowed=['type','control','value','previousValue','note','evidence','review','previousReview','reason','protocolRef','title','details','suspend','actorUid','release','configurationSha256','sha256','previousSha256','tipo','classe','count'];
+  const allowed=['type','control','value','previousValue','note','evidence','review','previousReview','reason','protocolRef','title','details','suspend','actorUid','release','configurationSha256','sha256','previousSha256','tipo','classe','electionKey','count','eligible'];
   const types=new Set(['CONTROL_UPDATE','INCIDENT','SUSPENSION','RESUMPTION','DPO_PROFILE_UPDATED','ANONYMOUS_BATCH','VOTING_REVIEW_PROPOSE','VOTING_REVIEW_VERIFY','VOTING_REVIEW_AUTHORIZE','VOTING_REVIEW_REJECT']);
   return {snapshotUntil:until.toISOString(),nextCursor:snap.docs.length>100?page.at(-1).id:null,
     events:page.filter(d=>types.has(d.data()?.type)).map(d=>({id:d.id,at:timestampIso(d.data().at),...Object.fromEntries(allowed.filter(k=>Object.hasOwn(d.data(),k)).map(k=>[k,d.data()[k]]))}))};
@@ -1579,6 +1602,7 @@ exports.saveElectionConfig = async (request) => {
     const regularity = await tx.get(regularityStateRef(year));
     const old = previous.exists ? previous.data() : {};
     const state = regularity.exists ? regularity.data() : {};
+    if(old.modalitaProva!==true&&config.modalitaProva===true&&ElectionPolicy.enabled(old).some(k=>ElectionPolicy.profile(old,k).dedicated===true&&ElectionPolicy.windows(old,k).some(w=>Date.now()>=+w.start)))throw new HttpsError('failed-precondition','Non attivare la modalità prova globale dopo l’avvio delle consultazioni. Usare il simulatore locale del Collaudo.');
     if((ElectionPolicy.enabled(old).some(k=>ElectionPolicy.windows(old,k).some(w=>Date.now()>=+w.start))||state.votingReview?.stage==='AUTHORIZED')&&old.privacyMode!==config.privacyMode)throw new HttpsError('failed-precondition','Modalità credenziali congelata.');
     if(config.privacyMode&&!['PRESENTIAL_UNLINKED_V1','LEGACY_NAMED'].includes(config.privacyMode))throw new HttpsError('invalid-argument','Modalità credenziali non valida.');
     if(old.privacyMode!==config.privacyMode&&config.privacyMode===LegalReadiness.ANONYMOUS_MODE){

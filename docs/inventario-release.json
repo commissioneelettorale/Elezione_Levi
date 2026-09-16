@@ -15,8 +15,8 @@
     },
     {
       "path": "anonimato.html",
-      "bytes": 4888,
-      "sha256": "7ef586c9bcf46f03d2c24b02cce93907c205687a38e322597d1ca74d06a04e30"
+      "bytes": 4940,
+      "sha256": "9cb09648e221b166c5ea17c91ff8c9fdf8fc4f15d6296f7a73901b147cb4fbc0"
     },
     {
       "path": "api/call.js",
@@ -30,28 +30,28 @@
     },
     {
       "path": "docs/verifiche-sviluppo.json",
-      "bytes": 12227,
-      "sha256": "ea8ad6c8d6433340678f1cfdb040085677e27c0981ddb837a81e42951a85904d"
+      "bytes": 15170,
+      "sha256": "9240eccf36111b11e67b1d0c8bd2ab8aa0af687df4f47ceee0183365d6ad9e7d"
     },
     {
       "path": "fascicolo-dpo.html",
-      "bytes": 4248,
-      "sha256": "54fd1c8a5c8379eb252d96eff4906eacf18226dd452ecc1a16e50e5c7b1e4c5d"
+      "bytes": 4235,
+      "sha256": "7a570d400351b7ab98ee78b2ef55870c58ecc00b6d9bf5075cf6371ae48e99c8"
     },
     {
       "path": "firestore.rules",
-      "bytes": 4926,
-      "sha256": "d7a84a1f30d7e3485b67ba286bfce804190d8b892c773ac6c42839310d0873b7"
+      "bytes": 5111,
+      "sha256": "1aa32d2db3e2385fc816d6372e4d55c9b89cb95200084da64caea81fcc6d6aa9"
     },
     {
       "path": "functions/core.js",
-      "bytes": 103273,
-      "sha256": "2c7b1019c29f38909d22c99f99b27957a1bc5f4b8ae6a2bf92b294554b3ce912"
+      "bytes": 106620,
+      "sha256": "20cd121279b30b736b3843883708957807fe96c8049293ac5376e29fdba809b3"
     },
     {
       "path": "index.html",
-      "bytes": 497671,
-      "sha256": "7a6607f6c4c2365599e32bf46e7ab140601d8a3336bcb13cdf428f876d8859cd"
+      "bytes": 503037,
+      "sha256": "b67562d0b157170eddb9039591c85873041e04d0e08c0a617770c26beb5a9418"
     },
     {
       "path": "lib/ballot-vault.js",
@@ -65,8 +65,18 @@
     },
     {
       "path": "lib/election-policy.js",
-      "bytes": 5514,
-      "sha256": "bedd0292c4e4cb96626b622b761a26f0b454895f4efc326e6186053bf9843d8a"
+      "bytes": 6471,
+      "sha256": "e41c3feda49b87193fb5e5c375e017272b1c3f211f1a561b9aecd6790a971e52"
+    },
+    {
+      "path": "lib/election-sandbox-ui.js",
+      "bytes": 8344,
+      "sha256": "8f44249dcb0d3fbfda1ffceb79cf00e8bb944ece95ab9af85e9859849dcc7059"
+    },
+    {
+      "path": "lib/election-sandbox.js",
+      "bytes": 4849,
+      "sha256": "2b8c7e72ab9183728b4542a695462dfe42f66cc63c5ba071e0889d7230d37655"
     },
     {
       "path": "lib/legal-readiness.js",
@@ -74,19 +84,24 @@
       "sha256": "11f5415617c1fd738bc3ba6d3768a743d291b1944151ddfa5498e7cb9e29f87e"
     },
     {
+      "path": "lib/privacy-notice.js",
+      "bytes": 3068,
+      "sha256": "8b151a57c2f67f36aaee370bff4d9ecebd51c9c6989991b4add0d5a13df05469"
+    },
+    {
       "path": "lib/privacy-review-ui.js",
-      "bytes": 20677,
-      "sha256": "69a65d557dab960da74efb7bee31dad29bda534bc6d6c501c602a566be1947a7"
+      "bytes": 22728,
+      "sha256": "eb7c60fbc2828dc7788e03c382aa0a5711dad72faf93f7dd2eef80a5a8d8da0e"
     },
     {
       "path": "lib/voting-admission.js",
-      "bytes": 956,
-      "sha256": "54926007f93b770f17d7eb8c1d9ecbe02f512d90040c82f1e636a6da76a4bc31"
+      "bytes": 1138,
+      "sha256": "434d22e433c3107b79b00cb680a8e9845e67cdcfd59ed457e666ac04b445a823"
     },
     {
       "path": "note-legali.html",
-      "bytes": 19030,
-      "sha256": "ae9332f51b28c9d4996062eb040343dd1d83861899c279c51f3281257d2b6db9"
+      "bytes": 20055,
+      "sha256": "a6345cf5f57bda99e7fc7a58eb8e020ef5bc7b1e6b810f9b98df20df1496b998"
     },
     {
       "path": "package-lock.json",
@@ -100,8 +115,8 @@
     },
     {
       "path": "scripts/build-public-site.cjs",
-      "bytes": 761,
-      "sha256": "12719b8f233499ca3653e804877965fde3321517baed3cb4acae33fed0a5ac7e"
+      "bytes": 840,
+      "sha256": "7289f13f005fa78695e33b3247f2fa46b98963c252c0d1b291abc8f64122ffde"
     },
     {
       "path": "vendor/DEJAVU-LICENSE.txt",
@@ -145,8 +160,8 @@
     },
     {
       "path": "vercel.json",
-      "bytes": 1218,
-      "sha256": "5a77cd8bbcd02938e59e355fa66d4d0441e4d46b8311ddff300915199185be21"
+      "bytes": 1249,
+      "sha256": "0a27c84b9426abb6c8572bb1555f64289bfdad75abc29ff2ef333076916b1f5d"
     }
   ],
   "remoteSdk": {
