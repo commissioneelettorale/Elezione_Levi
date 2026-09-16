@@ -6,6 +6,7 @@ on:
     paths:
       - "ops/voter-token-format-2026-2027.json"
       - ".github/workflows/voter-token-format.yml"
+      - "package-lock.json"
 permissions:
   contents: read
 concurrency:
@@ -22,7 +23,8 @@ jobs:
         with:
           node-version: "22"
       - name: Install verified dependencies
-        run: npm ci
+        # Use the npm major that produced the lockfile and applies its overrides.
+        run: npx --yes npm@11.9.0 ci
       - name: Verify code generation and migration
         run: |
           node scripts/check-register-import.cjs
