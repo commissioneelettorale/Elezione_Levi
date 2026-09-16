@@ -31,7 +31,7 @@
     {
       "path": "docs/verifiche-sviluppo.json",
       "bytes": 19978,
-      "sha256": "88663a37fdcb2339d053549d108065af5400edbd7f49ae810c820e5836eaa189"
+      "sha256": "8797cafae083ccff887852367615a5ded18be450184eb45c1011fe32277923e4"
     },
     {
       "path": "fascicolo-dpo.html",
@@ -105,8 +105,8 @@
     },
     {
       "path": "lib/voter-token-migration.js",
-      "bytes": 8069,
-      "sha256": "eddcfb6335cd4da352e775c2fa38c2d77d373a27f5fd66d5feee95020e69ff0a"
+      "bytes": 8250,
+      "sha256": "e7aecd7602ad7e378d6032d7a972bf73280b5794c4f63982b2f19df3a9877b92"
     },
     {
       "path": "lib/voting-admission.js",

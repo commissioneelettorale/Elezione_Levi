@@ -6,7 +6,7 @@ const root = 'artifacts/iis-levi-electoral-v3/public/data', year = '2026/2027';
 const path = (name,id) => root + '/' + name + '_2026_2027' + (id ? '/' + id : '');
 const statePath = path('regolarita','state'), configPath = root + '/config/yearly_settings_2026_2027';
 const now = Date.parse('2026-09-16T10:00:00Z');
-const clone = v => v instanceof Date ? new Date(+v) : Array.isArray(v) ? v.map(clone) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k,x])=>[k,clone(x)])) : v;
+const clone = v => v instanceof Date ? new Date(+v) : Array.isArray(v) ? v.map(clone) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b)).map(([k,x])=>[k,clone(x)])) : v;
 const merge = (a,b) => { const result=clone(a||{}); for(const [k,v] of Object.entries(b))result[k]=v&&typeof v==='object'&&!Array.isArray(v)&&!(v instanceof Date)?merge(result[k],v):clone(v);return result; };
 let data, serial=0, failCommit=0, transactions=0, failCount=0;
 class Ref {
@@ -61,6 +61,9 @@ async function main() {
  reset(205);failCommit=3;await assert.rejects(migrate(opts));assert.equal(failCount,1);assert.equal(tokens().length,205);assert.equal(tokens().filter(([p,v])=>Codes.matches(p.split('/').pop(),v.tipo)).length,100);
  assert.equal(data.get(statePath).tokenCodeMigration.status,'FAILED');failCommit=0;
  assert.equal((await migrate(opts)).migrated,205);assert.equal(tokens().length,205);
+ reset(19);failCommit=3;await assert.rejects(migrate(opts));assert.equal(tokens().filter(([p,v])=>Codes.matches(p.split('/').pop(),v.tipo)).length,19);
+ const assigned=tokens().map(([p])=>p).sort();failCommit=0;
+ assert.equal((await migrate(opts)).migrated,19);assert.deepEqual(tokens().map(([p])=>p).sort(),assigned);
  console.log('PASS: atomic batch failure and safe resume; no missing or duplicated voters.');
  for(const state of [{voterRollFinal:true},{procedureClosed:true},{votingReview:{stage:'AUTHORIZED'}}]) { reset();data.set(statePath,state);await rejectsWithoutWrites('PROCEDURE_FROZEN'); }
  reset();data.set(configPath,{votingStartsAtMs:now-1});await rejectsWithoutWrites('VOTING_ALREADY_STARTED');
