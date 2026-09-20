@@ -374,7 +374,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { initializeAuth, inMemoryPersistence, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, collection, query, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, getDocFromServer, collection, query, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const appId = 'iis-levi-electoral-v3';
         
@@ -566,13 +566,8 @@
                 { nome: "Da configurare", ruolo: "Segreteria - Responsabile" },
                 { nome: "Da configurare", ruolo: "Segreteria - Collaboratore" }
             ],
-            commissione: [
-                { nome: "Laura Iavarone", ruolo: "Presidente" },
-                { nome: "Giuseppe Borzumati", ruolo: "Segretario" },
-                { nome: "Chiara De Ponti", ruolo: "Componente Commissione" },
-                { nome: "Rosaria Del Vecchio", ruolo: "Componente Commissione" },
-                { nome: "Angela Terrana", ruolo: "Componente Commissione" }
-            ],
+            // Le nomine vengono caricate solo dalla configurazione annuale ufficiale.
+            commissione: [],
             listeConsiglio: {
                 "GENITORE": {
                     "lista_gen_1": { nome: "Famiglia & Scuola Unita", candidati: ["ROSSI MARIO", "BIANCHI ELENA", "VERDI GIUSEPPE"] },
@@ -594,6 +589,7 @@
             }
         };
 
+        const initialConfigTemplate = JSON.parse(JSON.stringify(configElezioni));
         window.configElezioni = configElezioni;
         setTimeout(() => { try { updateTestModeBanner(); } catch(e) {} }, 0);
 
@@ -813,16 +809,22 @@
             pendingConfirmCallback = null;
         };
 
-        window.openInformativaModal = function() {
+        window.openInformativaModal = async function() {
+            if(!commissionSessionReady && !(await syncConfigFromDB())){
+                showNotification('Nominativi non disponibili','Impossibile verificare le nomine correnti sul database. Riprovare con la connessione attiva.','error');
+                return;
+            }
             const modal = document.getElementById('informativa-modal');
             const commContainer = document.getElementById('commissione-list-modal');
             
-            commContainer.innerHTML = configElezioni.commissione.map(c => `
-                <div class="flex items-center justify-between py-1.5 border-b border-slate-150 last:border-0 text-xs">
-                    <span class="font-bold text-slate-800">${c.nome}</span>
-                    <span class="commissione-label text-[10px] px-2 py-0.5 bg-slate-200 rounded font-semibold">${c.ruolo}</span>
-                </div>
-            `).join('');
+            commContainer.innerHTML = (configElezioni.commissione||[]).length ?
+                configElezioni.commissione.map(c => `
+                    <div class="flex items-center justify-between py-1.5 border-b border-slate-150 last:border-0 text-xs">
+                        <span class="font-bold text-slate-800">${technicalEscape(c.nome)}</span>
+                        <span class="commissione-label text-[10px] px-2 py-0.5 bg-slate-200 rounded font-semibold">${technicalEscape(c.ruolo)}</span>
+                    </div>
+                `).join('') :
+                '<p class="text-xs text-slate-600">Nominativi ufficiali non ancora pubblicati.</p>';
             const technicalBox = document.getElementById('technical-assistant-modal');
             const technical = configElezioni.assistenteTecnico || {};
             if (technicalBox) technicalBox.innerHTML = `<b class="block text-amber-950">Area tecnica di supporto</b><span class="block mt-1"><strong>${technicalEscape(technical.nome || 'Da designare')}</strong> — ${technicalEscape(technical.ruolo || 'Assistente tecnico di riferimento')}</span><span class="block mt-1 text-amber-900">Postazione: ${technicalEscape(technical.postazione || 'Postazione PC laboratoriale designata dall’Istituto')}<br>Orari: ${technicalEscape(technical.orari||'Da comunicare')}<br>Contatto: ${technicalEscape(technical.contatto||'mbtd430001@istruzione.it')}</span><span class="block mt-1 text-[10px] text-slate-600">Supporto tecnico della Commissione, non componente dell’organo elettorale e senza accesso a voti o risultati.</span>`;
@@ -837,37 +839,38 @@
 
         async function syncConfigFromDB() {
             try {
-                const globalSnap = await getDoc(getGlobalConfigRef());
-                let activeYear = "2026/2027";
-                if (globalSnap.exists()) {
-                    activeYear = globalSnap.data().annoScolastico || "2025/2026";
+                // I visitatori possono leggere la configurazione pubblica senza login.
+                const globalSnap = await getDocFromServer(getGlobalConfigRef());
+                const year = globalSnap.exists() ? globalSnap.data().annoScolastico : '2026/2027';
+                if(!/^20\d{2}\/20\d{2}$/.test(year||''))throw new Error('Anno scolastico non valido.');
+                const yearRef=doc(db,'artifacts',appId,'public','data','config','yearly_settings_'+year.replace('/','_'));
+                const yearlySnap=await getDocFromServer(yearRef);
+                if(!yearlySnap.exists()) {
+                    configElezioni={...JSON.parse(JSON.stringify(initialConfigTemplate)),annoScolastico:year,
+                        commissione:[],personaleDirezione:[],listeConsiglio:{},listeIstituto:{},listeConsulta:{}};
+                    window.configElezioni=configElezioni;
+                    firebaseStateConnected=false;
+                    return false;
                 }
-                // In assenza della configurazione persistita si usano i valori locali;
-                // la creazione/modifica è consentita soltanto alla Commissione autenticata.
-                configElezioni.annoScolastico = activeYear;
-
-                const yearlySnap = await getDoc(getYearlyConfigRef());
-                if (yearlySnap.exists()) {
-                    const yearlyData = yearlySnap.data();
-                    configElezioni = { ...configElezioni, ...yearlyData, annoScolastico: activeYear };
-                    configElezioni.calendario = { ...(configElezioni.calendario || {}), ...(yearlyData.calendario || {}) };
-                    if (configElezioni.commissionMessage == null) configElezioni.commissionMessage = 'La Commissione Elettorale informa che le risultanze sono soggette alle verifiche ufficiali. Consultare nuovamente questa pagina dopo la chiusura dello scrutinio e la pubblicazione degli esiti.';
-                    if (configElezioni.commissionMessageEnabled == null) configElezioni.commissionMessageEnabled = true;
-                    if (configElezioni.commissionFinalized == null) configElezioni.commissionFinalized = false;
-                    configElezioni.riferimentoCircolare = { numero:"", data:"", oggetto:"", url:"", note:"", ...(configElezioni.riferimentoCircolare || {}) };
-                    configElezioni.workflowDigitale = { docentiApproved:false, commissionApproved:false, verbaliUnlocked:false, archived:false, archivedAt:null, archivedBy:null, releasedAt:null, releasedBy:null, digitalAttestationHash:null, digitalAttestationAt:null, checklist:{}, ...(configElezioni.workflowDigitale || {}) };
-                    if (configElezioni.tipologiaElezioni == null) configElezioni.tipologiaElezioni = "Elezioni Organi Collegiali d'Istituto";
-                    configElezioni.assistenteTecnico = { nome: "Da designare", ruolo: "Assistente tecnico di riferimento", postazione: "Postazione PC laboratoriale designata dall’Istituto", ...(configElezioni.assistenteTecnico || {}) };
-                    window.configElezioni = configElezioni;
-        setTimeout(() => { try { updateTestModeBanner(); } catch(e) {} }, 0);
-                } else {
-                    configElezioni.riferimentoCircolare = configElezioni.riferimentoCircolare || { numero:"", data:"", oggetto:"", url:"", note:"" };
-                    configElezioni.workflowDigitale = configElezioni.workflowDigitale || { docentiApproved:false, commissionApproved:false, verbaliUnlocked:false, archived:false, archivedAt:null, releasedAt:null, releasedBy:null, digitalAttestationHash:null, digitalAttestationAt:null, checklist:{} };
-                    configElezioni.assistenteTecnico = { nome: "Da designare", ruolo: "Assistente tecnico di riferimento", postazione: "Postazione PC laboratoriale designata dall’Istituto", ...(configElezioni.assistenteTecnico || {}) };
-                }
-                firebaseStateConnected = true;
-            } catch (err) {
-                console.warn("Configurazione iniziale differita:", err);
+                const data=yearlySnap.data(),defaults=JSON.parse(JSON.stringify(initialConfigTemplate));
+                configElezioni={...defaults,...data,annoScolastico:year};
+                configElezioni.calendario={...defaults.calendario,...(data.calendario||{})};
+                configElezioni.commissione=Array.isArray(data.commissione)?data.commissione:[];
+                configElezioni.personaleDirezione=Array.isArray(data.personaleDirezione)?data.personaleDirezione:[];
+                configElezioni.riferimentoCircolare={...defaults.riferimentoCircolare,...(data.riferimentoCircolare||{})};
+                configElezioni.workflowDigitale={...defaults.workflowDigitale,...(data.workflowDigitale||{})};
+                configElezioni.assistenteTecnico={...defaults.assistenteTecnico,...(data.assistenteTecnico||{})};
+                window.configElezioni=configElezioni;
+                firebaseStateConnected=true;
+                try{updateTestModeBanner();}catch(_){}
+                return true;
+            }catch(error){
+                firebaseStateConnected=false;
+                console.warn('Configurazione annuale non verificata:',error);
+                configElezioni={...JSON.parse(JSON.stringify(initialConfigTemplate)),
+                    commissione:[],personaleDirezione:[],listeConsiglio:{},listeIstituto:{},listeConsulta:{}};
+                window.configElezioni=configElezioni;
+                return false;
             }
         }
 
@@ -887,23 +890,79 @@
             });
         }
 
-        window.saveConfigToDB = async function() {
-            try {
-                if (!auth.currentUser) throw new Error('Autenticazione Commissione richiesta.');
-                await SECURE_API.saveElectionConfig({ config: configElezioni, annoScolastico: configElezioni.annoScolastico });
-                showNotification("Sincronizzazione riuscita", `Configurazione elettorale salvata e tracciata per l'A.S. ${configElezioni.annoScolastico}`, "success");
-            } catch (err) {
-                showNotification("Errore di sincronizzazione", "Salvataggio non autorizzato o non disponibile: " + (err.message || err), "error");
-            }
+        function collectConfigFormFields() {
+            const value=id=>document.getElementById(id)?.value.trim();
+            const fields={cfgVotingStartDate:'votingStartDate',cfgVotingStartTime:'votingStartTime',
+                cfgVotingEndDate:'votingEndDate',cfgVotingEndTime:'votingEndTime',
+                cfgReleaseDate:'resultsReleaseDate',cfgReleaseTime:'resultsReleaseTime'};
+            configElezioni.calendario=configElezioni.calendario||{};
+            Object.entries(fields).forEach(([id,key])=>{const v=value(id);if(v!==undefined)configElezioni.calendario[key]=v;});
+            const type=value('cfgElectionType'),message=value('cfgCommissionMessage');
+            if(type!==undefined)configElezioni.tipologiaElezioni=type;
+            if(message!==undefined)configElezioni.commissionMessage=message;
+            const enabled=document.getElementById('cfgMessageEnabled'),finalized=document.getElementById('cfgCommissionFinalized');
+            if(enabled)configElezioni.commissionMessageEnabled=enabled.checked;
+            if(finalized)configElezioni.commissionFinalized=finalized.checked;
+            const circular={cfgCircNumero:'numero',cfgCircData:'data',cfgCircOggetto:'oggetto',cfgCircUrl:'url',cfgCircNote:'note'};
+            configElezioni.riferimentoCircolare=configElezioni.riferimentoCircolare||{};
+            Object.entries(circular).forEach(([id,key])=>{const v=value(id);if(v!==undefined)configElezioni.riferimentoCircolare[key]=v;});
+            configElezioni.assistenteTecnico=configElezioni.assistenteTecnico||{};
+            const tech=value('cfgTechnicalName'),station=value('cfgTechnicalStation');
+            if(tech!==undefined)configElezioni.assistenteTecnico.nome=tech||'Da designare';
+            if(station!==undefined)configElezioni.assistenteTecnico.postazione=station||'Postazione PC laboratoriale designata dall’Istituto';
+        }
+
+        let configSaveQueue=Promise.resolve();
+        window.saveConfigToDB=function() {
+            collectConfigFormFields();
+            const snapshot=JSON.parse(JSON.stringify(configElezioni));
+            const operation=configSaveQueue.catch(()=>{}).then(async()=>{
+                if(!auth.currentUser||!commissionSessionReady)throw new Error('Autenticazione Commissione richiesta.');
+                const claims=(await auth.currentUser.getIdTokenResult()).claims;
+                if(claims.staffYear!==snapshot.annoScolastico)throw new Error('La sessione non è autorizzata per questa annualità.');
+                const response=await SECURE_API.saveElectionConfig({config:snapshot,annoScolastico:snapshot.annoScolastico});
+                if(response.data?.ok!==true)throw new Error('Il servizio non ha confermato il salvataggio.');
+                const ref=doc(db,'artifacts',appId,'public','data','config',
+                    'yearly_settings_'+snapshot.annoScolastico.replace('/','_'));
+                const readback=await getDocFromServer(ref);
+                if(!readback.exists())throw new Error('Configurazione salvata ma non trovata nel database del sito.');
+                const stored=readback.data();
+                const keys=['commissione','personaleDirezione','assistenteTecnico','calendario',
+                    'riferimentoCircolare','tipologiaElezioni','commissionMessage','commissionMessageEnabled',
+                    'commissionFinalized','consiglioAttivo','consultaAttiva','rappresentantiIstitutoAttivo',
+                    'rappresentantiClasseStudentiAttivo','rappresentantiClasseGenitoriAttivo',
+                    'divietoVotoDisgiunto','maxPrefConsiglio','maxPrefIstituto','maxPrefConsulta',
+                    'maxPrefClasseStudenti','maxPrefClasseGenitori'];
+                if(stored.annoScolastico!==snapshot.annoScolastico||
+                    keys.some(k=>JSON.stringify(stored[k])!==JSON.stringify(snapshot[k])))
+                    throw new Error('Verifica di persistenza fallita: i dati riletti non corrispondono.');
+                firebaseStateConnected=true;
+            });
+            configSaveQueue=operation;
+            return operation.then(()=>{
+                showNotification('Configurazione verificata','Modifiche salvate e rilette dal cloud per l’A.S. '+snapshot.annoScolastico+'.','success');
+                return true;
+            },error=>{
+                showNotification('Salvataggio non confermato',(error.message||String(error))+' Verificare i dati prima di lasciare questa pagina.','error');
+                return false;
+            });
         };
 
-        window.changeActiveSchoolYear = async function(newYear) {
-            configElezioni.annoScolastico = newYear;
-            await saveConfigToDB();
-            await syncConfigFromDB();
-            startTokensListener();
+        window.changeActiveSchoolYear=async function(newYear) {
+            // La sessione Commissione è vincolata al suo anno scolastico.
+            // NON copiare la configurazione corrente nell'anno selezionato.
+            const claims=auth.currentUser?(await auth.currentUser.getIdTokenResult()).claims:{};
+            if(newYear!==claims.staffYear){
+                showNotification('Anno scolastico protetto',
+                    'Per gestire l’A.S. '+newYear+' effettuare l’accesso con un account Commissione di quell’annualità. Nessun dato è stato modificato.','info');
+                renderAdminPanel(document.getElementById('app-container'));
+                return;
+            }
+            if(!(await syncConfigFromDB())){
+                showNotification('Configurazione non disponibile','Impossibile rileggere i dati annuali dal database.','error');
+                return;
+            }
             renderAdminPanel(document.getElementById('app-container'));
-            showNotification("Anno Scolastico Cambiato", `Caricati i dati per l'A.S. ${newYear}`, "success");
         };
 
         function updateHeaderActions() {
@@ -2109,6 +2168,10 @@
             try {
                 const res = await SECURE_API.commissionLogin({ username, password, annoScolastico: configElezioni.annoScolastico });
                 await signInWithCustomToken(auth, res.data.customToken);
+                if(!(await syncConfigFromDB())){
+                    showNotification('Configurazione non disponibile','Accesso riuscito, ma il database non ha restituito la configurazione annuale. Non modificare i dati finché non è disponibile.','error');
+                    return;
+                }
                 resetIdleTimer();
                 if (res.data?.profile?.mustChangePassword === true) {
                     showPage('commissionPasswordChange');
@@ -2605,8 +2668,8 @@
             const staff = Array.isArray(configElezioni.personaleDirezione) ? configElezioni.personaleDirezione : [];
             return staff.map((m, idx) => `
                 <div class="grid grid-cols-12 gap-2 items-center bg-slate-50 border rounded-xl p-2">
-                    <input value="${String(m.nome||'').replace(/"/g,'&quot;')}" onchange="window.updateInstitutionalStaff(${idx}, 'nome', this.value)" class="col-span-7 p-2 border rounded-lg text-[10px] font-bold" placeholder="Nome e cognome">
-                    <input value="${String(m.ruolo||'').replace(/"/g,'&quot;')}" onchange="window.updateInstitutionalStaff(${idx}, 'ruolo', this.value)" class="col-span-4 p-2 border rounded-lg text-[10px] font-bold" placeholder="Ruolo">
+                    <input value="${technicalEscape(m.nome||'')}" oninput="window.updateInstitutionalStaff(${idx}, 'nome', this.value)" class="col-span-7 p-2 border rounded-lg text-[10px] font-bold" placeholder="Nome e cognome">
+                    <input value="${technicalEscape(m.ruolo||'')}" oninput="window.updateInstitutionalStaff(${idx}, 'ruolo', this.value)" class="col-span-4 p-2 border rounded-lg text-[10px] font-bold" placeholder="Ruolo">
                     <button onclick="window.deleteInstitutionalStaff(${idx})" class="col-span-1 p-2 text-red-600 hover:bg-red-50 rounded-lg" title="Elimina ruolo"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                 </div>`).join('');
         }
@@ -2629,8 +2692,8 @@
             const technicalAssistant = configElezioni.assistenteTecnico || { nome: 'Da designare', ruolo: 'Assistente tecnico di riferimento', postazione: 'Postazione PC laboratoriale designata dall’Istituto' };
             let commHTML = configElezioni.commissione.map((c, idx) => `
                 <div class="flex items-center gap-2 mb-2 font-semibold">
-                    <input type="text" value="${c.nome}" onchange="updateCommissioneMember(${idx}, 'nome', this.value)" class="p-2 border rounded-xl text-xs flex-grow font-bold">
-                    <input type="text" value="${c.ruolo}" onchange="updateCommissioneMember(${idx}, 'ruolo', this.value)" class="p-2 border rounded-xl text-xs font-bold w-40 bg-slate-50">
+                    <input type="text" value="${technicalEscape(c.nome)}" oninput="updateCommissioneMember(${idx}, 'nome', this.value)" class="p-2 border rounded-xl text-xs flex-grow font-bold">
+                    <input type="text" value="${technicalEscape(c.ruolo)}" oninput="updateCommissioneMember(${idx}, 'ruolo', this.value)" class="p-2 border rounded-xl text-xs font-bold w-40 bg-slate-50">
                     <button onclick="deleteCommissioneMember(${idx})" class="p-2 text-red-600 hover:bg-red-50 rounded-xl"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                 </div>
             `).join('');
@@ -2704,23 +2767,23 @@
                                 <div class="grid grid-cols-2 gap-3">
                                     <div>
                                         <label class="block text-[10px] uppercase text-slate-500 mb-1 font-bold">Max Pref. Consiglio</label>
-                                        <input type="number" value="${configElezioni.maxPrefConsiglio}" onchange="configElezioni.maxPrefConsiglio = parseInt(this.value); saveConfigToDB();" min="1" max="2" class="w-full p-2 border rounded-lg font-bold text-slate-800">
+                                        <input type="number" value="${configElezioni.maxPrefConsiglio}" onchange="window.updateVotingPreference('maxPrefConsiglio',this.value,2)" min="1" max="2" class="w-full p-2 border rounded-lg font-bold text-slate-800">
                                     </div>
                                     <div>
                                         <label class="block text-[10px] uppercase text-slate-500 mb-1 font-bold">Max Pref. Istituto</label>
-                                        <input type="number" value="${configElezioni.maxPrefIstituto}" onchange="configElezioni.maxPrefIstituto = parseInt(this.value); saveConfigToDB();" min="1" max="2" class="w-full p-2 border rounded-lg font-bold text-slate-800">
+                                        <input type="number" value="${configElezioni.maxPrefIstituto}" onchange="window.updateVotingPreference('maxPrefIstituto',this.value,2)" min="1" max="2" class="w-full p-2 border rounded-lg font-bold text-slate-800">
                                     </div>
                                     <div>
                                         <label class="block text-[10px] uppercase text-slate-500 mb-1 font-bold">Max Pref. Consulta</label>
-                                        <input type="number" value="${configElezioni.maxPrefConsulta}" onchange="configElezioni.maxPrefConsulta = parseInt(this.value); saveConfigToDB();" min="1" max="1" class="w-full p-2 border rounded-lg font-bold text-slate-800">
+                                        <input type="number" value="${configElezioni.maxPrefConsulta}" onchange="window.updateVotingPreference('maxPrefConsulta',this.value,1)" min="1" max="1" class="w-full p-2 border rounded-lg font-bold text-slate-800">
                                     </div>
                                     <div>
                                         <label class="block text-[10px] uppercase text-slate-500 mb-1 font-bold">Max Pref. Classe Studenti</label>
-                                        <input type="number" value="${configElezioni.maxPrefClasseStudenti}" onchange="configElezioni.maxPrefClasseStudenti = parseInt(this.value); saveConfigToDB();" min="1" max="1" class="w-full p-2 border rounded-lg font-bold text-slate-800">
+                                        <input type="number" value="${configElezioni.maxPrefClasseStudenti}" onchange="window.updateVotingPreference('maxPrefClasseStudenti',this.value,1)" min="1" max="1" class="w-full p-2 border rounded-lg font-bold text-slate-800">
                                     </div>
                                     <div>
                                         <label class="block text-[10px] uppercase text-slate-500 mb-1 font-bold">Max Pref. Classe Genitori</label>
-                                        <input type="number" value="${configElezioni.maxPrefClasseGenitori}" onchange="configElezioni.maxPrefClasseGenitori = parseInt(this.value); saveConfigToDB();" min="1" max="1" class="w-full p-2 border rounded-lg font-bold text-slate-800">
+                                        <input type="number" value="${configElezioni.maxPrefClasseGenitori}" onchange="window.updateVotingPreference('maxPrefClasseGenitori',this.value,1)" min="1" max="1" class="w-full p-2 border rounded-lg font-bold text-slate-800">
                                     </div>
                                 </div>
                             </div>
@@ -2812,7 +2875,19 @@
             renderConfigTab(document.getElementById('admin-tab-content'));
         };
 
-        window.updateCommissioneMember = function(idx, field, value) { configElezioni.commissione[idx][field] = value; };
+        window.updateCommissioneMember = function(idx, field, value) {
+            if(!['nome','ruolo'].includes(field)||!configElezioni.commissione[idx])return;
+            configElezioni.commissione[idx][field]=String(value||'').trim().slice(0,160);
+        };
+        window.updateVotingPreference=function(field,value,max){
+            const number=Number(value);
+            if(!Number.isInteger(number)||number<1||number>max){
+                showNotification('Preferenze non valide','Inserire un valore compreso tra 1 e '+max+'.','error');
+                renderActiveAdminTab();return;
+            }
+            configElezioni[field]=number;
+            saveConfigToDB();
+        };
         window.deleteCommissioneMember = function(idx) { configElezioni.commissione.splice(idx, 1); renderActiveAdminTab(); };
         window.addCommissioneMember = function() { configElezioni.commissione.push({ nome: "Nuovo Membro", ruolo: "Componente" }); renderActiveAdminTab(); };
         window.updateTechnicalAssistantField = function(field, value) {
@@ -6024,8 +6099,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             configElezioni.assistenteTecnico.nome = document.getElementById('cfgTechnicalName')?.value.trim() || 'Da designare';
             configElezioni.assistenteTecnico.postazione = document.getElementById('cfgTechnicalStation')?.value.trim() || 'Postazione PC laboratoriale designata dall’Istituto';
             configElezioni.assistenteTecnico.ruolo = 'Assistente tecnico di riferimento';
-            await saveConfigToDB();
-            showNotification('Calendario aggiornato','Date, orari e messaggio della Commissione sono stati salvati nel cloud.','success');
+            return saveConfigToDB();
         };
 
         function workflowStatus() {
@@ -6274,16 +6348,15 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 showPage('studentLogin');
             }
 
-            onAuthStateChanged(auth, async (user) => {
+            onAuthStateChanged(auth, (user) => {
                 if (!user) {commissionSessionReady=false;sandboxReturnAvailable=false;electionSandbox.reset();electionTestLog=[];window.LeviPrivacyReview?.clear?.();document.querySelectorAll('[data-private-document]').forEach(node=>node.remove());}
-                if (user) {
-                    try {
-                        await syncConfigFromDB();
-                    } catch (e) {
-                        console.warn("Sincronizzazione iniziale differita");
-                    }
-                }
             });
+
+            // Lettura pubblica iniziale: nessuna autenticazione elettorale richiesta.
+            // Si esegue anche dopo un normale refresh del browser.
+            if(!(await syncConfigFromDB())){
+                showNotification('Configurazione non disponibile','I dati ufficiali delle elezioni non sono attualmente verificabili. Le nomine precedenti non verranno visualizzate.','error');
+            }
 
             // Nessun accesso anonimo automatico privilegiato: modalità fail-closed.
         };
