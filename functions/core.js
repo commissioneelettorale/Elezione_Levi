@@ -78,6 +78,8 @@ const REGULARITY_ALL_CONTROLS = new Set([...REGULARITY_PRE_VOTE_CONTROLS,'finalA
 const regularityStateRef = (year) => yearlyCollection('regolarita', year).doc('state');
 const regularityAppeals = (year) => yearlyCollection('reclami_ricorsi', year);
 const regularityEvents = (year) => yearlyCollection('eventi_procedimento', year);
+const documentAccessRecords = (year) => yearlyCollection('accesso_atti', year);
+const scrutinyTimingRecords = (year) => yearlyCollection('tempi_scrutinio', year);
 const yearSuffix = (year) => String(year || '2026/2027').replace('/', '_');
 const dataRoot = () => db.collection('artifacts').doc(APP_ID).collection('public').doc('data');
 const yearlyCollection = (name, year) => dataRoot().collection(`${name}_${yearSuffix(year)}`);
@@ -1294,6 +1296,75 @@ exports.getRegularityState = async (request) => {
 };
 
 // Anonymous credentials are created independently of individuals. No code/name export exists.
+
+exports.getAccessProcedureState = async (request) => {
+  await requireAuth(request,['COMMISSIONE','DIRIGENTE','VICEPRESIDE','DSGA','SEGRETERIA']);
+  const year=String(request.data?.annoScolastico||'');
+  const electionKey=requestElectionKey(request);
+  if(!/^20\d{2}\/20\d{2}$/.test(year)) throw new HttpsError('invalid-argument','Anno scolastico non valido.');
+  let accessQuery=documentAccessRecords(year).orderBy('recordedAt','desc').limit(100);
+  let timingQuery=scrutinyTimingRecords(year).orderBy('recordedAt','desc').limit(100);
+  const [accessSnap,timingSnap]=await Promise.all([accessQuery.get(),timingQuery.get()]);
+  const access=accessSnap.docs.map(d=>{const x=d.data()||{};return{
+    id:d.id,electionKey:x.electionKey||'',requestType:x.requestType||'',requestProtocol:x.requestProtocol||'',
+    requestDate:x.requestDate||'',requesterQualification:x.requesterQualification||'',documents:x.documents||'',
+    outcome:x.outcome||'',responseProtocol:x.responseProtocol||'',responseDate:x.responseDate||'',
+    redactions:x.redactions||'',notes:x.notes||'',recordedAt:timestampIso(x.recordedAt)
+  }}).filter(x=>!electionKey||x.electionKey===electionKey);
+  const timings=timingSnap.docs.map(d=>{const x=d.data()||{};return{
+    id:d.id,electionKey:x.electionKey||'',scrutinyDate:x.scrutinyDate||'',scheduledCloseTime:x.scheduledCloseTime||'',
+    actualStartTime:x.actualStartTime||'',actualEndTime:x.actualEndTime||'',interrupted:x.interrupted===true,
+    interruptionReason:x.interruptionReason||'',protocolRef:x.protocolRef||'',notes:x.notes||'',
+    recordedAt:timestampIso(x.recordedAt)
+  }}).filter(x=>!electionKey||x.electionKey===electionKey);
+  return {access,timings};
+};
+
+exports.recordDocumentAccess = async (request) => {
+  const actor=await requireAuth(request,['COMMISSIONE']),year=String(request.data?.annoScolastico||'');
+  const electionKey=requestElectionKey(request);
+  const requestType=String(request.data?.requestType||'');
+  const requestProtocol=evidenceText(request.data?.requestProtocol,200);
+  const requestDate=String(request.data?.requestDate||'');
+  const requesterQualification=evidenceText(request.data?.requesterQualification,200);
+  const documents=evidenceText(request.data?.documents,2000);
+  const outcome=String(request.data?.outcome||'');
+  const responseProtocol=evidenceText(request.data?.responseProtocol,200);
+  const responseDate=String(request.data?.responseDate||'');
+  const redactions=evidenceText(request.data?.redactions,1500);
+  const notes=evidenceText(request.data?.notes,2000);
+  const allowedTypes=new Set(['DOCUMENTALE_241','CIVICO_SEMPLICE','CIVICO_GENERALIZZATO']);
+  const allowedOutcomes=new Set(['IN_ISTRUTTORIA','VISIONE','COPIA','ACCOGLIMENTO_PARZIALE','DIFFERIMENTO','DINIEGO']);
+  if(!/^20\d{2}\/20\d{2}$/.test(year)||!electionKey||!allowedTypes.has(requestType)||!requestProtocol||!/^\d{4}-\d{2}-\d{2}$/.test(requestDate)||!requesterQualification||!documents||!allowedOutcomes.has(outcome))
+    throw new HttpsError('invalid-argument','Consultazione, tipo di accesso, protocollo, data, qualifica, atti richiesti ed esito sono obbligatori.');
+  if(responseDate && !/^\d{4}-\d{2}-\d{2}$/.test(responseDate)) throw new HttpsError('invalid-argument','Data risposta non valida.');
+  if(outcome!=='IN_ISTRUTTORIA' && (!responseProtocol||!responseDate)) throw new HttpsError('invalid-argument','Per una pratica definita indicare protocollo e data della risposta.');
+  const ref=documentAccessRecords(year).doc();
+  await ref.set({electionKey,requestType,requestProtocol,requestDate,requesterQualification,documents,outcome,responseProtocol,responseDate,redactions,notes,
+    recordedAt:FieldValue.serverTimestamp(),recordedBy:actor.uid});
+  await auditAdmin(actor,'DOCUMENT_ACCESS_RECORDED',{recordId:ref.id,electionKey,requestType,outcome,requestProtocol,responseProtocol});
+  return {ok:true,id:ref.id};
+};
+
+exports.recordScrutinyTiming = async (request) => {
+  const actor=await requireAuth(request,['COMMISSIONE']),year=String(request.data?.annoScolastico||'');
+  const electionKey=requestElectionKey(request);
+  const scrutinyDate=String(request.data?.scrutinyDate||''),scheduledCloseTime=String(request.data?.scheduledCloseTime||''),
+    actualStartTime=String(request.data?.actualStartTime||''),actualEndTime=String(request.data?.actualEndTime||''),
+    interrupted=request.data?.interrupted===true,interruptionReason=evidenceText(request.data?.interruptionReason,1500),
+    protocolRef=evidenceText(request.data?.protocolRef,200),notes=evidenceText(request.data?.notes,1500);
+  const validTime=v=>/^\d{2}:\d{2}$/.test(v)&&Number(v.slice(0,2))<24&&Number(v.slice(3,5))<60;
+  if(!/^20\d{2}\/20\d{2}$/.test(year)||!electionKey||!/^\d{4}-\d{2}-\d{2}$/.test(scrutinyDate)||!validTime(actualStartTime)||!validTime(actualEndTime)||!protocolRef)
+    throw new HttpsError('invalid-argument','Consultazione, data, ora effettiva di inizio/fine e riferimento del verbale sono obbligatori.');
+  if(scheduledCloseTime&&!validTime(scheduledCloseTime)) throw new HttpsError('invalid-argument','Ora di chiusura prevista non valida.');
+  if(interrupted&&!interruptionReason) throw new HttpsError('invalid-argument','Indicare la causa dell’interruzione.');
+  const ref=scrutinyTimingRecords(year).doc();
+  await ref.set({electionKey,scrutinyDate,scheduledCloseTime,actualStartTime,actualEndTime,interrupted,interruptionReason,protocolRef,notes,
+    recordedAt:FieldValue.serverTimestamp(),recordedBy:actor.uid});
+  await auditAdmin(actor,'SCRUTINY_TIMING_RECORDED',{recordId:ref.id,electionKey,scrutinyDate,scheduledCloseTime,actualStartTime,actualEndTime,interrupted,protocolRef});
+  return {ok:true,id:ref.id};
+};
+
 exports.createAnonymousCredentials=async request=>{
   const actor=await requireAuth(request,['COMMISSIONE']),year=actor.claims.staffYear;
   const tipo=normalize(request.data?.tipo),electionKey=tipo==='GENITORE'?String(request.data?.electionKey||''):'';
