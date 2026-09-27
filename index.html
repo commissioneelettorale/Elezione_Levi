@@ -432,6 +432,7 @@
                 return { data: payload.data };
             }
         });
+        window.SECURE_API = SECURE_API;
         const isAnonymousVoteMode=()=>configElezioni.privacyMode==='PRESENTIAL_UNLINKED_V1';
         const anonymousParticipation=async()=>isAnonymousVoteMode()?(await SECURE_API.getAnonymousParticipation({annoScolastico:configElezioni.annoScolastico})).data:null;
         // Optional dossier setup happens on demand, after the main interface is ready.
