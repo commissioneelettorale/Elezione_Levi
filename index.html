@@ -28,6 +28,7 @@
     <!-- JSZip per l'esportazione dell'archivio storico scolastico in formato ZIP -->
     <script src="vendor/jszip.min.js"></script>
     <script src="lib/privacy-review-ui.js?v=20260914.1"></script>
+    <script src="lib/accesso-atti.js?v=20260927.1"></script>
 
     <style>
         html {
@@ -2264,7 +2265,8 @@
                 { id: 'accessi_gestionali', label: '10. Accessi Dirigenza' },
                 { id: 'workflow_digitale', label: '11. Workflow Digitale & Verbali' },
                 { id: 'regolarita', label: '12. Regolarità Elettorale' },
-                { id: 'collaudo', label: '13. Versione di Prova / Collaudo' }
+                { id: 'accesso_atti', label: '13. Accesso agli Atti & Verbale' },
+                { id: 'collaudo', label: '14. Versione di Prova / Collaudo' }
             ];
 
             let navTabsHTML = tabs.map(tab => `
@@ -2652,6 +2654,7 @@
             else if(activeAdminTab === 'liste') renderListeTab(content);
             else if(activeAdminTab === 'workflow_digitale') renderDigitalWorkflowTab(content);
             else if(activeAdminTab === 'regolarita') renderRegularityTab(content);
+            else if(activeAdminTab === 'accesso_atti') window.renderAccessoAttiTab(content);
             else if(activeAdminTab === 'collaudo') renderCollaudoTab(content);
             else if(activeAdminTab.startsWith('cred_')) {
                 const tipo = activeAdminTab.replace('cred_', '');
