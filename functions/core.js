@@ -176,6 +176,14 @@ function electionPhase(config, key) {
 function assertVotingOpen(config, key) {
   if (electionPhase(config,key)!=='OPEN') throw new HttpsError('failed-precondition','La consultazione non è aperta in questa fascia oraria (Europe/Rome).');
 }
+function hasVotingStarted(config) {
+  const legacyStart = parseItalianDate(config?.calendario?.votingStartDate, config?.calendario?.votingStartTime);
+  return (Number(config?.votingStartsAtMs) > 0 && Date.now() >= Number(config.votingStartsAtMs)) ||
+    (legacyStart && Date.now() >= +legacyStart) ||
+    Object.keys(ElectionPolicy.ELECTIONS).some(key =>
+      ElectionPolicy.windows(config || {}, key).some(window => Date.now() >= +window.start)
+    );
+}
 function activeVoterKeys(config,type,credential={}) {
   return ElectionPolicy.enabled(config).filter(k=>(!credential.electionKey||credential.electionKey===k)&&(k==='consiglio'?type!=='STUDENTE':k==='classeGenitore'?type==='GENITORE':type==='STUDENTE'));
 }
@@ -1652,6 +1660,65 @@ exports.saveElectionConfig = async (request) => {
   return { ok: true };
 };
 
+// Rettifica puntuale del registro prima dell'avvio: consente alla Commissione
+// di rimuovere esclusivamente una credenziale non usata inserita per errore.
+// Non cancella schede e non riapre diritti di voto già utilizzati.
+exports.deleteVoterRegisterEntry = async (request) => {
+  const actor = await requireAuth(request, ['COMMISSIONE']);
+  const year = String(request.data?.annoScolastico || '').trim();
+  const tokenId = String(request.data?.tokenId || '').trim().toUpperCase();
+  if (!/^20\d{2}\/20\d{2}$/.test(year) || !/^[A-Z0-9_-]{3,80}$/.test(tokenId)) {
+    throw new HttpsError('invalid-argument', 'Credenziale o anno scolastico non validi.');
+  }
+
+  const tokenRef = yearlyCollection('tokens', year).doc(tokenId);
+  const auditRef = dataRoot().collection('audit_admin').doc();
+  return db.runTransaction(async tx => {
+    const reads = await Promise.all([
+      tx.get(yearlyConfigRef(year)),
+      tx.get(regularityStateRef(year)),
+      tx.get(tokenRef),
+      ...[...BALLOT_COLLECTIONS, 'credenziali_anonime'].map(name =>
+        tx.get(yearlyCollection(name, year).limit(1))
+      )
+    ]);
+    const [settings, regularity, tokenSnap, ...occupied] = reads;
+    const config = settings.exists ? settings.data() : {};
+    const state = regularity.exists ? regularity.data() : {};
+
+    if (!settings.exists) throw new HttpsError('failed-precondition', 'Configurazione elettorale annuale non disponibile.');
+    if (TokenCodes.migrationPending(state)) throw new HttpsError('unavailable', 'Aggiornamento dei codici elettorali in corso. Riprovare tra poco.');
+    if (state.procedureClosed === true) throw new HttpsError('failed-precondition', 'Procedura chiusa: il registro non può essere modificato.');
+    if (state.voterRollFinal === true) throw new HttpsError('failed-precondition', 'Elenchi elettorali definitivi: riaprire formalmente il controllo del registro prima di una rettifica.');
+    if (state.votingReview?.stage === 'AUTHORIZED') throw new HttpsError('failed-precondition', 'Votazione già autorizzata: il registro è congelato.');
+    if (hasVotingStarted(config)) throw new HttpsError('failed-precondition', 'Una finestra elettorale è già iniziata: la cancellazione dal registro è bloccata.');
+    if (occupied.some(snapshot => !snapshot.empty)) {
+      throw new HttpsError('failed-precondition', 'Sono già presenti schede o credenziali anonime emesse: il registro non può più essere rettificato con questa funzione.');
+    }
+    if (!tokenSnap.exists) throw new HttpsError('not-found', 'Credenziale non trovata nel registro.');
+
+    const record = tokenSnap.data() || {};
+    const voteFlags = ['hasVoted', 'voted_consiglio', 'voted_istituto', 'voted_consulta', 'voted_classe_studente', 'voted_classe_genitore'];
+    const used = voteFlags.some(flag => record[flag] === true) ||
+      !!record.activeSessionHash || !!record.completedSessionHash || !!record.lastReceipt;
+    if (used) throw new HttpsError('failed-precondition', 'La credenziale risulta già utilizzata o associata a una sessione: non può essere eliminata.');
+
+    tx.delete(tokenRef);
+    tx.create(auditRef, {
+      actorUid: actor.uid,
+      actorRole: actor.role,
+      action: 'DELETE_PRESTART_REGISTER_ENTRY',
+      details: {
+        tipo: normalize(record.tipo),
+        classe: normalize(record.classe),
+        reason: 'PRESTART_REGISTER_CORRECTION'
+      },
+      at: FieldValue.serverTimestamp()
+    });
+    return { ok: true, removed: 1 };
+  });
+};
+
 // Registro nominativo: il browser invia solo anagrafica. Stato di voto, ID,
 // autorizzazioni, ricevuta di importazione e audit sono gestiti dal server.
 exports.importVoterRegister = async (request) => {
@@ -1693,11 +1760,7 @@ exports.importVoterRegister = async (request) => {
     if (state.procedureClosed === true) throw new HttpsError('failed-precondition', 'Procedura chiusa: il registro non può essere modificato.');
     if (state.voterRollFinal === true) throw new HttpsError('failed-precondition', 'Elenchi elettorali definitivi: l’importazione è bloccata. Verificare lo stato del registro nella sezione Regolarità.');
     if (state.votingReview?.stage === 'AUTHORIZED') throw new HttpsError('failed-precondition', 'Votazione già autorizzata: il registro è congelato.');
-    const legacyStart = parseItalianDate(config.calendario?.votingStartDate, config.calendario?.votingStartTime);
-    const started = (Number(config.votingStartsAtMs) > 0 && Date.now() >= Number(config.votingStartsAtMs)) ||
-      (legacyStart && Date.now() >= +legacyStart) || Object.keys(ElectionPolicy.ELECTIONS)
-        .some(key => ElectionPolicy.windows(config, key).some(w => Date.now() >= +w.start));
-    if (started) throw new HttpsError('failed-precondition', 'Una finestra elettorale è già iniziata: il registro non può essere modificato.');
+    if (hasVotingStarted(config)) throw new HttpsError('failed-precondition', 'Una finestra elettorale è già iniziata: il registro non può essere modificato.');
     // Copre anche configurazioni storiche mancanti o incomplete: nessuna riapertura
     // di registri già usati e nessuna modifica dopo l’emissione dei codici anonimi.
     const occupied = await Promise.all([...BALLOT_COLLECTIONS, 'credenziali_anonime']
