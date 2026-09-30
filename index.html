@@ -434,6 +434,13 @@
         });
         const isAnonymousVoteMode=()=>configElezioni.privacyMode==='PRESENTIAL_UNLINKED_V1';
         const anonymousParticipation=async()=>isAnonymousVoteMode()?(await SECURE_API.getAnonymousParticipation({annoScolastico:configElezioni.annoScolastico})).data:null;
+        const hasVotingStartedClient=()=>{
+            try {
+                return LeviElectionPolicy.enabled(configElezioni).some(key =>
+                    LeviElectionPolicy.windows(configElezioni,key).some(window => Date.now() >= +window.start)
+                );
+            } catch (_) { return false; }
+        };
         // Optional dossier setup happens on demand, after the main interface is ready.
         let pendingDpoDownload=false;
         let commissionSessionReady=false;
@@ -3752,6 +3759,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
 
         async function renderRegisterTab(componentType, container) {
             const filteredTokens = activeTokensList.filter(t => t.tipo === componentType);
+            const votingStarted = hasVotingStartedClient();
             
             let total = filteredTokens.length;
             let anonSummary;try{anonSummary=await anonymousParticipation();}catch(e){container.innerHTML='<p class="text-black p-4">Riepilogo non disponibile: riprovare.</p>';return;}
@@ -3881,7 +3889,10 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
 
                         <div>
                             <div class="flex justify-between items-center mb-3">
-                                <h4 class="text-xs font-black text-slate-700 uppercase">Dettaglio e Sblocco Voti</h4>
+                                <div>
+                                    <h4 class="text-xs font-black text-slate-700 uppercase">Dettaglio registro e stato voti</h4>
+                                    <p class="text-[8px] mt-0.5 ${votingStarted ? 'text-amber-700' : 'text-emerald-700'}">${votingStarted ? 'Votazione avviata: cancellazioni ordinarie del registro bloccate.' : 'Prima dell’avvio puoi eliminare solo credenziali non usate inserite per errore. Lo sblocco voto resta inattivo.'}</p>
+                                </div>
                                 <input type="text" id="tokenSearchInput" oninput="window.filterRegisterTable()" placeholder="Cerca token o classe..." class="p-1.5 border rounded-lg text-[10px] w-48 outline-none">
                             </div>
                             <div class="max-h-[380px] overflow-y-auto border rounded-xl custom-scrollbar shadow-sm">
@@ -3954,7 +3965,9 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                                                     </td>
                                                     <td class="p-2.5 text-center flex items-center justify-center gap-2 mt-1.5">
                                                         ${isAnonymousVoteMode()?'':`<button onclick="window.resetEntireToken('${t.id}')" title="Ripristina Completo" class="text-indigo-650 hover:text-indigo-800"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i></button>`}
-                                                        <button onclick="window.deleteSingleToken('${t.id}')" title="Elimina" class="text-red-600 hover:text-red-850"><i data-lucide="trash" class="w-3.5 h-3.5"></i></button>
+                                                        ${(!votingStarted && !t.hasVoted && !t.voted_consiglio && !t.voted_istituto && !t.voted_consulta && !t.voted_classe_studente && !t.voted_classe_genitore)
+                                                            ? `<button onclick="window.deleteSingleToken('${t.id}')" title="Elimina credenziale non usata inserita per errore" class="text-red-600 hover:text-red-850"><i data-lucide="trash" class="w-3.5 h-3.5"></i></button>`
+                                                            : `<button disabled title="Cancellazione bloccata dopo l’avvio o per credenziale già usata" class="text-slate-300 cursor-not-allowed"><i data-lucide="trash" class="w-3.5 h-3.5"></i></button>`}
                                                     </td>
                                                 </tr>
                                             `;
@@ -4165,14 +4178,28 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
         };
 
         window.resetSingleBallotFlag = async function(tokenId, flagFieldName) {
+            if (!hasVotingStartedClient()) {
+                return showNotification(
+                    "Sblocco non ancora disponibile",
+                    "Lo sblocco dei voti resta disabilitato finché non è iniziata almeno una finestra elettorale configurata.",
+                    "info"
+                );
+            }
             showNotification(
                 "Operazione protetta",
-                "Per tutela dell’integrità e della segretezza del voto, una scheda già depositata non può essere individuata o cancellata dal token tramite il browser. Eventuali anomalie devono essere gestite con procedura straordinaria verbalizzata dalla Commissione e tracciata lato server.",
+                "Dopo l’avvio una scheda già depositata non viene collegata alla credenziale e non può essere cancellata dal browser. Eventuali anomalie richiedono procedura straordinaria verbalizzata dalla Commissione e tracciata lato server.",
                 "error"
             );
         };
 
         window.resetEntireToken = async function(tokenId) {
+            if (!hasVotingStartedClient()) {
+                return showNotification(
+                    "Sblocco non ancora disponibile",
+                    "Il ripristino di una credenziale di voto resta disabilitato fino all’avvio effettivo della consultazione.",
+                    "info"
+                );
+            }
             showNotification(
                 "Operazione protetta",
                 "Il ripristino di una credenziale dopo l’espressione del voto è disabilitato nel client. Le rettifiche eccezionali richiedono sospensione della consultazione, verbale della Commissione e procedura amministrativa server-side senza ricostruzione della corrispondenza identità/scheda.",
@@ -4207,12 +4234,21 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             }
         };
 
-        window.deleteSingleToken = function(tokenId) {
-            showNotification(
-                "Operazione protetta",
-                "La cancellazione di credenziali dal browser è disabilitata. Prima dell’apertura della votazione, eventuali rettifiche del registro devono essere eseguite con procedura amministrativa tracciata; dopo l’apertura il registro deve rimanere congelato salvo incidente formalmente verbalizzato.",
-                "error"
-            );
+        window.deleteSingleToken = async function(tokenId) {
+            if (hasVotingStartedClient()) {
+                return showNotification(
+                    "Registro congelato",
+                    "La votazione è già iniziata: la cancellazione ordinaria delle credenziali dal registro è bloccata.",
+                    "error"
+                );
+            }
+            if (!confirm(`Eliminare la credenziale ${tokenId} dal registro perché inserita per errore?\n\nL’operazione è consentita solo prima dell’avvio, per credenziali non usate e prima dell’emissione di schede/codici anonimi.`)) return;
+            try {
+                await SECURE_API.deleteVoterRegisterEntry({ tokenId, annoScolastico: configElezioni.annoScolastico });
+                showNotification("Credenziale eliminata", "La riga non usata è stata rimossa dal registro con controllo server-side e registrazione amministrativa.", "success");
+            } catch (error) {
+                showNotification("Cancellazione non consentita", error?.message || "La credenziale non può essere eliminata in questo stato della procedura.", "error");
+            }
         };
 
         window.purgeComponentTokens = function(componentType) {

@@ -43,6 +43,7 @@ const ALLOWED_FUNCTIONS = new Set([
   "destructiveAction",
   "saveElectionConfig",
   "importVoterRegister",
+  "deleteVoterRegisterEntry",
   "ensureReferentKeys"
 ]);
 
