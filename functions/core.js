@@ -1635,6 +1635,7 @@ exports.saveElectionConfig = async (request) => {
     if(!ElectionPolicy.ELECTIONS[key]) throw new HttpsError('invalid-argument','Consultazione non valida.');
     try {ElectionPolicy.validateProfile(profile);} catch(error) {throw new HttpsError('invalid-argument',error.message);}
   }
+  let absenceChanges=[];
   await db.runTransaction(async (tx) => {
     const previous = await tx.get(yearlyConfigRef(year));
     const regularity = await tx.get(regularityStateRef(year));
@@ -1655,9 +1656,11 @@ exports.saveElectionConfig = async (request) => {
          typeof nextAbsent[key].confirmed!=='boolean')
         throw new HttpsError('invalid-argument','Tipo di dichiarazione sulle liste non valido.');
     }
+    const changedListEntries=[];
     for(const key of NoLists.IDs){
       const prior=NoLists.confirmed(old,key),wanted=NoLists.confirmed(config,key);
       if(prior===wanted)continue;
+      changedListEntries.push({key,confirmed:wanted});
       const meta=NoLists.TYPES[key],profile=ElectionPolicy.profile(old,meta.electionKey);
       const started=ElectionPolicy.windows(old,meta.electionKey).some(w=>Date.now()>=+w.start);
       if(started||profile.frozen===true||state.votingReview?.stage==='AUTHORIZED'||state.procedureClosed)
@@ -1701,8 +1704,11 @@ exports.saveElectionConfig = async (request) => {
     const starts=ElectionPolicy.enabled(config).flatMap(k=>ElectionPolicy.windows(config,k).map(w=>+w.start));
     tx.set(globalConfigRef(), { annoScolastico: year }, { merge: true });
     tx.set(yearlyConfigRef(year), { ...config, annoScolastico: year, votingStartsAtMs: starts.length?Math.min(...starts):0 }, { merge: false });
+    absenceChanges=changedListEntries;
   });
   await auditAdmin(actor, 'SAVE_ELECTION_CONFIG', { annoScolastico: year });
+  for(const entry of absenceChanges)
+    await auditAdmin(actor,'LIST_PRESENTATION_DECLARATION',{annoScolastico:year,election:entry.key,confirmed:entry.confirmed});
   return { ok: true };
 };
 
