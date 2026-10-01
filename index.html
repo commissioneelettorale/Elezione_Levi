@@ -6532,6 +6532,93 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
         window.generateElectionMinutesDocx=async function(section,subComponent=''){
             try { const body=await buildElectionMinutesDocx(section,subComponent); const d=electionDescriptor(section,subComponent); const year=(configElezioni.annoScolastico||'AS').replace('/','_'); await generateDocxFile(body,`Verbale_${section}${subComponent?'_'+subComponent:''}_${year}.docx`); showNotification('Verbale Word generato',`Scaricato il verbale modificabile: ${d.title}.`,'success'); } catch(e){ console.error(e); showNotification('Errore Word','Impossibile generare il verbale: '+e.message,'error'); }
         };
+        window.generateNoListsMinutesDocx=async function(key){
+            if(!LeviNoLists.confirmed(configElezioni,key))
+                return showNotification('Dichiarazione assente','Registrare prima la spunta e verificarne il salvataggio nel cloud.','error');
+            if(!commissionSessionReady||!auth.currentUser)
+                return showNotification('Accesso riservato','Per generare questo verbale occorre la sessione Commissione.','error');
+            try{
+                const meta=LeviNoLists.TYPES[key],entry=configElezioni.assenzaListe[key],
+                    profile=LeviElectionPolicy.profile(configElezioni,meta.electionKey),
+                    schoolYear=configElezioni.annoScolastico||'________',
+                    timestamp=entry.declaredAt&&!Number.isNaN(Date.parse(entry.declaredAt))?
+                        new Date(entry.declaredAt).toLocaleString('it-IT',{timeZone:'Europe/Rome'}):'________';
+                const body=[];
+                body.push(docxHeading('I.I.S. "PRIMO LEVI" — SEREGNO',1));
+                body.push(docxParagraph('COMMISSIONE ELETTORALE D’ISTITUTO',true));
+                body.push(docxHeading('VERBALE DI CONSTATAZIONE DELLA MANCATA PRESENTAZIONE DELLE LISTE',1));
+                body.push(docxParagraph('Documento distinto per singola consultazione e componente; bozza generata dal sistema, efficace come atto amministrativo solo dopo verifica dei presupposti, sottoscrizione e acquisizione agli atti.'));
+                body.push(docxTable([
+                    ['Campo','Dato'],
+                    ['Anno scolastico',schoolYear],
+                    ['Consultazione e componente',meta.label],
+                    ['Tipologia della procedura',profile.kind||'Da verificare dagli atti'],
+                    ['Periodo organizzativo',profile.period||'Da verificare dagli atti'],
+                    ['Registrazione informatica della dichiarazione',timestamp],
+                    ['Protocollo del presente verbale','____________________'],
+                    ['Data, ora e luogo della seduta','____________________'],
+                    ['Termine ordinario per presentare le liste','____________________'],
+                    ['Proroga, se formalmente disposta (atto / termine)','____________________'],
+                    ['Data/ora effettiva della verifica del registro','____________________']
+                ]));
+                body.push(docxHeading('1. COSTITUZIONE DELLA COMMISSIONE E DOCUMENTI ESAMINATI',1));
+                body.push(docxParagraph('Nell’anno, nel giorno e nel luogo sopra indicati si riunisce la Commissione Elettorale dell’Istituto, sulla base della sua regolare costituzione e degli atti di nomina. Il Presidente procede alla verifica delle registrazioni di presentazione delle liste, della documentazione custodita dalla segreteria competente, dell’atto di indizione e di eventuali atti di rettifica o proroga. Gli estremi documentali vanno completati prima della firma.'));
+                body.push(docxTable([['Ruolo / qualifica','Nominativo','Presenza / firma'],
+                    ...((configElezioni.commissione||[]).map(m=>[m.ruolo||'Componente',m.nome||'________________','________________']))]));
+                body.push(docxHeading('2. NORME DI RIFERIMENTO E LORO APPLICAZIONE',1));
+                body.push(docxParagraph('VISTO il decreto legislativo 16 aprile 1994, n. 297: l’art. 8 disciplina la composizione del Consiglio di Istituto, nell’ambito della normativa generale sugli organi collegiali. La presente constatazione riguarda esclusivamente la componente specificata e non determina automaticamente l’invalidità delle consultazioni relative alle altre componenti.'));
+                body.push(docxParagraph('VISTA l’ordinanza ministeriale 15 luglio 1991, n. 215, con successive modificazioni e integrazioni, per le disposizioni pertinenti: art. 30 (formazione e distinzione delle liste per componenti e accettazione delle candidature); art. 31 (autenticazione delle firme); art. 32 (modalità e termini ordinari di presentazione, da coordinare con il concreto atto di indizione e con eventuali provvedimenti applicabili); art. 33 (esposizione delle liste presentate); art. 34, commi 1-3 (verifica delle liste depositate, eliminazione delle irregolarità e possibilità di regolarizzazione nei termini previsti).'));
+                body.push(docxParagraph('PRECISATO che la procedura di regolarizzazione dell’art. 34 presuppone la presenza di una lista effettivamente depositata con irregolarità e non consente di dichiarare sanata una lista mai presentata. La Commissione distingue quindi rigorosamente l’assenza assoluta di deposito dall’eventuale mancata ammissione di liste depositate: questa spunta attesta esclusivamente il primo caso.'));
+                if(meta.electionKey==='istituto'){
+                    body.push(docxParagraph('PER LA COMPONENTE STUDENTESCA DEL CONSIGLIO DI ISTITUTO: rilevano inoltre l’art. 21, comma 3, dell’O.M. 215/1991 per il sistema delle liste contrapposte nell’elezione contestuale e l’art. 22, comma 5, per il compito della Commissione Elettorale nella riassunzione dei voti di lista e di preferenza e nella proclamazione degli eletti.'));
+                }
+                if(meta.electionKey==='consulta'){
+                    body.push(docxParagraph('PER LA CONSULTA PROVINCIALE: l’art. 6, comma 1, del D.P.R. 10 ottobre 1996, n. 567, nel testo sostituito dall’art. 1, comma 1, lettera a), del D.P.R. 29 novembre 2007, n. 268, disciplina due rappresentanti per istituto, il mandato biennale, l’elezione con modalità analoghe a quelle dei rappresentanti degli studenti nel Consiglio di Istituto, la sostituzione mediante i primi non eletti e, in caso di esaurimento delle liste, le elezioni suppletive. Verificare e citare l’atto che ha effettivamente indetto il rinnovo o le suppletive nel caso concreto.'));
+                }
+                if(meta.electionKey==='consiglio'){
+                    body.push(docxParagraph('PER LA COMPONENTE '+key.slice('consiglio_'.length)+': gli articoli 30-34 dell’O.M. 215/1991 si applicano alla presentazione, autenticazione e verifica delle liste del Consiglio di Istituto relative alla componente interessata. La constatazione non si estende alle restanti componenti.'));
+                }
+                body.push(docxHeading('3. ATTO DI INDIZIONE, CALENDARIO E PROVE',1));
+                if(profile.dedicated){
+                    body.push(docxTable([['Ente','Protocollo / numero','Data','Oggetto'],
+                        ...(profile.acts||[]).map(a=>[a.authority||'',a.protocol||'',a.date||'',a.subject||''])]));
+                    body.push(docxTable([['Giornata programmata','Orario di inizio','Orario di chiusura'],
+                        ...(profile.windows||[]).map(w=>[w.date||'',w.from||'',w.to||''])]));
+                }else{
+                    const circ=configElezioni.riferimentoCircolare||{};
+                    body.push(docxTable([['Atto generale','Valore'],['Protocollo',circ.numero||'________________'],
+                        ['Data',circ.data||'________________'],['Oggetto',circ.oggetto||'________________']]));
+                }
+                body.push(docxParagraph('Documenti da allegare e controllare: atto di indizione; avviso e termine di presentazione; provvedimento di eventuale proroga; registro di protocollo/deposito e dichiarazione dell’ufficio ricevente; riscontro della Commissione; eventuali comunicazioni agli organi competenti. Se un dato non è verificato, non firmare né pubblicare il presente verbale.'));
+                body.push(docxHeading('4. CONSTATAZIONI E DETERMINAZIONI',1));
+                body.push(docxParagraph('La Commissione, dopo aver accertato il termine effettivamente applicabile e verificato le evidenze sopra richiamate, CONSTATATA — ove confermata la verifica materiale — l’assenza di liste depositate per la consultazione e la componente indicate, DÀ ATTO che non sussistono liste da ammettere per questa specifica procedura e, pertanto, non vi sono risultati di lista o candidati da proclamare sulla base della stessa.'));
+                body.push(docxParagraph('La Commissione dispone l’acquisizione del presente verbale e dei relativi allegati al fascicolo elettorale; informa il Dirigente Scolastico e, quando richiesto, l’ufficio territorialmente competente. Eventuali conseguenti provvedimenti, nuove convocazioni o ulteriori procedure saranno valutati e adottati dagli organi competenti sulla base della disciplina applicabile: la spunta informatica e il presente documento non dispongono autonomamente nuove elezioni.'));
+                body.push(docxParagraph('L’eventuale comunicazione pubblica del sito si limita alla dichiarazione verificata e convalidata dalla Commissione e viene resa visibile soltanto al raggiungimento della data di pubblicazione degli esiti prevista per questa consultazione.'));
+                body.push(docxHeading('5. ALLEGATI, NOTE, SOTTOSCRIZIONI',1));
+                body.push(docxTable([['Allegato documentale','Protocollo / riferimento','Verificato dalla Commissione'],
+                    ['Indizione e convocazione','____________________','____________________'],
+                    ['Termine finale ed eventuale proroga','____________________','____________________'],
+                    ['Attestazione del registro depositi','____________________','____________________'],
+                    ['Riscontro della Commissione','____________________','____________________'],
+                    ['Ulteriori comunicazioni','____________________','____________________']]));
+                body.push(docxParagraph('Osservazioni o riserve dei componenti: ________________________________________________________________________________'));
+                body.push(docxParagraph('Il presente documento è una bozza compilata con i dati registrati nel sistema. I componenti ne verificano e integrano il contenuto prima della sottoscrizione; il protocollo, la pubblicazione e la conservazione seguono le procedure istituzionali.'));
+                body.push(docxTable([['Qualifica','Nome e cognome','Firma / sottoscrizione'],
+                    ...((configElezioni.commissione||[]).map(m=>[m.ruolo||'',m.nome||'','____________________'])),
+                    ['Segretario verbalizzante','____________________','____________________']]));
+                body.push(docxHeading('6. FONTI NORMATIVE DA ALLEGARE AL FASCICOLO',1));
+                body.push(docxParagraph('[1] D.Lgs. 16 aprile 1994, n. 297, art. 8: composizione del Consiglio di Istituto. Fonte: Normattiva, testo vigente alla data del procedimento.'));
+                body.push(docxParagraph('[2] O.M. 15 luglio 1991, n. 215, artt. 21 (se pertinente), 22 (se pertinente), 30, 31, 32, 33 e 34, con modificazioni applicabili. Copia istituzionale: https://usrfvg.gov.it/archivio/export/sites/default/USRFVG/allegati/archivio_file/organi_collegiali/om215_91.pdf'));
+                if(meta.electionKey==='consulta')body.push(docxParagraph('[3] D.P.R. 10 ottobre 1996, n. 567, art. 6, comma 1, come modificato dal D.P.R. 29 novembre 2007, n. 268, art. 1, comma 1, lett. a). Fonte ufficiale: Normattiva / Gazzetta Ufficiale, GU n. 24 del 29 gennaio 2008.'));
+                body.push(docxParagraph('[4] Atto annuale di indizione, circolari e provvedimenti di eventuale proroga propri dell’Istituto: allegare gli originali e indicarne gli estremi aggiornati. I riferimenti legislativi generali non sostituiscono la verifica di questi atti.'));
+                const fileYear=schoolYear.replace('/','_');
+                await generateDocxFile(body.join(''),'Verbale_Mancata_Presentazione_Liste_'+key+'_'+fileYear+'.docx');
+                showNotification('Verbale Word generato',meta.label+': documento da controllare, completare, firmare e protocollare.','success');
+            }catch(error){
+                showNotification('Verbale non generato',error.message||'Errore nella creazione Word.','error');
+            }
+        };
+
         window.generateDetailedMinutesDocx=async function(){ return window.generateElectionMinutesDocx('istituto',''); };
 
         window.openDigitalDossierDelete = function(){
