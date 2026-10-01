@@ -3518,6 +3518,32 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                         ]}
                     ]);
                 }
+                // Snapshot completo dei checkpoint tecnici, paginato dal backend.
+                // Le dichiarazioni vengono indicate come "registrate", non come atti gia firmati.
+                const technicalArchive=await fetchCompleteTechnicalLog();
+                const technicalLines=technicalArchive.logs.map(row=>
+                    [row.at||'senza data',row.event||'evento',row.result||'non verificato',
+                     'Tecnico: '+(row.technicianName||'da verificare'),
+                     'Postazione: '+(row.station||'da verificare'),
+                     'Nota: '+(row.note||'nessuna nota'),
+                     row.report?'Versione collaudo: '+(row.report.softwareVersion||'da verificare'):'']
+                    .filter(Boolean).join(' | '));
+                addPdf('Registro_Checkpoint_Apertura_Chiusura_e_Collaudo.pdf',
+                    'Registro dei checkpoint e delle prove tecniche - bozza da sottoscrivere',[
+                    {heading:'Identificazione della procedura',lines:[
+                        'Anno scolastico: '+configElezioni.annoScolastico,
+                        'Snapshot tecnico fino al: '+(technicalArchive.snapshotUntil||'non disponibile'),
+                        'Eventi registrati: '+technicalArchive.logs.length
+                    ]},
+                    {heading:'Operazioni riscontrate',lines:technicalLines.length?technicalLines:[
+                        'NESSUN EVENTO TECNICO REGISTRATO: occorre acquisire verbali e verifiche esterni prima di qualificare completo il fascicolo.'
+                    ]},
+                    {heading:'Verifiche che restano di competenza umana',lines:[
+                        'Confrontare i log con i verbali originali di apertura/chiusura e le firme dei soggetti competenti.',
+                        'I log informatici non costituiscono da soli attestazione di collaudo indipendente o approvazione del DPO.',
+                        'Acquisire incidenti, richieste di assistenza, deliberazioni e atti analogici non presenti nel database.'
+                    ]}
+                ]);
                 const policyLines=[
                     'Per i token: rifiuto server-side dal completamento di tutti i diritti o dalla fine dell ultima finestra in cui si ha diritto di voto.',
                     'Per i referenti STUDENTI: accesso e sessioni scadono alla fine dell ultima fascia classe studenti.',
