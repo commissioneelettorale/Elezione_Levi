@@ -26,6 +26,7 @@ const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestor
 const { getAuth } = require('firebase-admin/auth');
 const crypto = require('crypto');
 const ElectionPolicy = require('../lib/election-policy');
+const NoLists = require('../lib/no-lists');
 const BallotVault = require('../lib/ballot-vault');
 const LegalReadiness = require('../lib/legal-readiness');
 const VotingAdmission = require('../lib/voting-admission');
@@ -310,6 +311,19 @@ exports.getPublicServiceStatus = async () => {
   return {ok:true,serviceState:state.emergencySuspended?'SUSPENDED':ready?'ADMITTED':'PREPARATION_ONLY',secretVotingEnabled:ready,
     phase:electionPhase(config),policyVersion:LegalReadiness.VERSION,release:releaseIdentity(),blockerCodes:missing,informationPath:'note-legali.html'};
 };
+// Public status is released only after the applicable window, formal verification
+// and the configured results publication date. Other elections remain independent.
+exports.getPublicNoListsStatus = async () => {
+  const global=await globalConfigRef().get(),year=global.data()?.annoScolastico;
+  if(!/^20\d{2}\/20\d{2}$/.test(year||''))return{year:null,entries:[]};
+  const config=await loadElectionConfig(year);
+  const entries=NoLists.IDs.filter(key=>
+      NoLists.confirmed(config,key) &&
+      ElectionPolicy.phase(config,NoLists.TYPES[key].electionKey)==='RELEASED'
+    ).map(key=>({key,label:NoLists.TYPES[key].label,message:NoLists.publicNotice(key)}));
+  return {year,entries};
+};
+
 function timestampIso(v) {
   if (!v) return null;
   if (typeof v.toDate === 'function') return v.toDate().toISOString();
@@ -692,6 +706,12 @@ exports.castVote = async (request) => {
   const cleanBallots = {};
   const voterType = normalize(tokenDataBefore.tipo);
   const voterClass = normalize(tokenDataBefore.classe);
+  for(const submittedKey of Object.keys(submitted)) {
+    if(!submitted[submittedKey])continue;
+    const absenceKey=NoLists.keyForSection(submittedKey,voterType);
+    if(absenceKey&&NoLists.confirmed(config,absenceKey))
+      throw new HttpsError('failed-precondition','Per questa consultazione non risultano liste presentate: non è prevista una scheda di voto.');
+  }
   const eligibleKeys=activeVoterKeys(config,voterType,tokenDataBefore);
   for(const key of Object.keys(submitted)) {
     if(!submitted[key]) continue;
@@ -723,6 +743,8 @@ exports.castVote = async (request) => {
     if(state.emergencySuspended||state.procedureClosed) throw new HttpsError('failed-precondition','Votazione sospesa o chiusa.');
     if(regularityMissing(state,current).length) throw new HttpsError('failed-precondition','I controlli di regolarità non sono completi.');
     for(const key of Object.keys(cleanBallots)) {
+      if(NoLists.confirmed(current,NoLists.keyForSection(key,voterType)))
+        throw new HttpsError('failed-precondition','Consultazione priva di liste presentate: voto non ammesso.');
       if(!activeVoterKeys(current,voterType,tokenDataBefore).includes(key)) throw new HttpsError('failed-precondition','La consultazione non è più abilitata.');
       assertVotingOpen(current,key);
     }
@@ -1613,6 +1635,7 @@ exports.saveElectionConfig = async (request) => {
     if(!ElectionPolicy.ELECTIONS[key]) throw new HttpsError('invalid-argument','Consultazione non valida.');
     try {ElectionPolicy.validateProfile(profile);} catch(error) {throw new HttpsError('invalid-argument',error.message);}
   }
+  let absenceChanges=[];
   await db.runTransaction(async (tx) => {
     const previous = await tx.get(yearlyConfigRef(year));
     const regularity = await tx.get(regularityStateRef(year));
@@ -1624,6 +1647,32 @@ exports.saveElectionConfig = async (request) => {
     if(config.privacyMode&&!['PRESENTIAL_UNLINKED_V1','LEGACY_NAMED'].includes(config.privacyMode))throw new HttpsError('invalid-argument','Modalità credenziali non valida.');
     if(old.privacyMode!==config.privacyMode&&config.privacyMode===LegalReadiness.ANONYMOUS_MODE){
       for(const name of BALLOT_COLLECTIONS){const snap=await tx.get(yearlyCollection(name,year).limit(1));if(!snap.empty)throw new HttpsError('failed-precondition','Urne già popolate: non cambiare il processo di identificazione per questa annualità.');}
+    }
+    const prevAbsent=old.assenzaListe||{},nextAbsent=config.assenzaListe||{};
+    if(!nextAbsent||typeof nextAbsent!=='object'||Array.isArray(nextAbsent))
+      throw new HttpsError('invalid-argument','Dichiarazioni sulle liste non valide.');
+    for(const key of Object.keys(nextAbsent)) {
+      if(!NoLists.validKey(key)||!nextAbsent[key]||typeof nextAbsent[key]!=='object'||
+         typeof nextAbsent[key].confirmed!=='boolean')
+        throw new HttpsError('invalid-argument','Tipo di dichiarazione sulle liste non valido.');
+    }
+    const changedListEntries=[];
+    for(const key of NoLists.IDs){
+      const prior=NoLists.confirmed(old,key),wanted=NoLists.confirmed(config,key);
+      if(wanted&&Object.keys(NoLists.configuredLists(config,key)).length)
+        throw new HttpsError('failed-precondition','La dichiarazione di assenza liste non può convivere con liste configurate: '+NoLists.TYPES[key].label+'.');
+      if(prior===wanted)continue;
+      changedListEntries.push({key,confirmed:wanted});
+      const meta=NoLists.TYPES[key],profile=ElectionPolicy.profile(old,meta.electionKey);
+      const started=ElectionPolicy.windows(old,meta.electionKey).some(w=>Date.now()>=+w.start);
+      if(started||profile.frozen===true||state.votingReview?.stage==='AUTHORIZED'||state.procedureClosed)
+        throw new HttpsError('failed-precondition','La dichiarazione sulle liste di '+meta.label+' non è modificabile dopo il congelamento o l’avvio del procedimento di voto.');
+      if(wanted){
+        // The council ballot collection contains all three components: fail
+        // closed rather than risk a misleading declaration on any submitted vote.
+        const occupied=await tx.get(yearlyCollection(meta.collection,year).limit(1));
+        if(!occupied.empty)throw new HttpsError('failed-precondition','Urna già popolata: l’assenza di liste va verificata mediante procedura straordinaria, non dal pulsante.');
+      }
     }
     const protectedByKey={
       consiglio:['listeConsiglio','maxPrefConsiglio','consiglioAttivo'],
@@ -1655,8 +1704,11 @@ exports.saveElectionConfig = async (request) => {
     const starts=ElectionPolicy.enabled(config).flatMap(k=>ElectionPolicy.windows(config,k).map(w=>+w.start));
     tx.set(globalConfigRef(), { annoScolastico: year }, { merge: true });
     tx.set(yearlyConfigRef(year), { ...config, annoScolastico: year, votingStartsAtMs: starts.length?Math.min(...starts):0 }, { merge: false });
+    absenceChanges=changedListEntries;
   });
   await auditAdmin(actor, 'SAVE_ELECTION_CONFIG', { annoScolastico: year });
+  for(const entry of absenceChanges)
+    await auditAdmin(actor,'LIST_PRESENTATION_DECLARATION',{annoScolastico:year,election:entry.key,confirmed:entry.confirmed});
   return { ok: true };
 };
 

@@ -14,6 +14,7 @@
     <!-- Tailwind CSS per styling moderno e reattivo -->
     <script src="lib/election-policy.js"></script>
     <script src="lib/config-persistence.js"></script>
+    <script src="lib/no-lists.js"></script>
     <script src="lib/voter-register.js"></script>
     <script src="lib/election-sandbox.js"></script>
     <script src="lib/election-sandbox-ui.js"></script>
@@ -367,6 +368,7 @@
             <nav aria-label="Privacy e sito della scuola" class="flex flex-wrap justify-center gap-2 py-2">
                 <a href="fascicolo-dpo.html" target="_blank" rel="noopener noreferrer" class="rounded-lg border border-slate-500 px-3 py-2 text-white hover:bg-slate-800">DPO e privacy</a>
                 <a href="note-legali.html" class="rounded-lg border border-slate-500 px-3 py-2 text-white hover:bg-slate-800">Informativa legale</a>
+                <a href="?view=esiti" class="rounded-lg border border-slate-500 px-3 py-2 text-white hover:bg-slate-800">Avvisi sugli esiti</a>
                 <a href="https://www.leviseregno.edu.it/" target="_blank" rel="noopener noreferrer" class="rounded-lg border border-slate-500 px-3 py-2 text-white hover:bg-slate-800">Sito della scuola</a>
             </nav>
             <p><a href="note-legali.html#assistenza" class="underline text-white">Accessibilità e assistenza</a> · <a href="anonimato.html" class="underline text-white">Protezione del voto</a></p>
@@ -418,7 +420,7 @@
         const SECURE_API = new Proxy({}, {
             get: (_, functionName) => async (data = {}) => {
                 const headers = { 'Content-Type': 'application/json' };
-                if (!['validateVoterToken','castVote','getVoterSessionStatus','getPublicServiceStatus'].includes(String(functionName)) && auth.currentUser) headers.Authorization = 'Bearer ' + await auth.currentUser.getIdToken();
+                if (!['validateVoterToken','castVote','getVoterSessionStatus','getPublicServiceStatus','getPublicNoListsStatus'].includes(String(functionName)) && auth.currentUser) headers.Authorization = 'Bearer ' + await auth.currentUser.getIdToken();
                 const response = await fetch(VERCEL_BACKEND_URL, {
                     method: 'POST', headers, cache: 'no-store', credentials: 'omit',
                     body: JSON.stringify({ name: String(functionName), data })
@@ -1064,6 +1066,7 @@
                 case 'commissionPasswordChange': renderCommissionPasswordChange(container); break;
                 case 'adminPanel': renderAdminPanel(container); break;
                 case 'managementLogin': renderManagementLogin(container); break;
+                case 'publicNoLists': renderPublicNoListsPage(container); break;
                 case 'managementDashboard': renderManagementDashboard(container); break;
                 case 'technicalLogin': renderTechnicalLogin(container); break;
                 case 'technicalDashboard': renderTechnicalDashboard(container); break;
@@ -1073,6 +1076,22 @@
             updateTestModeBanner();
             lucide.createIcons();
         };
+
+        async function renderPublicNoListsPage(container){
+            container.innerHTML='<div class="mx-auto max-w-4xl rounded-2xl bg-white p-8 text-slate-800 shadow"><h2 class="text-xl font-black">Avvisi ufficiali sulle consultazioni</h2><p class="mt-3">Caricamento degli avvisi pubblicabili...</p></div>';
+            try{
+                const response=await SECURE_API.getPublicNoListsStatus();
+                const entries=Array.isArray(response.data?.entries)?response.data.entries:[];
+                container.innerHTML=`<div class="mx-auto max-w-4xl space-y-5 rounded-2xl bg-white p-8 text-slate-800 shadow">
+                    <h2 class="text-xl font-black">Avvisi relativi agli esiti — A.S. ${technicalEscape(response.data?.year||'non disponibile')}</h2>
+                    <p class="text-xs text-slate-600">Sono mostrate esclusivamente le constatazioni di assenza di liste la cui pubblicazione è stata autorizzata e per le quali è giunta la data di diffusione. Questa pagina non sostituisce l’albo dell’Istituto né pubblica automaticamente atti privi di sottoscrizione.</p>
+                    ${entries.length?entries.map(entry=>`<article class="rounded-xl border border-amber-200 bg-amber-50 p-5"><h3 class="font-black">${technicalEscape(entry.label)}</h3><p class="mt-2 text-sm">${technicalEscape(entry.message)}</p></article>`).join(''):'<div class="rounded-xl border p-5 text-sm">Nessun avviso di assenza di liste è attualmente pubblicabile. L’assenza di avvisi non equivale a proclamazione di eletti.</div>'}
+                    <a class="inline-block text-blue-900 underline" href="./">Torna alla pagina principale</a>
+                </div>`;
+            }catch(error){
+                container.innerHTML=`<div class="mx-auto max-w-4xl rounded-2xl bg-white p-8 text-red-800 shadow"><b>Avvisi non verificabili</b><p class="mt-3 text-sm">${technicalEscape(error.message||'Riprovare più tardi.')}</p><a href="./" class="underline">Torna alla pagina principale</a></div>`;
+            }
+        }
 
         window.showClassMasterLogin = function(type) { loginReferenteType = type; showPage('classMasterLogin'); };
 
@@ -1234,7 +1253,7 @@
             let eligibleElectionsCount = 0;
             let alreadyVotedCount = 0;
             
-            if (configElezioni.consiglioAttivo && votingWindowStatus('consiglio').open && currentUserData.tipo !== 'STUDENTE') {
+            if (configElezioni.consiglioAttivo && !LeviNoLists.confirmed(configElezioni,'consiglio_'+currentUserData.tipo) && votingWindowStatus('consiglio').open && currentUserData.tipo !== 'STUDENTE') {
                 eligibleElectionsCount++;
                 if (currentUserData.voted_consiglio) { alreadyVotedCount++; } else {
                     let status = cartVotes.consiglio ? 'Compilata nel carrello' : 'Da compilare';
@@ -1253,7 +1272,7 @@
                 }
             }
 
-            if (configElezioni.rappresentantiIstitutoAttivo && votingWindowStatus('istituto').open && currentUserData.tipo === 'STUDENTE') {
+            if (configElezioni.rappresentantiIstitutoAttivo && !LeviNoLists.confirmed(configElezioni,'istituto') && votingWindowStatus('istituto').open && currentUserData.tipo === 'STUDENTE') {
                 eligibleElectionsCount++;
                 if (currentUserData.voted_istituto) { alreadyVotedCount++; } else {
                     let status = cartVotes.istituto ? 'Compilata nel carrello' : 'Da compilare';
@@ -1272,7 +1291,7 @@
                 }
             }
 
-            if (configElezioni.consultaAttiva && votingWindowStatus('consulta').open && currentUserData.tipo === 'STUDENTE') {
+            if (configElezioni.consultaAttiva && !LeviNoLists.confirmed(configElezioni,'consulta') && votingWindowStatus('consulta').open && currentUserData.tipo === 'STUDENTE') {
                 eligibleElectionsCount++;
                 if (currentUserData.voted_consulta) { alreadyVotedCount++; } else {
                     let status = cartVotes.consulta ? 'Compilata nel carrello' : 'Da compilare';
@@ -3643,6 +3662,51 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             showNotification('Operazione protetta', `La purga delle credenziali richiede procedura amministrativa autenticata e verbalizzata.`, 'error');
         };
 
+        function noListsControlHTML(key){
+            const meta=LeviNoLists.TYPES[key],marked=LeviNoLists.confirmed(configElezioni,key);
+            if(!meta)return '';
+            const hasDraftLists=Object.keys(LeviNoLists.configuredLists(configElezioni,key)).length>0;
+            return `<div class="rounded-xl border ${marked?'border-amber-300 bg-amber-50':'border-slate-200 bg-slate-50'} p-4 mt-3">
+                <label class="flex items-start gap-3 text-xs text-slate-800 font-semibold">
+                    <input type="checkbox" class="mt-0.5 w-5 h-5" ${marked?'checked':''}
+                     onchange="window.setNoListsForElection('${key}',this.checked,this)">
+                    <span><b>Nessuna lista presentata — ${technicalEscape(meta.label)}</b><br>
+                    Spuntare solo dopo la scadenza del termine applicabile (anche eventuale proroga), previa verifica del registro di deposito.
+                    ${hasDraftLists?'<span class="block text-amber-800 mt-1">Prima di spuntare, rimuovere le liste di prova o non ammesse presenti nel sistema; la dichiarazione non può convivere con liste configurate.</span>':''}
+                    </span>
+                </label>
+                ${marked?`<div class="mt-3 flex flex-wrap gap-2"><span class="px-2 py-1 text-[10px] font-bold rounded bg-amber-100 text-amber-900">Constatazione registrata</span>
+                    <button type="button" onclick="window.generateNoListsMinutesDocx('${key}')" class="rounded-lg bg-indigo-900 text-white px-3 py-2 text-xs font-bold">Genera verbale assenza liste (Word)</button>
+                    </div>`:''}
+            </div>`;
+        }
+        window.setNoListsForElection=async function(key,enabled,input){
+            if(!LeviNoLists.validKey(key))return;
+            const was=LeviNoLists.confirmed(configElezioni,key);
+            if(enabled===was)return;
+            if(enabled&&Object.keys(LeviNoLists.configuredLists(configElezioni,key)).length){
+                input.checked=was;
+                return showNotification('Liste ancora configurate','Rimuovere prima le liste di prova o non ammesse dal sistema e verificare i depositi ufficiali.','error');
+            }
+            if(enabled&&!window.confirm('La Commissione ha verificato il registro dei depositi e la scadenza dell’eventuale proroga? Conferma che nessuna lista è stata presentata per questa specifica consultazione?')){
+                input.checked=was;return;
+            }
+            input.disabled=true;
+            const previous=configElezioni.assenzaListe?.[key];
+            configElezioni.assenzaListe={...(configElezioni.assenzaListe||{}),
+                [key]:{confirmed:!!enabled,declaredAt:enabled?new Date().toISOString():null}};
+            const ok=await saveConfigToDB({captureForms:false,notify:false});
+            if(!ok){
+                if(previous===undefined)delete configElezioni.assenzaListe[key];
+                else configElezioni.assenzaListe[key]=previous;
+                showNotification('Dichiarazione non registrata',window.lastConfigSaveError||'Verifica dei termini e dei dati.','error');
+            }else{
+                showNotification(enabled?'Assenza liste registrata':'Dichiarazione ritirata',
+                    enabled?'Il verbale è disponibile per la sottoscrizione. L’avviso comparirà solo dopo la convalida e la data di pubblicazione.':'La dichiarazione non viene più proposta tra gli esiti.','success');
+            }
+            renderListeTab(document.getElementById('admin-tab-content'));
+        };
+
         function renderListeTab(container) {
             let accordionMenu = `
                 <div class="flex flex-wrap gap-1.5 mb-6 font-semibold">
@@ -3740,6 +3804,12 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                     </div>
 
                     ${accordionMenu}
+                    <section aria-label="Dichiarazione assenza liste" class="mb-5 bg-white border border-amber-200 rounded-xl p-4">
+                        <h4 class="text-sm font-black text-slate-900">Constatazione della mancata presentazione delle liste</h4>
+                        <p class="text-xs text-slate-600 mt-1">Ogni spunta si applica solo alla specifica componente. La pubblicazione richiede la convalida della relativa consultazione e il raggiungimento della data prevista per gli esiti.</p>
+                        ${(currentAccordionSection==='consiglio'?['consiglio_GENITORE','consiglio_DOCENTE','consiglio_ATA']:[currentAccordionSection]).map(noListsControlHTML).join('')}
+                        <p class="text-[10px] text-slate-600 mt-3">Rappresentanti di classe: non è prevista questa spunta. L’art. 22, comma 7, O.M. 215/1991 prevede un’unica lista che comprende tutti gli elettori, indipendentemente dalla presentazione di candidature spontanee.</p>
+                    </section>
 
                     <div class="space-y-4">
                         ${sectionContentHTML}
@@ -4642,7 +4712,9 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 isClasse = true;
             }
 
-            await fetchScrutinioData(colName);
+            const absenceKey=LeviNoLists.keyForSection(currentScrutinioSection,currentScrutinioSubComponent);
+            const noListsConfirmed=absenceKey&&LeviNoLists.confirmed(configElezioni,absenceKey);
+            if(!noListsConfirmed)await fetchScrutinioData(colName);
 
             let subNavConsiglioHTML = '';
             if (currentScrutinioSection === 'consiglio') {
@@ -4665,6 +4737,19 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 </div>
             `;
 
+            if(noListsConfirmed){
+                container.innerHTML=`<div class="bg-white p-6 rounded-2xl shadow border border-slate-200">
+                    <h3 class="text-base font-black text-slate-800">${technicalEscape(titleLabel)}</h3>
+                    <p class="mt-2 text-xs text-slate-600">La Commissione ha registrato la mancata presentazione di liste per questa componente. Non si generano conteggi, graduatorie o proclamazioni in questa schermata.</p>
+                    ${mainNavHTML}${subNavConsiglioHTML}
+                    <div class="p-5 rounded-xl bg-amber-50 border border-amber-200">
+                        <p class="font-bold text-amber-950">${technicalEscape(LeviNoLists.publicNotice(absenceKey))}</p>
+                        <p class="mt-2 text-xs text-amber-900">La pubblicazione esterna resta soggetta a convalida, data di rilascio e firma del verbale.</p>
+                        <button onclick="window.generateNoListsMinutesDocx('${absenceKey}')" class="mt-4 bg-indigo-900 text-white font-bold text-xs px-4 py-3 rounded-xl">Genera verbale di mancata presentazione (Word)</button>
+                    </div></div>`;
+                lucide.createIcons();
+                return;
+            }
             let leftVotiEditorHTML = '';
             let subListe = {};
             
@@ -5931,6 +6016,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             container.innerHTML = `
                 <div class="w-full max-w-7xl mx-auto space-y-5 animate-fade-in font-semibold">
                     ${getCommissionMessageHTML()}
+                    ${managementNoListsNoticesHTML()}
                     <div class="bg-gradient-header text-white p-6 rounded-3xl shadow-xl border-b-4 border-emerald-400 flex flex-col lg:flex-row justify-between gap-5 items-start lg:items-center">
                         <div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 bg-emerald-300 rounded-full animate-pulse"></span><span class="text-[9px] uppercase tracking-widest font-black">Cruscotto protetto • aggiornamento automatico</span></div><h2 class="text-2xl font-black mt-2">${role}</h2><p class="text-xs text-slate-300 mt-1">${managementRoleDescription(role)} ${currentManagementData.scopeClass && currentManagementData.scopeClass !== 'TUTTE' ? '• Classe autorizzata: '+currentManagementData.scopeClass : ''}</p></div>
                         <div class="flex flex-wrap gap-2"><span id="managementLastUpdate" class="bg-emerald-400/10 border border-emerald-200/20 px-3 py-2.5 rounded-xl text-[9px] font-black">LIVE</span><button onclick="window.refreshManagementDashboard()" class="bg-white/10 hover:bg-white/20 border border-white/20 px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Aggiorna</button><button onclick="window.logoutManagement()" class="bg-red-600 hover:bg-red-700 border border-red-500 px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2"><i data-lucide="log-out" class="w-4 h-4"></i> Esci</button></div>
@@ -5966,6 +6052,16 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 return [collectionName, response.data?.ballots || []];
             }));
             return Object.fromEntries(pairs);
+        }
+
+        function managementNoListsNoticesHTML(){
+            const keys=LeviNoLists.IDs.filter(key=>LeviNoLists.confirmed(configElezioni,key));
+            if(!keys.length)return '';
+            return `<div class="rounded-2xl border border-amber-300 bg-amber-50 p-5">
+                <h3 class="font-black text-amber-950 text-sm">Comunicazioni sulle consultazioni senza liste presentate</h3>
+                <p class="text-xs mt-1 text-amber-900">Stato registrato internamente. Le comunicazioni pubbliche compariranno solo alla data di pubblicazione prevista per ciascuna elezione convalidata.</p>
+                <ul class="list-disc ml-5 mt-2 text-xs text-slate-800">${keys.map(key=>`<li>${technicalEscape(LeviNoLists.TYPES[key].label)} — nessuna lista presentata, verbale da sottoscrivere/acquisire agli atti</li>`).join('')}</ul>
+            </div>`;
         }
 
         function renderManagementDashboard(container) {
@@ -6436,6 +6532,93 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
         window.generateElectionMinutesDocx=async function(section,subComponent=''){
             try { const body=await buildElectionMinutesDocx(section,subComponent); const d=electionDescriptor(section,subComponent); const year=(configElezioni.annoScolastico||'AS').replace('/','_'); await generateDocxFile(body,`Verbale_${section}${subComponent?'_'+subComponent:''}_${year}.docx`); showNotification('Verbale Word generato',`Scaricato il verbale modificabile: ${d.title}.`,'success'); } catch(e){ console.error(e); showNotification('Errore Word','Impossibile generare il verbale: '+e.message,'error'); }
         };
+        window.generateNoListsMinutesDocx=async function(key){
+            if(!LeviNoLists.confirmed(configElezioni,key))
+                return showNotification('Dichiarazione assente','Registrare prima la spunta e verificarne il salvataggio nel cloud.','error');
+            if(!commissionSessionReady||!auth.currentUser)
+                return showNotification('Accesso riservato','Per generare questo verbale occorre la sessione Commissione.','error');
+            try{
+                const meta=LeviNoLists.TYPES[key],entry=configElezioni.assenzaListe[key],
+                    profile=LeviElectionPolicy.profile(configElezioni,meta.electionKey),
+                    schoolYear=configElezioni.annoScolastico||'________',
+                    timestamp=entry.declaredAt&&!Number.isNaN(Date.parse(entry.declaredAt))?
+                        new Date(entry.declaredAt).toLocaleString('it-IT',{timeZone:'Europe/Rome'}):'________';
+                const body=[];
+                body.push(docxHeading('I.I.S. "PRIMO LEVI" — SEREGNO',1));
+                body.push(docxParagraph('COMMISSIONE ELETTORALE D’ISTITUTO',true));
+                body.push(docxHeading('VERBALE DI CONSTATAZIONE DELLA MANCATA PRESENTAZIONE DELLE LISTE',1));
+                body.push(docxParagraph('Documento distinto per singola consultazione e componente; bozza generata dal sistema, efficace come atto amministrativo solo dopo verifica dei presupposti, sottoscrizione e acquisizione agli atti.'));
+                body.push(docxTable([
+                    ['Campo','Dato'],
+                    ['Anno scolastico',schoolYear],
+                    ['Consultazione e componente',meta.label],
+                    ['Tipologia della procedura',profile.kind||'Da verificare dagli atti'],
+                    ['Periodo organizzativo',profile.period||'Da verificare dagli atti'],
+                    ['Registrazione informatica della dichiarazione',timestamp],
+                    ['Protocollo del presente verbale','____________________'],
+                    ['Data, ora e luogo della seduta','____________________'],
+                    ['Termine ordinario per presentare le liste','____________________'],
+                    ['Proroga, se formalmente disposta (atto / termine)','____________________'],
+                    ['Data/ora effettiva della verifica del registro','____________________']
+                ]));
+                body.push(docxHeading('1. COSTITUZIONE DELLA COMMISSIONE E DOCUMENTI ESAMINATI',1));
+                body.push(docxParagraph('Nell’anno, nel giorno e nel luogo sopra indicati si riunisce la Commissione Elettorale dell’Istituto, sulla base della sua regolare costituzione e degli atti di nomina. Il Presidente procede alla verifica delle registrazioni di presentazione delle liste, della documentazione custodita dalla segreteria competente, dell’atto di indizione e di eventuali atti di rettifica o proroga. Gli estremi documentali vanno completati prima della firma.'));
+                body.push(docxTable([['Ruolo / qualifica','Nominativo','Presenza / firma'],
+                    ...((configElezioni.commissione||[]).map(m=>[m.ruolo||'Componente',m.nome||'________________','________________']))]));
+                body.push(docxHeading('2. NORME DI RIFERIMENTO E LORO APPLICAZIONE',1));
+                body.push(docxParagraph('VISTO il decreto legislativo 16 aprile 1994, n. 297: l’art. 8 disciplina la composizione del Consiglio di Istituto, nell’ambito della normativa generale sugli organi collegiali. La presente constatazione riguarda esclusivamente la componente specificata e non determina automaticamente l’invalidità delle consultazioni relative alle altre componenti.'));
+                body.push(docxParagraph('VISTA l’ordinanza ministeriale 15 luglio 1991, n. 215, con successive modificazioni e integrazioni, per le disposizioni pertinenti: art. 30 (formazione e distinzione delle liste per componenti e accettazione delle candidature); art. 31 (autenticazione delle firme); art. 32 (modalità e termini ordinari di presentazione, da coordinare con il concreto atto di indizione e con eventuali provvedimenti applicabili); art. 33 (esposizione delle liste presentate); art. 34, commi 1-3 (verifica delle liste depositate, eliminazione delle irregolarità e possibilità di regolarizzazione nei termini previsti).'));
+                body.push(docxParagraph('PRECISATO che la procedura di regolarizzazione dell’art. 34 presuppone la presenza di una lista effettivamente depositata con irregolarità e non consente di dichiarare sanata una lista mai presentata. La Commissione distingue quindi rigorosamente l’assenza assoluta di deposito dall’eventuale mancata ammissione di liste depositate: questa spunta attesta esclusivamente il primo caso.'));
+                if(meta.electionKey==='istituto'){
+                    body.push(docxParagraph('PER LA COMPONENTE STUDENTESCA DEL CONSIGLIO DI ISTITUTO: rilevano inoltre l’art. 21, comma 3, dell’O.M. 215/1991 per il sistema delle liste contrapposte nell’elezione contestuale e l’art. 22, comma 5, per il compito della Commissione Elettorale nella riassunzione dei voti di lista e di preferenza e nella proclamazione degli eletti.'));
+                }
+                if(meta.electionKey==='consulta'){
+                    body.push(docxParagraph('PER LA CONSULTA PROVINCIALE: l’art. 6, comma 1, del D.P.R. 10 ottobre 1996, n. 567, nel testo sostituito dall’art. 1, comma 1, lettera a), del D.P.R. 29 novembre 2007, n. 268, disciplina due rappresentanti per istituto, il mandato biennale, l’elezione con modalità analoghe a quelle dei rappresentanti degli studenti nel Consiglio di Istituto, la sostituzione mediante i primi non eletti e, in caso di esaurimento delle liste, le elezioni suppletive. Verificare e citare l’atto che ha effettivamente indetto il rinnovo o le suppletive nel caso concreto.'));
+                }
+                if(meta.electionKey==='consiglio'){
+                    body.push(docxParagraph('PER LA COMPONENTE '+key.slice('consiglio_'.length)+': gli articoli 30-34 dell’O.M. 215/1991 si applicano alla presentazione, autenticazione e verifica delle liste del Consiglio di Istituto relative alla componente interessata. La constatazione non si estende alle restanti componenti.'));
+                }
+                body.push(docxHeading('3. ATTO DI INDIZIONE, CALENDARIO E PROVE',1));
+                if(profile.dedicated){
+                    body.push(docxTable([['Ente','Protocollo / numero','Data','Oggetto'],
+                        ...(profile.acts||[]).map(a=>[a.authority||'',a.protocol||'',a.date||'',a.subject||''])]));
+                    body.push(docxTable([['Giornata programmata','Orario di inizio','Orario di chiusura'],
+                        ...(profile.windows||[]).map(w=>[w.date||'',w.from||'',w.to||''])]));
+                }else{
+                    const circ=configElezioni.riferimentoCircolare||{};
+                    body.push(docxTable([['Atto generale','Valore'],['Protocollo',circ.numero||'________________'],
+                        ['Data',circ.data||'________________'],['Oggetto',circ.oggetto||'________________']]));
+                }
+                body.push(docxParagraph('Documenti da allegare e controllare: atto di indizione; avviso e termine di presentazione; provvedimento di eventuale proroga; registro di protocollo/deposito e dichiarazione dell’ufficio ricevente; riscontro della Commissione; eventuali comunicazioni agli organi competenti. Se un dato non è verificato, non firmare né pubblicare il presente verbale.'));
+                body.push(docxHeading('4. CONSTATAZIONI E DETERMINAZIONI',1));
+                body.push(docxParagraph('La Commissione, dopo aver accertato il termine effettivamente applicabile e verificato le evidenze sopra richiamate, CONSTATATA — ove confermata la verifica materiale — l’assenza di liste depositate per la consultazione e la componente indicate, DÀ ATTO che non sussistono liste da ammettere per questa specifica procedura e, pertanto, non vi sono risultati di lista o candidati da proclamare sulla base della stessa.'));
+                body.push(docxParagraph('La Commissione dispone l’acquisizione del presente verbale e dei relativi allegati al fascicolo elettorale; informa il Dirigente Scolastico e, quando richiesto, l’ufficio territorialmente competente. Eventuali conseguenti provvedimenti, nuove convocazioni o ulteriori procedure saranno valutati e adottati dagli organi competenti sulla base della disciplina applicabile: la spunta informatica e il presente documento non dispongono autonomamente nuove elezioni.'));
+                body.push(docxParagraph('L’eventuale comunicazione pubblica del sito si limita alla dichiarazione verificata e convalidata dalla Commissione e viene resa visibile soltanto al raggiungimento della data di pubblicazione degli esiti prevista per questa consultazione.'));
+                body.push(docxHeading('5. ALLEGATI, NOTE, SOTTOSCRIZIONI',1));
+                body.push(docxTable([['Allegato documentale','Protocollo / riferimento','Verificato dalla Commissione'],
+                    ['Indizione e convocazione','____________________','____________________'],
+                    ['Termine finale ed eventuale proroga','____________________','____________________'],
+                    ['Attestazione del registro depositi','____________________','____________________'],
+                    ['Riscontro della Commissione','____________________','____________________'],
+                    ['Ulteriori comunicazioni','____________________','____________________']]));
+                body.push(docxParagraph('Osservazioni o riserve dei componenti: ________________________________________________________________________________'));
+                body.push(docxParagraph('Il presente documento è una bozza compilata con i dati registrati nel sistema. I componenti ne verificano e integrano il contenuto prima della sottoscrizione; il protocollo, la pubblicazione e la conservazione seguono le procedure istituzionali.'));
+                body.push(docxTable([['Qualifica','Nome e cognome','Firma / sottoscrizione'],
+                    ...((configElezioni.commissione||[]).map(m=>[m.ruolo||'',m.nome||'','____________________'])),
+                    ['Segretario verbalizzante','____________________','____________________']]));
+                body.push(docxHeading('6. FONTI NORMATIVE DA ALLEGARE AL FASCICOLO',1));
+                body.push(docxParagraph('[1] D.Lgs. 16 aprile 1994, n. 297, art. 8: composizione del Consiglio di Istituto. Fonte: Normattiva, testo vigente alla data del procedimento.'));
+                body.push(docxParagraph('[2] O.M. 15 luglio 1991, n. 215, artt. 21 (se pertinente), 22 (se pertinente), 30, 31, 32, 33 e 34, con modificazioni applicabili. Copia istituzionale: https://usrfvg.gov.it/archivio/export/sites/default/USRFVG/allegati/archivio_file/organi_collegiali/om215_91.pdf'));
+                if(meta.electionKey==='consulta')body.push(docxParagraph('[3] D.P.R. 10 ottobre 1996, n. 567, art. 6, comma 1, come modificato dal D.P.R. 29 novembre 2007, n. 268, art. 1, comma 1, lett. a). Fonte ufficiale: Normattiva / Gazzetta Ufficiale, GU n. 24 del 29 gennaio 2008.'));
+                body.push(docxParagraph('[4] Atto annuale di indizione, circolari e provvedimenti di eventuale proroga propri dell’Istituto: allegare gli originali e indicarne gli estremi aggiornati. I riferimenti legislativi generali non sostituiscono la verifica di questi atti.'));
+                const fileYear=schoolYear.replace('/','_');
+                await generateDocxFile(body.join(''),'Verbale_Mancata_Presentazione_Liste_'+key+'_'+fileYear+'.docx');
+                showNotification('Verbale Word generato',meta.label+': documento da controllare, completare, firmare e protocollare.','success');
+            }catch(error){
+                showNotification('Verbale non generato',error.message||'Errore nella creazione Word.','error');
+            }
+        };
+
         window.generateDetailedMinutesDocx=async function(){ return window.generateElectionMinutesDocx('istituto',''); };
 
         window.openDigitalDossierDelete = function(){
@@ -6456,6 +6639,8 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             
             if (pendingDpoDownload) {
                 showPage('adminLogin');
+            } else if (params.get('view') === 'esiti') {
+                showPage('publicNoLists');
             } else if (params.get('view') === 'management') {
                 showPage('managementLogin');
             } else if (params.get('view') === 'technical') {
