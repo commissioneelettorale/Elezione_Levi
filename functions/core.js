@@ -315,7 +315,7 @@ exports.getPublicServiceStatus = async () => {
 // and the configured results publication date. Other elections remain independent.
 exports.getPublicNoListsStatus = async () => {
   const global=await globalConfigRef().get(),year=global.data()?.annoScolastico;
-  if(!/^20\\d{2}\\/20\\d{2}$/.test(year||''))return{year:null,entries:[]};
+  if(!/^20\d{2}\/20\d{2}$/.test(year||''))return{year:null,entries:[]};
   const config=await loadElectionConfig(year);
   const entries=NoLists.IDs.filter(key=>
       NoLists.confirmed(config,key) &&
