@@ -6,6 +6,8 @@ const crypto = require('node:crypto');
 const ALLOWED_FUNCTIONS = new Set([
   "getPublicServiceStatus",
   "getPublicNoListsStatus",
+  "getNoElectedClasses",
+  "setNoElectedClass",
   "getVoterSessionStatus",
   "getVotingReview",
   "getVotingReviewEvents",
