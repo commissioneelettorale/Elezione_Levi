@@ -3,6 +3,7 @@
 const fs=require('node:fs'),path=require('node:path');
 require('node:child_process').execFileSync(process.execPath,['scripts/check-config-persistence.cjs'],{stdio:'inherit'});
 require('node:child_process').execFileSync(process.execPath,['scripts/check-no-lists.cjs'],{stdio:'inherit'});
+require('node:child_process').execFileSync(process.execPath,['scripts/check-class-expiry-archive.cjs'],{stdio:'inherit'});
 const assets=['index.html','404.html','anonimato.html','note-legali.html','fascicolo-dpo.html','levi.png',
  'lib/election-sandbox-ui.js','lib/election-sandbox.js','lib/election-policy.js','lib/config-persistence.js','lib/no-lists.js','lib/legal-readiness.js','lib/privacy-review-ui.js','lib/privacy-notice.js','lib/voter-register.js',
  ...fs.readdirSync('vendor').filter(p=>fs.statSync(path.join('vendor',p)).isFile()).map(p=>'vendor/'+p)];
