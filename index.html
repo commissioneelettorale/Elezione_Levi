@@ -1253,7 +1253,7 @@
             let eligibleElectionsCount = 0;
             let alreadyVotedCount = 0;
             
-            if (configElezioni.consiglioAttivo && votingWindowStatus('consiglio').open && currentUserData.tipo !== 'STUDENTE') {
+            if (configElezioni.consiglioAttivo && !LeviNoLists.confirmed(configElezioni,'consiglio_'+currentUserData.tipo) && votingWindowStatus('consiglio').open && currentUserData.tipo !== 'STUDENTE') {
                 eligibleElectionsCount++;
                 if (currentUserData.voted_consiglio) { alreadyVotedCount++; } else {
                     let status = cartVotes.consiglio ? 'Compilata nel carrello' : 'Da compilare';
@@ -1272,7 +1272,7 @@
                 }
             }
 
-            if (configElezioni.rappresentantiIstitutoAttivo && votingWindowStatus('istituto').open && currentUserData.tipo === 'STUDENTE') {
+            if (configElezioni.rappresentantiIstitutoAttivo && !LeviNoLists.confirmed(configElezioni,'istituto') && votingWindowStatus('istituto').open && currentUserData.tipo === 'STUDENTE') {
                 eligibleElectionsCount++;
                 if (currentUserData.voted_istituto) { alreadyVotedCount++; } else {
                     let status = cartVotes.istituto ? 'Compilata nel carrello' : 'Da compilare';
@@ -1291,7 +1291,7 @@
                 }
             }
 
-            if (configElezioni.consultaAttiva && votingWindowStatus('consulta').open && currentUserData.tipo === 'STUDENTE') {
+            if (configElezioni.consultaAttiva && !LeviNoLists.confirmed(configElezioni,'consulta') && votingWindowStatus('consulta').open && currentUserData.tipo === 'STUDENTE') {
                 eligibleElectionsCount++;
                 if (currentUserData.voted_consulta) { alreadyVotedCount++; } else {
                     let status = cartVotes.consulta ? 'Compilata nel carrello' : 'Da compilare';
@@ -4712,7 +4712,9 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 isClasse = true;
             }
 
-            await fetchScrutinioData(colName);
+            const absenceKey=LeviNoLists.keyForSection(currentScrutinioSection,currentScrutinioSubComponent);
+            const noListsConfirmed=absenceKey&&LeviNoLists.confirmed(configElezioni,absenceKey);
+            if(!noListsConfirmed)await fetchScrutinioData(colName);
 
             let subNavConsiglioHTML = '';
             if (currentScrutinioSection === 'consiglio') {
@@ -4735,6 +4737,19 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 </div>
             `;
 
+            if(noListsConfirmed){
+                container.innerHTML=`<div class="bg-white p-6 rounded-2xl shadow border border-slate-200">
+                    <h3 class="text-base font-black text-slate-800">${technicalEscape(titleLabel)}</h3>
+                    <p class="mt-2 text-xs text-slate-600">La Commissione ha registrato la mancata presentazione di liste per questa componente. Non si generano conteggi, graduatorie o proclamazioni in questa schermata.</p>
+                    ${mainNavHTML}${subNavConsiglioHTML}
+                    <div class="p-5 rounded-xl bg-amber-50 border border-amber-200">
+                        <p class="font-bold text-amber-950">${technicalEscape(LeviNoLists.publicNotice(absenceKey))}</p>
+                        <p class="mt-2 text-xs text-amber-900">La pubblicazione esterna resta soggetta a convalida, data di rilascio e firma del verbale.</p>
+                        <button onclick="window.generateNoListsMinutesDocx('${absenceKey}')" class="mt-4 bg-indigo-900 text-white font-bold text-xs px-4 py-3 rounded-xl">Genera verbale di mancata presentazione (Word)</button>
+                    </div></div>`;
+                lucide.createIcons();
+                return;
+            }
             let leftVotiEditorHTML = '';
             let subListe = {};
             
@@ -6001,6 +6016,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             container.innerHTML = `
                 <div class="w-full max-w-7xl mx-auto space-y-5 animate-fade-in font-semibold">
                     ${getCommissionMessageHTML()}
+                    ${managementNoListsNoticesHTML()}
                     <div class="bg-gradient-header text-white p-6 rounded-3xl shadow-xl border-b-4 border-emerald-400 flex flex-col lg:flex-row justify-between gap-5 items-start lg:items-center">
                         <div><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 bg-emerald-300 rounded-full animate-pulse"></span><span class="text-[9px] uppercase tracking-widest font-black">Cruscotto protetto • aggiornamento automatico</span></div><h2 class="text-2xl font-black mt-2">${role}</h2><p class="text-xs text-slate-300 mt-1">${managementRoleDescription(role)} ${currentManagementData.scopeClass && currentManagementData.scopeClass !== 'TUTTE' ? '• Classe autorizzata: '+currentManagementData.scopeClass : ''}</p></div>
                         <div class="flex flex-wrap gap-2"><span id="managementLastUpdate" class="bg-emerald-400/10 border border-emerald-200/20 px-3 py-2.5 rounded-xl text-[9px] font-black">LIVE</span><button onclick="window.refreshManagementDashboard()" class="bg-white/10 hover:bg-white/20 border border-white/20 px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Aggiorna</button><button onclick="window.logoutManagement()" class="bg-red-600 hover:bg-red-700 border border-red-500 px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2"><i data-lucide="log-out" class="w-4 h-4"></i> Esci</button></div>
@@ -6036,6 +6052,16 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 return [collectionName, response.data?.ballots || []];
             }));
             return Object.fromEntries(pairs);
+        }
+
+        function managementNoListsNoticesHTML(){
+            const keys=LeviNoLists.IDs.filter(key=>LeviNoLists.confirmed(configElezioni,key));
+            if(!keys.length)return '';
+            return `<div class="rounded-2xl border border-amber-300 bg-amber-50 p-5">
+                <h3 class="font-black text-amber-950 text-sm">Comunicazioni sulle consultazioni senza liste presentate</h3>
+                <p class="text-xs mt-1 text-amber-900">Stato registrato internamente. Le comunicazioni pubbliche compariranno solo alla data di pubblicazione prevista per ciascuna elezione convalidata.</p>
+                <ul class="list-disc ml-5 mt-2 text-xs text-slate-800">${keys.map(key=>`<li>${technicalEscape(LeviNoLists.TYPES[key].label)} — nessuna lista presentata, verbale da sottoscrivere/acquisire agli atti</li>`).join('')}</ul>
+            </div>`;
         }
 
         function renderManagementDashboard(container) {
