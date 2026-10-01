@@ -3062,6 +3062,11 @@
 
             try {
                 const zip = new JSZip();
+                const pdfFolder=zip.folder('PDF_Verbali');
+                const addPdf=(name,title,sections)=>{
+                    const pdf=archivePdfDocument(title,sections);
+                    pdfFolder.file(name,pdf.output('arraybuffer'));
+                };
                 const activeYearLabel = (configElezioni.annoScolastico || "2025_2026").replace('/', '_');
 
                 // Caricamento asincrono di tutti i voti dalle urne del Cloud
@@ -3437,24 +3442,137 @@
                 // -------------------------------------------------------------
                 // DOCUMENTI 5: REGISTRO MASTER COMPLETO TOKEN + REGISTRI SUDDIVISI
                 // -------------------------------------------------------------
-                const detailedTokensHtml = buildTokenRegisterReportHtml(tokensData);
-                zip.file("registro_completo_token.html", getHtmlReportTemplate("Registro Generale Credenziali Token", `Anno Scolastico ${configElezioni.annoScolastico}`, detailedTokensHtml));
-
-                // Registri dei Token suddivisi per ciascuna votazione/ruolo
-                ["STUDENTE", "GENITORE", "DOCENTE", "ATA"].forEach(comp => {
-                    let compTokens = tokensData.filter(t => t.tipo === comp);
-                    let compTokensHtml = buildTokenRegisterReportHtml(compTokens, comp);
-                    zip.file(`registro_token_${comp.toLowerCase()}.html`, getHtmlReportTemplate(`Registro Credenziali Token - ${comp}`, `Anno Scolastico ${configElezioni.annoScolastico}`, compTokensHtml));
-                });
+                // I codici segreti, anche se scaduti, NON devono finire nell'archivio.
+                // Manteniamo i riepiloghi di audit senza token, password o associazioni al voto.
+                const tokenSummaryHtml='<h2>Credenziali - report aggregato senza segreti</h2><table><thead><tr><th>Componente</th><th>Credenziali registrate</th><th>Diritti utilizzati/Partecipazione</th></tr></thead><tbody>'+
+                    Object.entries(stats).map(([type,value])=>'<tr><td>'+type+'</td><td>'+value.generated+'</td><td>'+value.voted+'</td></tr>').join('')+
+                    '</tbody></table><p>I token nominali, i codici anonimi, i codici dei referenti e le chiavi di sessione NON fanno parte del fascicolo ZIP. I codici cessano di essere accettati dal server alla chiusura della loro ultima consultazione o dopo esaurimento dei diritti di voto; la cancellazione fisica degli archivi e la conservazione degli atti seguono distinte procedure autorizzate.</p>';
+                zip.file('registro_aggregato_credenziali_senza_codici.html',
+                    getHtmlReportTemplate('Registro aggregato delle credenziali', 'A.S. '+configElezioni.annoScolastico,tokenSummaryHtml));
 
                 // File README
-                const readmeContent = `ITSCG PRIMO LEVI DI SEREGNO - FASCICOLO DIGITALE DELLA CONSULTAZIONE
-Anno Scolastico di Riferimento: A.S. ${configElezioni.annoScolastico}
-Data Esportazione Archivio: ${new Date().toLocaleString()}
+                const readmeContent = `I.I.S. PRIMO LEVI SEREGNO - FASCICOLO TECNICO DI ESPORTAZIONE
+Anno scolastico: ${configElezioni.annoScolastico}
+Data esportazione: ${new Date().toLocaleString('it-IT')}
+AMBITO: stampe informatiche di lavoro da verificare e sottoscrivere.
+Lo ZIP non costituisce automaticamente un pacchetto di versamento AgID, non appone firme
+elettroniche e non acquisisce in automatico protocollo, registri cartacei o atti esterni.
 
-Questo archivio ZIP contiene la documentazione ufficiale in formato HTML autonomo per la conservazione a norma e per l'affissione dei risultati.
-I file sono pronti per essere stampati, aperti offline senza connessione ad Internet su qualsiasi computer e sono completi di tabelle per le firme olografe dei componenti della commissione elettorale d'Istituto.`;
+SCADENZA CREDENZIALI: il backend rifiuta i codici di voto quando tutti i diritti
+sono utilizzati o e trascorsa l'ultima fascia prevista per quella credenziale.
+I codici referenti sono respinti a partire dalla chiusura della votazione
+della loro componente, comprese le sessioni precedentemente emesse.
+Le evidenze e i registri custoditi non sono distrutti automaticamente.
+L'eventuale eliminazione fisica dei segreti richiede un piano documentato
+approvato dal titolare del trattamento e dalla direzione, distinto dalla revoca.
+
+CONTENUTO: PDF compilati dai dati aggregati disponibili al momento, HTML
+di controllo, dichiarazioni nessun eletto, assenza liste, cronoprogramma di
+conservazione e manifest SHA-256 dei file inclusi.
+Ogni documento rimane BOZZA sino al controllo, firma, protocollo e acquisizione
+nel sistema documentale dell'Istituto. Verificare gli allegati non presenti
+fisicamente nell'applicazione prima di qualificare completo il fascicolo.
+RIFERIMENTI: O.M. 215/1991 artt. 21,22,30-34; D.Lgs. 297/1994;
+D.P.R. 567/1996 art. 6 per la Consulta; Reg. UE 2016/679 art. 5;
+D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
+`;
                 zip.file("LEGGIMI_Istruzioni_Conservazione.txt", readmeContent);
+
+                // Conversione degli atti gia prodotti in PDF leggibili in assenza di rete.
+                // Il PDF conserva titoli, paragrafi e righe tabellari in ordine di lettura.
+                for(const htmlName of Object.keys(zip.files).filter(n=>n.endsWith('.html')&&!n.includes('token'))){
+                    const page=await zip.file(htmlName).async('text');
+                    const dom=new DOMParser().parseFromString(page,'text/html');
+                    const root=dom.querySelector('.container')||dom.body;
+                    const blocks=[...root.querySelectorAll('h1,h2,h3,h4,p,li,tr')];
+                    const lines=blocks.map(node=>node.tagName==='TR'?
+                        [...node.children].map(cell=>cell.textContent.trim()).join(' | '):
+                        (node.textContent||'').trim()).filter(Boolean);
+                    addPdf(htmlName.replace(/\.html$/i,'.pdf'),
+                        (root.querySelector('h1,h2')?.textContent||htmlName).trim(),
+                        [{heading:'Contenuto della relazione e tabelle',lines}]);
+                }
+
+                // Gli atti puntuali di mancata presentazione e nessuna elezione
+                // confluiscono nel pacchetto senza associare credenziali a preferenze.
+                const noElectedReply=await SECURE_API.getNoElectedClasses({annoScolastico:configElezioni.annoScolastico});
+                const entries=noElectedReply.data?.entries||{};
+                const marked=Object.values(entries).filter(row=>row?.confirmed===true);
+                for(const record of marked){
+                    const pdf=noElectedPdf(record.tipo,record.classe,record);
+                    pdfFolder.file('Verbale_Nessuno_Eletto_'+record.tipo+'_'+record.classe+'.pdf',pdf.output('arraybuffer'));
+                }
+                const absent=LeviNoLists.IDs.filter(id=>LeviNoLists.confirmed(configElezioni,id));
+                for(const id of absent){
+                    const info=LeviNoLists.TYPES[id],registered=configElezioni.assenzaListe[id];
+                    const p=LeviElectionPolicy.profile(configElezioni,info.electionKey);
+                    const acts=(p.acts||[]).map(a=>[a.authority,a.protocol,a.date,a.subject].filter(Boolean).join(' | '));
+                    addPdf('Verbale_Assenza_Liste_'+id+'.pdf','Constatazione assenza liste: '+info.label,[
+                        {heading:'Estremi della constatazione informatica',lines:[
+                            'Consultazione: '+info.label,'Registrazione: '+(registered.declaredAt||'da verificare'),
+                            'Nessuna lista presentata nei termini secondo la dichiarazione registrata della Commissione.',
+                            'Verificare registro di deposito, scadenza effettiva e eventuale proroga prima della sottoscrizione.'
+                        ]},
+                        {heading:'Atti della consultazione da allegare',lines:acts.length?acts:['Indizione, registrazione dei depositi e eventuale proroga da acquisire.']},
+                        {heading:'Riferimenti normativi',lines:[
+                            'O.M. 215/1991 artt. 30-34: presentazione, controllo e regolarizzazione delle liste depositate.',
+                            'D.Lgs. 297/1994: organi collegiali e rappresentanza.',
+                            ...(id==='consulta'?['D.P.R. 567/1996 art. 6 come modificato dal D.P.R. 268/2007: disciplina Consulta, subentri e suppletive.']:[]),
+                            'La semplice registrazione nel sito non sostituisce firma, protocollo e comunicazione amministrativa.'
+                        ]}
+                    ]);
+                }
+                const policyLines=[
+                    'Per i token: rifiuto server-side dal completamento di tutti i diritti o dalla fine dell ultima finestra in cui si ha diritto di voto.',
+                    'Per i referenti STUDENTI: accesso e sessioni scadono alla fine dell ultima fascia classe studenti.',
+                    'Per i referenti GENITORI: accesso e sessioni scadono alla fine dell ultima fascia classe genitori.',
+                    'Tutti gli orari sono calcolati secondo Europe/Rome e le fasce ufficiali dedicate configurate.',
+                    'La revoca logica immediata non equivale a cancellazione fisica dei documenti che devono restare custoditi.',
+                    'Il backend non restituisce mai schede originali con associazioni identita-voto al fascicolo di lavoro.',
+                    'La Commissione documenta apertura e chiusura; il sistema documentale conserva atti e firme.',
+                    'Reg. UE 2016/679 art. 5(1)(c),(e),(f): minimizzazione, limitazione della conservazione, integrita e riservatezza.',
+                    'D.Lgs. 82/2005 e Linee guida AgID sul documento informatico: protocollo, metadati e conservazione.'
+                ];
+                addPdf('Politica_Scadenza_Credenziali_e_Ritenzione.pdf',
+                    'Verbale tecnico - validita temporale dei codici e conservazione',[
+                        {heading:'Fasce ufficiali salvate nel sistema',lines:Object.entries(configElezioni.consultazioni||{}).map(([key,p])=>
+                          key+': '+(p.windows||[]).map(w=>w.date+' '+w.from+' - '+w.to).join('; '))},
+                        {heading:'Regole applicate',lines:policyLines},
+                        {heading:'Attivita annuali da registrare',lines:[
+                            'Alla chiusura: verbale della Commissione e checkpoint tecnico per ogni componente.',
+                            'Al termine dello scrutinio: riscontro urne, esiti e casi senza eletti; sottoscrizione.',
+                            'Prima della pubblicazione: verifica e approvazione degli esiti da parte degli organi competenti.',
+                            'Durante la conservazione: controllo del piano di gestione e del periodo applicabile; eventuale cancellazione fisica autorizzata.'
+                        ]}
+                    ]);
+                addPdf('Indice_Fascicolo_e_Allegati_da_Completare.pdf','Indice analitico di controllo del fascicolo',[
+                    {heading:'Documenti generati',lines:Object.keys(zip.files).filter(name=>name.endsWith('.pdf')||name.endsWith('.html')).sort()},
+                    {heading:'Allegati esterni obbligatori da verificare a cura della Commissione',lines:[
+                        'Atto di indizione e circolare annuale con numero, data e protocollo.',
+                        'Verbali originali dei seggi; scrutini e proclamazione sottoscritti.',
+                        'Eventuali dichiarazioni di assenza liste e nessuno eletto sottoscritte per componente e classe.',
+                        'Verbali tecnici di apertura, chiusura, anomalie e test, con firme.',
+                        'Registro dei depositi delle liste e eventuali proroghe.',
+                        'Relazione e autorizzazioni documentali DPO, nei limiti della relativa procedura.'
+                    ]},
+                    {heading:'Avvertenza',lines:[
+                        'Il presente ZIP e un fascicolo di preparazione: firme, segnatura di protocollo e versamento a conservazione devono essere eseguiti e verificati esternamente.',
+                        'Nessun codice di autenticazione o collegamento identita-voto e incluso nel fascicolo ZIP.'
+                    ]}
+                ]);
+
+                // Manifest di integrita: hash di ogni documento effettivamente inserito,
+                // calcolato su bytes e non su soli nomi. Non comprende se stesso.
+                if(!window.crypto?.subtle)throw new Error('SHA-256 non disponibile: fascicolo privo di manifest non esportabile.');
+                const manifest={schema:'LEVI_FASCICOLO_PREPARAZIONE_V1',
+                    year:configElezioni.annoScolastico,generatedAt:new Date().toISOString(),
+                    signed:false,protocolAssigned:false,versamentoConservazione:false,files:[]};
+                for(const name of Object.keys(zip.files).filter(n=>!zip.files[n].dir).sort()){
+                    const content=await zip.file(name).async('arraybuffer');
+                    const hashed=await crypto.subtle.digest('SHA-256',content);
+                    manifest.files.push({name,bytes:content.byteLength,sha256:[...new Uint8Array(hashed)].map(x=>x.toString(16).padStart(2,'0')).join('')});
+                }
+                zip.file('MANIFEST_SHA256.json',JSON.stringify(manifest,null,2));
 
                 // Compressione e download del pacchetto ZIP
                 const content = await zip.generateAsync({ type: "blob" });
