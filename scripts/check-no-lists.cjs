@@ -27,7 +27,8 @@ const ctx={
  HttpsError:class extends Error{constructor(code,message){super(message);this.code=code;}},
  requireAuth:async()=>({uid:'FAKE-STAFF',role:'COMMISSIONE'}),
  yearlyConfigRef:()=>ref('yearly'),regularityStateRef:()=>ref('regularity'),
- yearlyCollection:(name)=>({limit:()=>ref(name)}),globalConfigRef:()=>ref('global'),
+ loadElectionConfig:async()=>clone(stored),
+ yearlyCollection:(name)=>({limit:()=>ref(name)}),globalConfigRef:()=>({get:async()=>({data:()=>({annoScolastico:year})})}),
  parseItalianDate:()=>null,
  db:{runTransaction:async fn=>{
   actions.length=0;const response=await fn(tx);
