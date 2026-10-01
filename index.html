@@ -3062,6 +3062,11 @@
 
             try {
                 const zip = new JSZip();
+                const pdfFolder=zip.folder('PDF_Verbali');
+                const addPdf=(name,title,sections)=>{
+                    const pdf=archivePdfDocument(title,sections);
+                    pdfFolder.file(name,pdf.output('arraybuffer'));
+                };
                 const activeYearLabel = (configElezioni.annoScolastico || "2025_2026").replace('/', '_');
 
                 // Caricamento asincrono di tutti i voti dalle urne del Cloud
@@ -3071,10 +3076,10 @@
                 const votiClasseStudenti = await getVotiUrna('voti_classe_studenti');
                 const votiClasseGenitori = await getVotiUrna('voti_classe_genitori');
 
-                // Caricamento dei token
-                const tokensSnap = await getDocs(getCollectionRef('tokens'));
-                let tokensData = [];
-                tokensSnap.forEach(d => tokensData.push({ id: d.id, ...d.data() }));
+                // L'archivio non legge né esporta mai gli identificativi dei token.
+                const registerSummary=(await SECURE_API.getVoterRegisterSummary({
+                    annoScolastico:configElezioni.annoScolastico})).data;
+                if(!registerSummary?.stats)throw new Error('Riepilogo del registro non verificabile dal server.');
 
                 // -------------------------------------------------------------
                 // DOCUMENTO 1: AFFLUENZA E VOTI ESPRESSI
@@ -3085,16 +3090,12 @@
                     DOCENTE: { generated: 0, voted: 0 },
                     ATA: { generated: 0, voted: 0 }
                 };
-                tokensData.forEach(t => {
-                    if (stats[t.tipo] !== undefined) {
-                        stats[t.tipo].generated++;
-                        if (t.hasVoted) stats[t.tipo].voted++;
-                    }
-                });
-
+                stats=registerSummary.stats;
                 const anonSummary=await anonymousParticipation();if(anonSummary)stats=anonSummary.stats;
-                let totalGenerated = anonSummary?anonSummary.totalEligible:tokensData.length;
-                let totalVoted = anonSummary?anonSummary.totalParticipated:tokensData.filter(t => t.hasVoted).length;
+                let totalGenerated = anonSummary?anonSummary.totalEligible:
+                    Object.values(stats).reduce((n,s)=>n+Number(s.generated||0),0);
+                let totalVoted = anonSummary?anonSummary.totalParticipated:
+                    Object.values(stats).reduce((n,s)=>n+Number(s.voted||0),0);
                 let globalPercent = totalGenerated > 0 ? ((totalVoted / totalGenerated) * 100).toFixed(1) : "0.0";
 
                 let affluenzaContent = `
@@ -3437,24 +3438,163 @@
                 // -------------------------------------------------------------
                 // DOCUMENTI 5: REGISTRO MASTER COMPLETO TOKEN + REGISTRI SUDDIVISI
                 // -------------------------------------------------------------
-                const detailedTokensHtml = buildTokenRegisterReportHtml(tokensData);
-                zip.file("registro_completo_token.html", getHtmlReportTemplate("Registro Generale Credenziali Token", `Anno Scolastico ${configElezioni.annoScolastico}`, detailedTokensHtml));
-
-                // Registri dei Token suddivisi per ciascuna votazione/ruolo
-                ["STUDENTE", "GENITORE", "DOCENTE", "ATA"].forEach(comp => {
-                    let compTokens = tokensData.filter(t => t.tipo === comp);
-                    let compTokensHtml = buildTokenRegisterReportHtml(compTokens, comp);
-                    zip.file(`registro_token_${comp.toLowerCase()}.html`, getHtmlReportTemplate(`Registro Credenziali Token - ${comp}`, `Anno Scolastico ${configElezioni.annoScolastico}`, compTokensHtml));
-                });
+                // I codici segreti, anche se scaduti, NON devono finire nell'archivio.
+                // Manteniamo i riepiloghi di audit senza token, password o associazioni al voto.
+                const tokenSummaryHtml='<h2>Credenziali - report aggregato senza segreti</h2><table><thead><tr><th>Componente</th><th>Credenziali registrate</th><th>Diritti utilizzati/Partecipazione</th></tr></thead><tbody>'+
+                    Object.entries(stats).map(([type,value])=>'<tr><td>'+type+'</td><td>'+value.generated+'</td><td>'+value.voted+'</td></tr>').join('')+
+                    '</tbody></table><p>I token nominali, i codici anonimi, i codici dei referenti e le chiavi di sessione NON fanno parte del fascicolo ZIP. I codici cessano di essere accettati dal server alla chiusura della loro ultima consultazione o dopo esaurimento dei diritti di voto; la cancellazione fisica degli archivi e la conservazione degli atti seguono distinte procedure autorizzate.</p>';
+                zip.file('registro_aggregato_credenziali_senza_codici.html',
+                    getHtmlReportTemplate('Registro aggregato delle credenziali', 'A.S. '+configElezioni.annoScolastico,tokenSummaryHtml));
 
                 // File README
-                const readmeContent = `ITSCG PRIMO LEVI DI SEREGNO - FASCICOLO DIGITALE DELLA CONSULTAZIONE
-Anno Scolastico di Riferimento: A.S. ${configElezioni.annoScolastico}
-Data Esportazione Archivio: ${new Date().toLocaleString()}
+                const readmeContent = `I.I.S. PRIMO LEVI SEREGNO - FASCICOLO TECNICO DI ESPORTAZIONE
+Anno scolastico: ${configElezioni.annoScolastico}
+Data esportazione: ${new Date().toLocaleString('it-IT')}
+AMBITO: stampe informatiche di lavoro da verificare e sottoscrivere.
+Lo ZIP non costituisce automaticamente un pacchetto di versamento AgID, non appone firme
+elettroniche e non acquisisce in automatico protocollo, registri cartacei o atti esterni.
 
-Questo archivio ZIP contiene la documentazione ufficiale in formato HTML autonomo per la conservazione a norma e per l'affissione dei risultati.
-I file sono pronti per essere stampati, aperti offline senza connessione ad Internet su qualsiasi computer e sono completi di tabelle per le firme olografe dei componenti della commissione elettorale d'Istituto.`;
+SCADENZA CREDENZIALI: il backend rifiuta i codici di voto quando tutti i diritti
+sono utilizzati o e trascorsa l'ultima fascia prevista per quella credenziale.
+I codici referenti sono respinti a partire dalla chiusura della votazione
+della loro componente, comprese le sessioni precedentemente emesse.
+Le evidenze e i registri custoditi non sono distrutti automaticamente.
+L'eventuale eliminazione fisica dei segreti richiede un piano documentato
+approvato dal titolare del trattamento e dalla direzione, distinto dalla revoca.
+
+CONTENUTO: PDF compilati dai dati aggregati disponibili al momento, HTML
+di controllo, dichiarazioni nessun eletto, assenza liste, cronoprogramma di
+conservazione e manifest SHA-256 dei file inclusi.
+Ogni documento rimane BOZZA sino al controllo, firma, protocollo e acquisizione
+nel sistema documentale dell'Istituto. Verificare gli allegati non presenti
+fisicamente nell'applicazione prima di qualificare completo il fascicolo.
+RIFERIMENTI: O.M. 215/1991 artt. 21,22,30-34; D.Lgs. 297/1994;
+D.P.R. 567/1996 art. 6 per la Consulta; Reg. UE 2016/679 art. 5;
+D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
+`;
                 zip.file("LEGGIMI_Istruzioni_Conservazione.txt", readmeContent);
+
+                // Conversione degli atti gia prodotti in PDF leggibili in assenza di rete.
+                // Il PDF conserva titoli, paragrafi e righe tabellari in ordine di lettura.
+                for(const htmlName of Object.keys(zip.files).filter(n=>n.endsWith('.html')&&!n.includes('token'))){
+                    const page=await zip.file(htmlName).async('text');
+                    const dom=new DOMParser().parseFromString(page,'text/html');
+                    const root=dom.querySelector('.container')||dom.body;
+                    const blocks=[...root.querySelectorAll('h1,h2,h3,h4,p,li,tr')];
+                    const lines=blocks.map(node=>node.tagName==='TR'?
+                        [...node.children].map(cell=>cell.textContent.trim()).join(' | '):
+                        (node.textContent||'').trim()).filter(Boolean);
+                    addPdf(htmlName.replace(/\.html$/i,'.pdf'),
+                        (root.querySelector('h1,h2')?.textContent||htmlName).trim(),
+                        [{heading:'Contenuto della relazione e tabelle',lines}]);
+                }
+
+                // Gli atti puntuali di mancata presentazione e nessuna elezione
+                // confluiscono nel pacchetto senza associare credenziali a preferenze.
+                const noElectedReply=await SECURE_API.getNoElectedClasses({annoScolastico:configElezioni.annoScolastico});
+                const entries=noElectedReply.data?.entries||{};
+                const marked=Object.values(entries).filter(row=>row?.confirmed===true);
+                for(const record of marked){
+                    const pdf=noElectedPdf(record.tipo,record.classe,record);
+                    pdfFolder.file('Verbale_Nessuno_Eletto_'+record.tipo+'_'+record.classe+'.pdf',pdf.output('arraybuffer'));
+                }
+                const absent=LeviNoLists.IDs.filter(id=>LeviNoLists.confirmed(configElezioni,id));
+                for(const id of absent){
+                    const info=LeviNoLists.TYPES[id],registered=configElezioni.assenzaListe[id];
+                    const p=LeviElectionPolicy.profile(configElezioni,info.electionKey);
+                    const acts=(p.acts||[]).map(a=>[a.authority,a.protocol,a.date,a.subject].filter(Boolean).join(' | '));
+                    addPdf('Verbale_Assenza_Liste_'+id+'.pdf','Constatazione assenza liste: '+info.label,[
+                        {heading:'Estremi della constatazione informatica',lines:[
+                            'Consultazione: '+info.label,'Registrazione: '+(registered.declaredAt||'da verificare'),
+                            'Nessuna lista presentata nei termini secondo la dichiarazione registrata della Commissione.',
+                            'Verificare registro di deposito, scadenza effettiva e eventuale proroga prima della sottoscrizione.'
+                        ]},
+                        {heading:'Atti della consultazione da allegare',lines:acts.length?acts:['Indizione, registrazione dei depositi e eventuale proroga da acquisire.']},
+                        {heading:'Riferimenti normativi',lines:[
+                            'O.M. 215/1991 artt. 30-34: presentazione, controllo e regolarizzazione delle liste depositate.',
+                            'D.Lgs. 297/1994: organi collegiali e rappresentanza.',
+                            ...(id==='consulta'?['D.P.R. 567/1996 art. 6 come modificato dal D.P.R. 268/2007: disciplina Consulta, subentri e suppletive.']:[]),
+                            'La semplice registrazione nel sito non sostituisce firma, protocollo e comunicazione amministrativa.'
+                        ]}
+                    ]);
+                }
+                // Snapshot completo dei checkpoint tecnici, paginato dal backend.
+                // Le dichiarazioni vengono indicate come "registrate", non come atti gia firmati.
+                const technicalArchive=await fetchCompleteTechnicalLog();
+                const technicalLines=technicalArchive.logs.map(row=>
+                    [row.at||'senza data',row.event||'evento',row.result||'non verificato',
+                     'Tecnico: '+(row.technicianName||'da verificare'),
+                     'Postazione: '+(row.station||'da verificare'),
+                     'Nota: '+(row.note||'nessuna nota'),
+                     row.report?'Versione collaudo: '+(row.report.softwareVersion||'da verificare'):'']
+                    .filter(Boolean).join(' | '));
+                addPdf('Registro_Checkpoint_Apertura_Chiusura_e_Collaudo.pdf',
+                    'Registro dei checkpoint e delle prove tecniche - bozza da sottoscrivere',[
+                    {heading:'Identificazione della procedura',lines:[
+                        'Anno scolastico: '+configElezioni.annoScolastico,
+                        'Snapshot tecnico fino al: '+(technicalArchive.snapshotUntil||'non disponibile'),
+                        'Eventi registrati: '+technicalArchive.logs.length
+                    ]},
+                    {heading:'Operazioni riscontrate',lines:technicalLines.length?technicalLines:[
+                        'NESSUN EVENTO TECNICO REGISTRATO: occorre acquisire verbali e verifiche esterni prima di qualificare completo il fascicolo.'
+                    ]},
+                    {heading:'Verifiche che restano di competenza umana',lines:[
+                        'Confrontare i log con i verbali originali di apertura/chiusura e le firme dei soggetti competenti.',
+                        'I log informatici non costituiscono da soli attestazione di collaudo indipendente o approvazione del DPO.',
+                        'Acquisire incidenti, richieste di assistenza, deliberazioni e atti analogici non presenti nel database.'
+                    ]}
+                ]);
+                const policyLines=[
+                    'Per i token: rifiuto server-side dal completamento di tutti i diritti o dalla fine dell ultima finestra in cui si ha diritto di voto.',
+                    'Per i referenti STUDENTI: accesso e sessioni scadono alla fine dell ultima fascia classe studenti.',
+                    'Per i referenti GENITORI: accesso e sessioni scadono alla fine dell ultima fascia classe genitori.',
+                    'Tutti gli orari sono calcolati secondo Europe/Rome e le fasce ufficiali dedicate configurate.',
+                    'La revoca logica immediata non equivale a cancellazione fisica dei documenti che devono restare custoditi.',
+                    'Il backend non restituisce mai schede originali con associazioni identita-voto al fascicolo di lavoro.',
+                    'La Commissione documenta apertura e chiusura; il sistema documentale conserva atti e firme.',
+                    'Reg. UE 2016/679 art. 5(1)(c),(e),(f): minimizzazione, limitazione della conservazione, integrita e riservatezza.',
+                    'D.Lgs. 82/2005 e Linee guida AgID sul documento informatico: protocollo, metadati e conservazione.'
+                ];
+                addPdf('Politica_Scadenza_Credenziali_e_Ritenzione.pdf',
+                    'Verbale tecnico - validita temporale dei codici e conservazione',[
+                        {heading:'Fasce ufficiali salvate nel sistema',lines:Object.entries(configElezioni.consultazioni||{}).map(([key,p])=>
+                          key+': '+(p.windows||[]).map(w=>w.date+' '+w.from+' - '+w.to).join('; '))},
+                        {heading:'Regole applicate',lines:policyLines},
+                        {heading:'Attivita annuali da registrare',lines:[
+                            'Alla chiusura: verbale della Commissione e checkpoint tecnico per ogni componente.',
+                            'Al termine dello scrutinio: riscontro urne, esiti e casi senza eletti; sottoscrizione.',
+                            'Prima della pubblicazione: verifica e approvazione degli esiti da parte degli organi competenti.',
+                            'Durante la conservazione: controllo del piano di gestione e del periodo applicabile; eventuale cancellazione fisica autorizzata.'
+                        ]}
+                    ]);
+                addPdf('Indice_Fascicolo_e_Allegati_da_Completare.pdf','Indice analitico di controllo del fascicolo',[
+                    {heading:'Documenti generati',lines:Object.keys(zip.files).filter(name=>name.endsWith('.pdf')||name.endsWith('.html')).sort()},
+                    {heading:'Allegati esterni obbligatori da verificare a cura della Commissione',lines:[
+                        'Atto di indizione e circolare annuale con numero, data e protocollo.',
+                        'Verbali originali dei seggi; scrutini e proclamazione sottoscritti.',
+                        'Eventuali dichiarazioni di assenza liste e nessuno eletto sottoscritte per componente e classe.',
+                        'Verbali tecnici di apertura, chiusura, anomalie e test, con firme.',
+                        'Registro dei depositi delle liste e eventuali proroghe.',
+                        'Relazione e autorizzazioni documentali DPO, nei limiti della relativa procedura.'
+                    ]},
+                    {heading:'Avvertenza',lines:[
+                        'Il presente ZIP e un fascicolo di preparazione: firme, segnatura di protocollo e versamento a conservazione devono essere eseguiti e verificati esternamente.',
+                        'Nessun codice di autenticazione o collegamento identita-voto e incluso nel fascicolo ZIP.'
+                    ]}
+                ]);
+
+                // Manifest di integrita: hash di ogni documento effettivamente inserito,
+                // calcolato su bytes e non su soli nomi. Non comprende se stesso.
+                if(!window.crypto?.subtle)throw new Error('SHA-256 non disponibile: fascicolo privo di manifest non esportabile.');
+                const manifest={schema:'LEVI_FASCICOLO_PREPARAZIONE_V1',
+                    year:configElezioni.annoScolastico,generatedAt:new Date().toISOString(),
+                    signed:false,protocolAssigned:false,versamentoConservazione:false,files:[]};
+                for(const name of Object.keys(zip.files).filter(n=>!zip.files[n].dir).sort()){
+                    const content=await zip.file(name).async('arraybuffer');
+                    const hashed=await crypto.subtle.digest('SHA-256',content);
+                    manifest.files.push({name,bytes:content.byteLength,sha256:[...new Uint8Array(hashed)].map(x=>x.toString(16).padStart(2,'0')).join('')});
+                }
+                zip.file('MANIFEST_SHA256.json',JSON.stringify(manifest,null,2));
 
                 // Compressione e download del pacchetto ZIP
                 const content = await zip.generateAsync({ type: "blob" });
@@ -4715,6 +4855,16 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             const absenceKey=LeviNoLists.keyForSection(currentScrutinioSection,currentScrutinioSubComponent);
             const noListsConfirmed=absenceKey&&LeviNoLists.confirmed(configElezioni,absenceKey);
             if(!noListsConfirmed)await fetchScrutinioData(colName);
+            let noneElectedState={entries:{},classes:{STUDENTE:[],GENITORE:[]}};
+            if(isClasse&&!noListsConfirmed){
+                try{
+                    const response=await SECURE_API.getNoElectedClasses({annoScolastico:configElezioni.annoScolastico});
+                    noneElectedState=response.data||noneElectedState;
+                }catch(error){
+                    showNotification('Riscontri delle classi non disponibili',error.message||'Riprovare.','error');
+                    return;
+                }
+            }
 
             let subNavConsiglioHTML = '';
             if (currentScrutinioSection === 'consiglio') {
@@ -4817,6 +4967,29 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 }).join('');
             }
 
+            let noElectedAdminHtml='';
+            if(isClasse){
+                const type=currentScrutinioSection==='classe_st'?'STUDENTE':'GENITORE';
+                const classes=noneElectedState.classes?.[type]||[];
+                const phase=LeviElectionPolicy.phase(configElezioni,currentScrutinioSection==='classe_st'?'classeStudente':'classeGenitore');
+                noElectedAdminHtml=`<section class="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <h4 class="font-black text-sm text-amber-950">Constatazione: nessun rappresentante eletto (per classe)</h4>
+                    <p class="text-xs mt-1 text-slate-700">Disponibile dopo la chiusura della consultazione, in assenza di qualsiasi preferenza nominale. La semplice assenza di candidature spontanee non equivale a nessun eletto.</p>
+                    ${classes.length?classes.map(cls=>{
+                        const entry=noneElectedState.entries?.[type+'_'+cls],confirmed=entry?.confirmed===true;
+                        return `<div class="mt-3 flex flex-wrap gap-3 items-center rounded-lg border bg-white p-3">
+                          <label class="flex gap-2 items-center text-xs font-bold text-slate-900">
+                            <input type="checkbox" ${confirmed?'checked':''} ${!['CLOSED','RELEASED'].includes(phase)?'disabled':''}
+                              onchange="window.setClassNoElected('${type}','${cls}',this.checked,this)">
+                            Classe ${technicalEscape(cls)} — nessun ${type==='GENITORE'?'genitore':'studente'} eletto
+                          </label>
+                          ${confirmed?`<button class="rounded bg-indigo-900 text-white px-3 py-2 text-xs font-bold"
+                            onclick="window.downloadNoElectedClassPDF('${type}','${cls}')">Verbale nessuno eletto (PDF)</button>`:''}
+                          ${confirmed?`<p class="w-full text-xs text-slate-600">${technicalEscape(entry.reason)}</p>`:''}
+                        </div>`;
+                    }).join(''):'<p class="mt-2 text-xs">Non risultano classi nei registri elettorali della componente.</p>'}
+                </section>`;
+            }
             container.innerHTML = `
                 <div class="bg-white p-6 rounded-2xl shadow border border-slate-200 animate-fade-in w-full font-semibold">
                     <div class="border-b border-slate-100 pb-3 mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -4837,6 +5010,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
 
                     ${mainNavHTML}
                     ${subNavConsiglioHTML}
+                    ${noElectedAdminHtml}
 
                     <div class="grid grid-cols-3 gap-4 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200 font-semibold text-center text-xs">
                         <div>
@@ -4873,6 +5047,22 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             calculateAndRenderElettiPanel(colName);
             lucide.createIcons();
         }
+
+        window.setClassNoElected=async function(type,cls,enabled,checkbox){
+            const reason=enabled?window.prompt('Registrare motivo e verifiche della Commissione (minimo 15 caratteri):','Scrutinio verificato: nessuna preferenza nominale per questa classe.'):'';
+            if(enabled&&(!reason||reason.trim().length<15)){checkbox.checked=false;return;}
+            checkbox.disabled=true;
+            try{
+                await SECURE_API.setNoElectedClass({annoScolastico:configElezioni.annoScolastico,
+                    tipo:type,classe:cls,enabled,reason:reason||''});
+                showNotification('Dichiarazione registrata',enabled?'Scaricare il verbale PDF e sottoporlo alla Commissione per la firma.':'Dichiarazione ritirata.','success');
+            }catch(error){
+                checkbox.checked=!enabled;
+                showNotification('Dichiarazione non salvata',error.message||'Controllo server non superato.','error');
+            }finally{
+                renderScrutinioTab(document.getElementById('admin-tab-content'));
+            }
+        };
 
         function calculateAndRenderElettiPanel(colName) {
             const panel = document.getElementById('panel-eletti-calcolati');
@@ -5153,6 +5343,83 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             }
         };
 
+        function archivePdfClean(value){
+            return String(value??'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'')
+              .replace(/[^\x20-\x7e\n]/g,' ').replace(/\s+/g,' ').trim();
+        }
+        function archivePdfDocument(title,sections){
+            const JsPDF=window.jspdf?.jsPDF;
+            if(!JsPDF)throw new Error('Libreria PDF non disponibile: esportazione interrotta per evitare un archivio incompleto.');
+            const doc=new JsPDF({unit:'mm',format:'a4'});let y=22;
+            const line=(text,isHeading=false)=>{
+                const width=182,lines=doc.splitTextToSize(archivePdfClean(text),width);
+                doc.setFont('helvetica',isHeading?'bold':'normal');
+                doc.setFontSize(isHeading?10:9);
+                for(const row of lines){
+                    if(y>271){doc.addPage();y=19;}
+                    doc.text(row||' ',14,y);y+=isHeading?5.9:4.8;
+                }
+                y+=isHeading?3:1.4;
+            };
+            doc.setFillColor(23,50,100);doc.rect(0,0,210,12,'F');
+            line('I.I.S. PRIMO LEVI - SEREGNO | A.S. '+(configElezioni.annoScolastico||'DA VERIFICARE'),true);
+            line(title,true);
+            line('Bozza tecnica generata: '+new Date().toLocaleString('it-IT')+
+                '. Completarla, controllarla, sottoscriverla e protocollarla prima della conservazione.');
+            for(const block of sections){line(block.heading,true);for(const item of block.lines||[])line(item);}
+            line('FIRME DELLA COMMISSIONE (da acquisire):',true);
+            for(const m of configElezioni.commissione||[])line((m.ruolo||'Componente')+' - '+(m.nome||'________________')+'    Firma: __________________');
+            line('N. protocollo: ______________   Data firma: ______________  Allegati verificati: ______________');
+            const pages=doc.getNumberOfPages();
+            for(let i=1;i<=pages;i++){doc.setPage(i);doc.setFontSize(8);doc.text('Bozza non firmata - pagina '+i+'/'+pages,14,290);}
+            return doc;
+        }
+        function noElectedPdf(type,cls,record){
+            const key=type==='STUDENTE'?'classeStudente':'classeGenitore';
+            const profile=LeviElectionPolicy.profile(configElezioni,key);
+            if(record?.confirmed!==true)throw new Error('Dichiarazione per la classe non verificata.');
+            const sources=[
+                'D.Lgs. 16 aprile 1994, n. 297: composizione e rappresentanza degli organi collegiali.',
+                'O.M. 15 luglio 1991, n. 215, art. 21: assemblee elettorali per i consigli di classe.',
+                'O.M. 215/1991, art. 22, comma 4: seggio elettorale per le operazioni di voto, scrutinio e proclamazione.',
+                'O.M. 215/1991, art. 22, comma 7: unica lista formata da tutti gli elettori, anche senza candidature spontanee.',
+                'O.M. 215/1991, art. 22, comma 8: sorteggio in caso di parita di voti ai fini della proclamazione.',
+                'GDPR art. 5 e CAD D.Lgs. 82/2005: minimizzazione, integrita e gestione documentale.'
+            ];
+            const windows=(profile.windows||[]).map(w=>w.date+' ore '+w.from+'-'+w.to);
+            const acts=(profile.acts||[]).map(a=>[a.authority,a.protocol,a.date,a.subject].filter(Boolean).join(' | '));
+            return archivePdfDocument('VERBALE RISCONTRO: NESSUN RAPPRESENTANTE ELETTO - '+type+' CLASSE '+cls,[
+                {heading:'1. Dati della consultazione',lines:[
+                    'Classe: '+cls+'; componente: '+type+'; schede della classe riscontrate dal backend: '+record.ballotCount,
+                    'Registrazione Commissione: '+(record.declaredAt||'da verificare'),
+                    'Operatore della Commissione: '+(record.declaredBy||'da verificare'),
+                    'Fasce di votazione: '+(windows.join('; ')||'consultare atto di indizione')
+                ]},
+                {heading:'2. Atti applicabili e documentazione',lines:acts.length?acts:['Atto di indizione e registro dello scrutinio da acquisire agli atti.']},
+                {heading:'3. Accertamento della Commissione',lines:[
+                    'NESSUNO ELETTO per la componente e la classe sopra indicate, in base alla constatazione registrata.',
+                    'Motivazione verbalizzata: '+record.reason,
+                    'Il sistema ammette questa dichiarazione soltanto quando il backend non rileva preferenze nominali nella classe e la fascia di voto e chiusa.',
+                    'Non si confonde la mancanza di candidature volontarie con l assenza di eletti; gli elettori restano tutti eleggibili secondo la normativa.',
+                    'Verificare eventuali contestazioni, documentazione di seggio e misure conseguenti da adottare attraverso gli organi competenti.'
+                ]},
+                {heading:'4. Quadro normativo da verificare sul testo vigente',lines:sources},
+                {heading:'5. Documenti richiesti prima della protocollazione',lines:[
+                    'Atto di indizione; estratto registro della classe; evidenze scrutinio; eventuali osservazioni e riserve; esito verifica Commissione.',
+                    'Riferimento degli allegati: _____________________; eventuali osservazioni: _____________________.'
+                ]}
+            ]);
+        }
+        window.downloadNoElectedClassPDF=async function(type,cls){
+            try{
+                const response=await SECURE_API.getNoElectedClasses({annoScolastico:configElezioni.annoScolastico});
+                const entry=response.data?.entries?.[type+'_'+cls];
+                const doc=noElectedPdf(type,cls,entry);
+                doc.save('Verbale_Nessuno_Eletto_'+type+'_'+cls+'_'+configElezioni.annoScolastico.replace('/','_')+'.pdf');
+                showNotification('Verbale PDF generato','Verificare e sottoscrivere il documento prima di acquisirlo agli atti.','success');
+            }catch(error){showNotification('PDF non generato',error.message||'Errore','error');}
+        };
+
         window.downloadVerbaleProclamazionePDF = async function(section, subComponent) {
             try {
                 let colName = section === 'consiglio' ? 'voti_consiglio' : (section === 'consulta' ? 'voti_consulta' : 'voti_istituto');
@@ -5193,15 +5460,23 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 let rows = [];
 
                 if (isClasse) {
-                    let classesVoti = officialVotiScrutinio.classi[colName] || {};
-                    Object.entries(classesVoti).forEach(([cl, candMap]) => {
-                        let sortedC = sortCandidatesByVotesWithExAequo(Object.values(candMap), 'SCRUTINIO')
-                            .slice(0, 2);
-
-                        sortedC.forEach((c, idx) => {
-                            rows.push([cl, `Eletto ${idx+1}`, c.display.toUpperCase(), `${c.count} voti`]);
-                        });
-                    });
+                    const type=section==='classe_st'?'STUDENTE':'GENITORE';
+                    const verification=await SECURE_API.getNoElectedClasses({annoScolastico:configElezioni.annoScolastico});
+                    const entries=verification.data?.entries||{},classes=verification.data?.classes?.[type]||[];
+                    let classesVoti=officialVotiScrutinio.classi[colName]||{};
+                    for(const cl of classes){
+                        const declaration=entries[type+'_'+cl];
+                        if(declaration?.confirmed===true){
+                            rows.push([cl,'NESSUNO ELETTO','Nessuna preferenza nominale',
+                                'Riscontro Commissione del '+(declaration.declaredAt||'data da verificare')]);
+                            continue;
+                        }
+                        const candMap=classesVoti[cl]||{};
+                        const sortedC=sortCandidatesByVotesWithExAequo(Object.values(candMap),'SCRUTINIO').slice(0,2);
+                        sortedC.forEach((candidate,idx)=>rows.push([cl,`Eletto ${idx+1}`,candidate.display.toUpperCase(),`${candidate.count} voti`]));
+                        if(!sortedC.length)rows.push([cl,'NESSUN ELEGGIBILE PROCLAMATO',
+                            'Nessuna preferenza nominale - VERIFICA COMMISSIONE NECESSARIA','Dichiarazione non ancora registrata']);
+                    }
 
                     doc.autoTable({
                         startY: startY,

@@ -108,6 +108,17 @@ async function requireAuth(request, allowedRoles = []) {
       throw new HttpsError('permission-denied', 'Credenziali gestionali scadute. Effettuare un nuovo accesso con credenziali valide.');
     }
   }
+  if(role==='REFERENTE'){
+    const year=String(request.auth.token.staffYear||'');
+    const tipo=normalize(request.auth.token.referentType);
+    if(!/^20\d{2}\/20\d{2}$/.test(year)||!['STUDENTE','GENITORE'].includes(tipo)||
+       (request.data?.annoScolastico&&request.data.annoScolastico!==year))
+      throw new HttpsError('permission-denied','Sessione referente non valida.');
+    const config=await loadElectionConfig(year);
+    const end=referentEndMs(config,tipo);
+    if(!end||Date.now()>=end)
+      throw new HttpsError('permission-denied','Codice referente scaduto alla chiusura della votazione della componente.');
+  }
   if (role === 'COMMISSIONE' && request.auth.token.mustChangePassword === true) {
     throw new HttpsError('failed-precondition', 'Cambio password obbligatorio prima di utilizzare le funzioni della Commissione.');
   }
@@ -185,8 +196,28 @@ function hasVotingStarted(config) {
       ElectionPolicy.windows(config || {}, key).some(window => Date.now() >= +window.start)
     );
 }
+const VOTED_FLAGS=Object.freeze({consiglio:'voted_consiglio',istituto:'voted_istituto',consulta:'voted_consulta',classeStudente:'voted_classe_studente',classeGenitore:'voted_classe_genitore'});
 function activeVoterKeys(config,type,credential={}) {
-  return ElectionPolicy.enabled(config).filter(k=>(!credential.electionKey||credential.electionKey===k)&&(k==='consiglio'?type!=='STUDENTE':k==='classeGenitore'?type==='GENITORE':type==='STUDENTE'));
+  return ElectionPolicy.enabled(config).filter(k=>(!credential.electionKey||credential.electionKey===k)&&
+    (k==='consiglio'?type!=='STUDENTE':k==='classeGenitore'?type==='GENITORE':type==='STUDENTE')&&
+    !NoLists.confirmed(config,NoLists.keyForSection(k,type)));
+}
+function eligibleCredentialEnd(config,keys){
+  const ends=keys.flatMap(k=>ElectionPolicy.windows(config,k).map(w=>+w.end));
+  return ends.length?Math.max(...ends):0;
+}
+function assertCredentialStillUsable(config,credential){
+  const keys=activeVoterKeys(config,normalize(credential.tipo),credential);
+  const end=eligibleCredentialEnd(config,keys);
+  if(!keys.length||!end||Date.now()>=end)
+    throw new HttpsError('failed-precondition','Codice di voto scaduto: non esistono ulteriori votazioni disponibili per questa credenziale.');
+  if(keys.every(key=>credential[VOTED_FLAGS[key]]===true))
+    throw new HttpsError('failed-precondition','Credenziale esaurita: tutti i diritti di voto previsti risultano già utilizzati.');
+  return keys;
+}
+function referentEndMs(config,type){
+  const key=type==='GENITORE'?'classeGenitore':'classeStudente';
+  return eligibleCredentialEnd(config,[key]);
 }
 async function auditAdmin(actor, action, details = {}) {
   // Mai registrare token di voto, preferenze, sessionId o altri elementi
@@ -658,6 +689,7 @@ exports.validateVoterToken = async (request) => {
     assertVotingOpen(current);
     if (!snap.exists) throw new HttpsError('not-found', 'Token non valido.');
     voterData = snap.data() || {};
+    assertCredentialStillUsable(current,voterData);
     if(anonymous&&!VotingAdmission.anonymousRecord(voterData))throw new HttpsError('failed-precondition','Archivio credenziali non valido.');
     admittedConfig=current;
     if(!activeVoterKeys(current,normalize(voterData.tipo),voterData).some(k=>electionPhase(current,k)==='OPEN')) throw new HttpsError('failed-precondition','Nessuna scheda della tua componente è aperta in questa fascia oraria.');
@@ -751,6 +783,7 @@ exports.castVote = async (request) => {
 
     if (!tokenSnap.exists) throw new HttpsError('not-found', 'Credenziale non disponibile.');
     const t = tokenSnap.data() || {};
+    assertCredentialStillUsable(current,t);
     if(current.privacyMode===LegalReadiness.ANONYMOUS_MODE&&!VotingAdmission.anonymousRecord(t))throw new HttpsError('failed-precondition','Archivio credenziali non valido.');
     if(normalize(t.tipo)!==voterType||normalize(t.classe)!==voterClass||t.electionKey!==tokenDataBefore.electionKey) throw new HttpsError('failed-precondition','Credenziale modificata: accedere nuovamente.');
     if (t.activeSessionHash !== sessionHash || !t.sessionExpiresAt || t.sessionExpiresAt.toMillis() < Date.now()) {
@@ -1183,6 +1216,57 @@ exports.managementLogin = async (request) => {
   return result;
 };
 
+
+// Accertamento per classe, distinto dall'assenza di liste: non altera i voti.
+const noElectedClassesRef=year=>yearlyCollection('esiti_classi',year).doc('nessun_eletto');
+const classElectionInfo=type=>type==='STUDENTE'?{key:'classeStudente',collection:'voti_classe_studenti'}:
+ type==='GENITORE'?{key:'classeGenitore',collection:'voti_classe_genitori'}:null;
+exports.getNoElectedClasses=async request=>{
+  const actor=await requireAuth(request,['COMMISSIONE','DIRIGENTE','VICEPRESIDE','DSGA','SEGRETERIA']);
+  const year=actor.claims.staffYear;
+  const [snap,roll]=await Promise.all([noElectedClassesRef(year).get(),yearlyCollection('tokens',year).select('classe','tipo').get()]);
+  const classes={STUDENTE:[],GENITORE:[]};
+  roll.forEach(doc=>{const entry=doc.data(),type=normalize(entry.tipo),cls=normalize(entry.classe);
+    if(classes[type]&&/^([1-5])[A-Z0-9]{1,4}$/.test(cls)&&!classes[type].includes(cls))classes[type].push(cls);
+  });
+  for(const entry of Object.values(snap.data()?.entries||{})){
+    if(classes[entry.tipo]&&!classes[entry.tipo].includes(entry.classe))classes[entry.tipo].push(entry.classe);
+  }
+  classes.STUDENTE.sort();classes.GENITORE.sort();
+  return {year,entries:snap.data()?.entries||{},classes};
+};
+exports.setNoElectedClass=async request=>{
+  const actor=await requireAuth(request,['COMMISSIONE']);
+  const year=actor.claims.staffYear,cls=normalize(request.data?.classe),type=normalize(request.data?.tipo);
+  const info=classElectionInfo(type),enabled=request.data?.enabled,reason=String(request.data?.reason||'').trim();
+  if(!info||!/^([1-5])[A-Z0-9]{1,4}$/.test(cls)||typeof enabled!=='boolean'||(enabled&&reason.length<15)||reason.length>1200)
+    throw new HttpsError('invalid-argument','Indicare classe, componente e motivazione dettagliata della constatazione.');
+  const config=await loadElectionConfig(year);
+  if(!['CLOSED','RELEASED'].includes(electionPhase(config,info.key)))
+    throw new HttpsError('failed-precondition','Il riscontro è ammesso soltanto dopo la chiusura dell’ultima fascia della componente.');
+  // No candidate preferences means no elected representatives can be auto-proclaimed.
+  // Fail closed on unreadable sealed ballots; count is never derived from client input.
+  const snap=await yearlyCollection(info.collection,year).get();
+  const ballots=snap.docs.map(d=>readStoredBallot(d.data(),year,info.collection))
+    .filter(v=>normalize(v.classe)===cls);
+  if(enabled&&ballots.some(v=>[1,2,3,4,5,6,7,8,9,10].some(i=>!!normalize(v['candidate'+i]))))
+    throw new HttpsError('failed-precondition','Sono presenti preferenze nominali: scrutinare e verificare gli eventuali eletti prima di registrare la dichiarazione.');
+  const id=type+'_'+cls,ref=noElectedClassesRef(year);
+  await db.runTransaction(async tx=>{
+    const [prior,live]=await Promise.all([tx.get(ref),tx.get(yearlyConfigRef(year))]);
+    if(!['CLOSED','RELEASED'].includes(electionPhase(live.data()||{},info.key)))
+      throw new HttpsError('failed-precondition','La chiusura della votazione non è confermata.');
+    const entries={...(prior.data()?.entries||{})};
+    if(enabled)entries[id]={confirmed:true,classe:cls,tipo:type,reason,
+      ballotCount:ballots.length,declaredBy:actor.claims.staffDisplayName||'Commissione',
+      declaredAt:new Date().toISOString()};
+    else delete entries[id];
+    tx.set(ref,{entries,updatedAt:FieldValue.serverTimestamp()},{merge:false});
+  });
+  await auditAdmin(actor,'CLASS_NO_ELECTED_DECLARATION',{annoScolastico:year,classe:cls,tipo:type,confirmed:enabled,ballotCount:ballots.length});
+  return {ok:true,classe:cls,tipo:type,confirmed:enabled,ballotCount:ballots.length};
+};
+
 exports.referentLogin = async (request) => {
   const token = normalize(request.data?.token);
   const type = normalize(request.data?.tipo);
@@ -1192,8 +1276,11 @@ exports.referentLogin = async (request) => {
   const map = snap.exists ? (snap.data() || {}) : {};
   const rec = map[token];
   if (!rec || normalize(rec.tipo) !== type) throw new HttpsError('permission-denied', 'Codice referente non valido.');
+  const config=await loadElectionConfig(year),end=referentEndMs(config,type);
+  if(!end||Date.now()>=end)
+    throw new HttpsError('failed-precondition','Il codice referente non è più utilizzabile: la votazione della componente è terminata.');
   const customToken = await getAuth().createCustomToken(`referent-${crypto.randomUUID()}`, {
-    role: 'REFERENTE', scopeClass: rec.classe, referentType: rec.tipo
+    role: 'REFERENTE', scopeClass: rec.classe, referentType: rec.tipo,staffYear:year
   });
   return { customToken, classe: rec.classe, tipo: rec.tipo };
 };
@@ -1373,6 +1460,17 @@ exports.getVotingReview=async request=>{
   const batches=await yearlyCollection('lotti_credenziali',year).get();
   return {year,role:actor.role,release:releaseIdentity(),configurationAvailable,configurationSha256:configurationAvailable?configurationHash(config):null,credentialRevision:state.credentialRevision||null,privacyMode:config.privacyMode||'LEGACY_NAMED',review:state.votingReview||{stage:'PREPARATION'},suspended:state.emergencySuspended===true,closed:state.procedureClosed===true,
     assessment,privacy:privacyArchitectureAssessment(config),batches:batches.docs.map(d=>{const x=d.data();return {tipo:x.tipo,classe:x.classe,electionKey:x.electionKey||null,issued:x.issued,eligible:x.eligible};})};
+};
+// Only aggregated register counts enter the annual archive; no raw access codes.
+exports.getVoterRegisterSummary=async request=>{
+  const actor=await requireAuth(request,['COMMISSIONE']);
+  const year=actor.claims.staffYear;
+  const roll=await yearlyCollection('tokens',year).select('tipo','hasVoted').get();
+  const stats=Object.fromEntries(['STUDENTE','GENITORE','DOCENTE','ATA'].map(type=>[type,{generated:0,voted:0}]));
+  roll.forEach(record=>{const d=record.data(),row=stats[normalize(d.tipo)];
+    if(row){row.generated++;if(d.hasVoted===true)row.voted++;}
+  });
+  return {year,stats,definition:'Solo conteggi aggregati del registro, senza codici, identita o preferenze. Per il processo anonimo prevale il report separato dei diritti esercitati.'};
 };
 exports.getAnonymousParticipation=async request=>{
   const actor=await requireAuth(request,['COMMISSIONE','DIRIGENTE','VICEPRESIDE','DSGA','SEGRETERIA']),year=actor.claims.staffYear;
@@ -1866,6 +1964,9 @@ exports.ensureReferentKeys = async (request) => {
   if (!['STUDENTE', 'GENITORE'].includes(type) || !classes.length) {
     throw new HttpsError('invalid-argument', 'Classi o componente non valide.');
   }
+  const config=await loadElectionConfig(year);
+  const end=referentEndMs(config,type);
+  if(!end||Date.now()>=end)throw new HttpsError('failed-precondition','Emissione dei codici referente non disponibile: fascia conclusa o non configurata.');
   const ref = yearlyCollection('config', year).doc('referenti_keys');
   let result = {};
   await db.runTransaction(async (tx) => {
