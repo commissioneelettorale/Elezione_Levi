@@ -1659,6 +1659,8 @@ exports.saveElectionConfig = async (request) => {
     const changedListEntries=[];
     for(const key of NoLists.IDs){
       const prior=NoLists.confirmed(old,key),wanted=NoLists.confirmed(config,key);
+      if(wanted&&Object.keys(NoLists.configuredLists(config,key)).length)
+        throw new HttpsError('failed-precondition','La dichiarazione di assenza liste non può convivere con liste configurate: '+NoLists.TYPES[key].label+'.');
       if(prior===wanted)continue;
       changedListEntries.push({key,confirmed:wanted});
       const meta=NoLists.TYPES[key],profile=ElectionPolicy.profile(old,meta.electionKey);
@@ -1666,8 +1668,6 @@ exports.saveElectionConfig = async (request) => {
       if(started||profile.frozen===true||state.votingReview?.stage==='AUTHORIZED'||state.procedureClosed)
         throw new HttpsError('failed-precondition','La dichiarazione sulle liste di '+meta.label+' non è modificabile dopo il congelamento o l’avvio del procedimento di voto.');
       if(wanted){
-        if(Object.keys(NoLists.configuredLists(config,key)).length)
-          throw new HttpsError('failed-precondition','Rimuovere prima le liste non ammesse dalla configurazione di '+meta.label+' e verificare gli atti cartacei: non è possibile attestare simultaneamente liste configurate e assenza di liste.');
         // The council ballot collection contains all three components: fail
         // closed rather than risk a misleading declaration on any submitted vote.
         const occupied=await tx.get(yearlyCollection(meta.collection,year).limit(1));
