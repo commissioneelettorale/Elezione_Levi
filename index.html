@@ -3076,10 +3076,10 @@
                 const votiClasseStudenti = await getVotiUrna('voti_classe_studenti');
                 const votiClasseGenitori = await getVotiUrna('voti_classe_genitori');
 
-                // Caricamento dei token
-                const tokensSnap = await getDocs(getCollectionRef('tokens'));
-                let tokensData = [];
-                tokensSnap.forEach(d => tokensData.push({ id: d.id, ...d.data() }));
+                // L'archivio non legge né esporta mai gli identificativi dei token.
+                const registerSummary=(await SECURE_API.getVoterRegisterSummary({
+                    annoScolastico:configElezioni.annoScolastico})).data;
+                if(!registerSummary?.stats)throw new Error('Riepilogo del registro non verificabile dal server.');
 
                 // -------------------------------------------------------------
                 // DOCUMENTO 1: AFFLUENZA E VOTI ESPRESSI
@@ -3090,16 +3090,12 @@
                     DOCENTE: { generated: 0, voted: 0 },
                     ATA: { generated: 0, voted: 0 }
                 };
-                tokensData.forEach(t => {
-                    if (stats[t.tipo] !== undefined) {
-                        stats[t.tipo].generated++;
-                        if (t.hasVoted) stats[t.tipo].voted++;
-                    }
-                });
-
+                stats=registerSummary.stats;
                 const anonSummary=await anonymousParticipation();if(anonSummary)stats=anonSummary.stats;
-                let totalGenerated = anonSummary?anonSummary.totalEligible:tokensData.length;
-                let totalVoted = anonSummary?anonSummary.totalParticipated:tokensData.filter(t => t.hasVoted).length;
+                let totalGenerated = anonSummary?anonSummary.totalEligible:
+                    Object.values(stats).reduce((n,s)=>n+Number(s.generated||0),0);
+                let totalVoted = anonSummary?anonSummary.totalParticipated:
+                    Object.values(stats).reduce((n,s)=>n+Number(s.voted||0),0);
                 let globalPercent = totalGenerated > 0 ? ((totalVoted / totalGenerated) * 100).toFixed(1) : "0.0";
 
                 let affluenzaContent = `
