@@ -4715,6 +4715,16 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             const absenceKey=LeviNoLists.keyForSection(currentScrutinioSection,currentScrutinioSubComponent);
             const noListsConfirmed=absenceKey&&LeviNoLists.confirmed(configElezioni,absenceKey);
             if(!noListsConfirmed)await fetchScrutinioData(colName);
+            let noneElectedState={entries:{},classes:{STUDENTE:[],GENITORE:[]}};
+            if(isClasse&&!noListsConfirmed){
+                try{
+                    const response=await SECURE_API.getNoElectedClasses({annoScolastico:configElezioni.annoScolastico});
+                    noneElectedState=response.data||noneElectedState;
+                }catch(error){
+                    showNotification('Riscontri delle classi non disponibili',error.message||'Riprovare.','error');
+                    return;
+                }
+            }
 
             let subNavConsiglioHTML = '';
             if (currentScrutinioSection === 'consiglio') {
@@ -4817,6 +4827,29 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 }).join('');
             }
 
+            let noElectedAdminHtml='';
+            if(isClasse){
+                const type=currentScrutinioSection==='classe_st'?'STUDENTE':'GENITORE';
+                const classes=noneElectedState.classes?.[type]||[];
+                const phase=LeviElectionPolicy.phase(configElezioni,currentScrutinioSection==='classe_st'?'classeStudente':'classeGenitore');
+                noElectedAdminHtml=`<section class="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <h4 class="font-black text-sm text-amber-950">Constatazione: nessun rappresentante eletto (per classe)</h4>
+                    <p class="text-xs mt-1 text-slate-700">Disponibile dopo la chiusura della consultazione, in assenza di qualsiasi preferenza nominale. La semplice assenza di candidature spontanee non equivale a nessun eletto.</p>
+                    ${classes.length?classes.map(cls=>{
+                        const entry=noneElectedState.entries?.[type+'_'+cls],confirmed=entry?.confirmed===true;
+                        return `<div class="mt-3 flex flex-wrap gap-3 items-center rounded-lg border bg-white p-3">
+                          <label class="flex gap-2 items-center text-xs font-bold text-slate-900">
+                            <input type="checkbox" ${confirmed?'checked':''} ${!['CLOSED','RELEASED'].includes(phase)?'disabled':''}
+                              onchange="window.setClassNoElected('${type}','${cls}',this.checked,this)">
+                            Classe ${technicalEscape(cls)} — nessun ${type==='GENITORE'?'genitore':'studente'} eletto
+                          </label>
+                          ${confirmed?`<button class="rounded bg-indigo-900 text-white px-3 py-2 text-xs font-bold"
+                            onclick="window.downloadNoElectedClassPDF('${type}','${cls}')">Verbale nessuno eletto (PDF)</button>`:''}
+                          ${confirmed?`<p class="w-full text-xs text-slate-600">${technicalEscape(entry.reason)}</p>`:''}
+                        </div>`;
+                    }).join(''):'<p class="mt-2 text-xs">Non risultano classi nei registri elettorali della componente.</p>'}
+                </section>`;
+            }
             container.innerHTML = `
                 <div class="bg-white p-6 rounded-2xl shadow border border-slate-200 animate-fade-in w-full font-semibold">
                     <div class="border-b border-slate-100 pb-3 mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -4837,6 +4870,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
 
                     ${mainNavHTML}
                     ${subNavConsiglioHTML}
+                    ${noElectedAdminHtml}
 
                     <div class="grid grid-cols-3 gap-4 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200 font-semibold text-center text-xs">
                         <div>
@@ -4873,6 +4907,22 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             calculateAndRenderElettiPanel(colName);
             lucide.createIcons();
         }
+
+        window.setClassNoElected=async function(type,cls,enabled,checkbox){
+            const reason=enabled?window.prompt('Registrare motivo e verifiche della Commissione (minimo 15 caratteri):','Scrutinio verificato: nessuna preferenza nominale per questa classe.'):'';
+            if(enabled&&(!reason||reason.trim().length<15)){checkbox.checked=false;return;}
+            checkbox.disabled=true;
+            try{
+                await SECURE_API.setNoElectedClass({annoScolastico:configElezioni.annoScolastico,
+                    tipo:type,classe:cls,enabled,reason:reason||''});
+                showNotification('Dichiarazione registrata',enabled?'Scaricare il verbale PDF e sottoporlo alla Commissione per la firma.':'Dichiarazione ritirata.','success');
+            }catch(error){
+                checkbox.checked=!enabled;
+                showNotification('Dichiarazione non salvata',error.message||'Controllo server non superato.','error');
+            }finally{
+                renderScrutinioTab(document.getElementById('admin-tab-content'));
+            }
+        };
 
         function calculateAndRenderElettiPanel(colName) {
             const panel = document.getElementById('panel-eletti-calcolati');
