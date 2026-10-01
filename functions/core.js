@@ -108,6 +108,17 @@ async function requireAuth(request, allowedRoles = []) {
       throw new HttpsError('permission-denied', 'Credenziali gestionali scadute. Effettuare un nuovo accesso con credenziali valide.');
     }
   }
+  if(role==='REFERENTE'){
+    const year=String(request.auth.token.staffYear||'');
+    const tipo=normalize(request.auth.token.referentType);
+    if(!/^20\d{2}\/20\d{2}$/.test(year)||!['STUDENTE','GENITORE'].includes(tipo)||
+       (request.data?.annoScolastico&&request.data.annoScolastico!==year))
+      throw new HttpsError('permission-denied','Sessione referente non valida.');
+    const config=await loadElectionConfig(year);
+    const end=referentEndMs(config,tipo);
+    if(!end||Date.now()>=end)
+      throw new HttpsError('permission-denied','Codice referente scaduto alla chiusura della votazione della componente.');
+  }
   if (role === 'COMMISSIONE' && request.auth.token.mustChangePassword === true) {
     throw new HttpsError('failed-precondition', 'Cambio password obbligatorio prima di utilizzare le funzioni della Commissione.');
   }
@@ -185,8 +196,28 @@ function hasVotingStarted(config) {
       ElectionPolicy.windows(config || {}, key).some(window => Date.now() >= +window.start)
     );
 }
+const VOTED_FLAGS=Object.freeze({consiglio:'voted_consiglio',istituto:'voted_istituto',consulta:'voted_consulta',classeStudente:'voted_classe_studente',classeGenitore:'voted_classe_genitore'});
 function activeVoterKeys(config,type,credential={}) {
-  return ElectionPolicy.enabled(config).filter(k=>(!credential.electionKey||credential.electionKey===k)&&(k==='consiglio'?type!=='STUDENTE':k==='classeGenitore'?type==='GENITORE':type==='STUDENTE'));
+  return ElectionPolicy.enabled(config).filter(k=>(!credential.electionKey||credential.electionKey===k)&&
+    (k==='consiglio'?type!=='STUDENTE':k==='classeGenitore'?type==='GENITORE':type==='STUDENTE')&&
+    !NoLists.confirmed(config,NoLists.keyForSection(k,type)));
+}
+function eligibleCredentialEnd(config,keys){
+  const ends=keys.flatMap(k=>ElectionPolicy.windows(config,k).map(w=>+w.end));
+  return ends.length?Math.max(...ends):0;
+}
+function assertCredentialStillUsable(config,credential){
+  const keys=activeVoterKeys(config,normalize(credential.tipo),credential);
+  const end=eligibleCredentialEnd(config,keys);
+  if(!keys.length||!end||Date.now()>=end)
+    throw new HttpsError('failed-precondition','Codice di voto scaduto: non esistono ulteriori votazioni disponibili per questa credenziale.');
+  if(keys.every(key=>credential[VOTED_FLAGS[key]]===true))
+    throw new HttpsError('failed-precondition','Credenziale esaurita: tutti i diritti di voto previsti risultano già utilizzati.');
+  return keys;
+}
+function referentEndMs(config,type){
+  const key=type==='GENITORE'?'classeGenitore':'classeStudente';
+  return eligibleCredentialEnd(config,[key]);
 }
 async function auditAdmin(actor, action, details = {}) {
   // Mai registrare token di voto, preferenze, sessionId o altri elementi
@@ -658,6 +689,7 @@ exports.validateVoterToken = async (request) => {
     assertVotingOpen(current);
     if (!snap.exists) throw new HttpsError('not-found', 'Token non valido.');
     voterData = snap.data() || {};
+    assertCredentialStillUsable(current,voterData);
     if(anonymous&&!VotingAdmission.anonymousRecord(voterData))throw new HttpsError('failed-precondition','Archivio credenziali non valido.');
     admittedConfig=current;
     if(!activeVoterKeys(current,normalize(voterData.tipo),voterData).some(k=>electionPhase(current,k)==='OPEN')) throw new HttpsError('failed-precondition','Nessuna scheda della tua componente è aperta in questa fascia oraria.');
@@ -751,6 +783,7 @@ exports.castVote = async (request) => {
 
     if (!tokenSnap.exists) throw new HttpsError('not-found', 'Credenziale non disponibile.');
     const t = tokenSnap.data() || {};
+    assertCredentialStillUsable(current,t);
     if(current.privacyMode===LegalReadiness.ANONYMOUS_MODE&&!VotingAdmission.anonymousRecord(t))throw new HttpsError('failed-precondition','Archivio credenziali non valido.');
     if(normalize(t.tipo)!==voterType||normalize(t.classe)!==voterClass||t.electionKey!==tokenDataBefore.electionKey) throw new HttpsError('failed-precondition','Credenziale modificata: accedere nuovamente.');
     if (t.activeSessionHash !== sessionHash || !t.sessionExpiresAt || t.sessionExpiresAt.toMillis() < Date.now()) {
@@ -1192,8 +1225,11 @@ exports.referentLogin = async (request) => {
   const map = snap.exists ? (snap.data() || {}) : {};
   const rec = map[token];
   if (!rec || normalize(rec.tipo) !== type) throw new HttpsError('permission-denied', 'Codice referente non valido.');
+  const config=await loadElectionConfig(year),end=referentEndMs(config,type);
+  if(!end||Date.now()>=end)
+    throw new HttpsError('failed-precondition','Il codice referente non è più utilizzabile: la votazione della componente è terminata.');
   const customToken = await getAuth().createCustomToken(`referent-${crypto.randomUUID()}`, {
-    role: 'REFERENTE', scopeClass: rec.classe, referentType: rec.tipo
+    role: 'REFERENTE', scopeClass: rec.classe, referentType: rec.tipo,staffYear:year
   });
   return { customToken, classe: rec.classe, tipo: rec.tipo };
 };
@@ -1866,6 +1902,9 @@ exports.ensureReferentKeys = async (request) => {
   if (!['STUDENTE', 'GENITORE'].includes(type) || !classes.length) {
     throw new HttpsError('invalid-argument', 'Classi o componente non valide.');
   }
+  const config=await loadElectionConfig(year);
+  const end=referentEndMs(config,type);
+  if(!end||Date.now()>=end)throw new HttpsError('failed-precondition','Emissione dei codici referente non disponibile: fascia conclusa o non configurata.');
   const ref = yearlyCollection('config', year).doc('referenti_keys');
   let result = {};
   await db.runTransaction(async (tx) => {
