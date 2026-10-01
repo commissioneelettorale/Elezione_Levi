@@ -79,7 +79,7 @@ console.log('PASS: full page module parses and all configuration writing paths s
  const first=ctx.window.saveConfigToDB({notify:false});
  ctx.configElezioni={...ctx.configElezioni,commissionMessage:'Seconda modifica sintetica'};
  const second=ctx.window.saveConfigToDB({notify:false});
- for(let i=0;i<4;i++)await Promise.resolve();
+ for(let i=0;i<20&&calls.length<4;i++)await new Promise(resolve=>setImmediate(resolve));
  assert.equal(calls.length,4,'Second save must wait while the first write is pending');
  release();state.block=null;
  assert.deepEqual(await Promise.all([first,second]),[true,true]);
