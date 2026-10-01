@@ -1216,6 +1216,48 @@ exports.managementLogin = async (request) => {
   return result;
 };
 
+
+// Accertamento per classe, distinto dall'assenza di liste: non altera i voti.
+const noElectedClassesRef=year=>yearlyCollection('esiti_classi',year).doc('nessun_eletto');
+const classElectionInfo=type=>type==='STUDENTE'?{key:'classeStudente',collection:'voti_classe_studenti'}:
+ type==='GENITORE'?{key:'classeGenitore',collection:'voti_classe_genitori'}:null;
+exports.getNoElectedClasses=async request=>{
+  const actor=await requireAuth(request,['COMMISSIONE','DIRIGENTE','VICEPRESIDE','DSGA','SEGRETERIA']);
+  const snap=await noElectedClassesRef(actor.claims.staffYear).get();
+  return {year:actor.claims.staffYear,entries:snap.data()?.entries||{}};
+};
+exports.setNoElectedClass=async request=>{
+  const actor=await requireAuth(request,['COMMISSIONE']);
+  const year=actor.claims.staffYear,cls=normalize(request.data?.classe),type=normalize(request.data?.tipo);
+  const info=classElectionInfo(type),enabled=request.data?.enabled,reason=String(request.data?.reason||'').trim();
+  if(!info||!/^([1-5])[A-Z0-9]{1,4}$/.test(cls)||typeof enabled!=='boolean'||(enabled&&reason.length<15)||reason.length>1200)
+    throw new HttpsError('invalid-argument','Indicare classe, componente e motivazione dettagliata della constatazione.');
+  const config=await loadElectionConfig(year);
+  if(!['CLOSED','RELEASED'].includes(electionPhase(config,info.key)))
+    throw new HttpsError('failed-precondition','Il riscontro è ammesso soltanto dopo la chiusura dell’ultima fascia della componente.');
+  // No candidate preferences means no elected representatives can be auto-proclaimed.
+  // Fail closed on unreadable sealed ballots; count is never derived from client input.
+  const snap=await yearlyCollection(info.collection,year).get();
+  const ballots=snap.docs.map(d=>readStoredBallot(d.data(),year,info.collection))
+    .filter(v=>normalize(v.classe)===cls);
+  if(enabled&&ballots.some(v=>[1,2,3,4,5,6,7,8,9,10].some(i=>!!normalize(v['candidate'+i]))))
+    throw new HttpsError('failed-precondition','Sono presenti preferenze nominali: scrutinare e verificare gli eventuali eletti prima di registrare la dichiarazione.');
+  const id=type+'_'+cls,ref=noElectedClassesRef(year);
+  await db.runTransaction(async tx=>{
+    const [prior,live]=await Promise.all([tx.get(ref),tx.get(yearlyConfigRef(year))]);
+    if(!['CLOSED','RELEASED'].includes(electionPhase(live.data()||{},info.key)))
+      throw new HttpsError('failed-precondition','La chiusura della votazione non è confermata.');
+    const entries={...(prior.data()?.entries||{})};
+    if(enabled)entries[id]={confirmed:true,classe:cls,tipo:type,reason,
+      ballotCount:ballots.length,declaredBy:actor.claims.staffDisplayName||'Commissione',
+      declaredAt:new Date().toISOString()};
+    else delete entries[id];
+    tx.set(ref,{entries,updatedAt:FieldValue.serverTimestamp()},{merge:false});
+  });
+  await auditAdmin(actor,'CLASS_NO_ELECTED_DECLARATION',{annoScolastico:year,classe:cls,tipo:type,confirmed:enabled,ballotCount:ballots.length});
+  return {ok:true,classe:cls,tipo:type,confirmed:enabled,ballotCount:ballots.length};
+};
+
 exports.referentLogin = async (request) => {
   const token = normalize(request.data?.token);
   const type = normalize(request.data?.tipo);
