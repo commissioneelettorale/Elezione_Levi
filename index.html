@@ -13,6 +13,7 @@
     
     <!-- Tailwind CSS per styling moderno e reattivo -->
     <script src="lib/election-policy.js"></script>
+    <script src="lib/config-persistence.js"></script>
     <script src="lib/voter-register.js"></script>
     <script src="lib/election-sandbox.js"></script>
     <script src="lib/election-sandbox-ui.js"></script>
@@ -449,7 +450,16 @@
             const ui=window.LeviPrivacyReview;
             if(!ui?.configure||!ui?.show){showNotification('Fascicolo non disponibile','Ricarica la pagina per riprovare. Gli altri accessi restano disponibili.','error');return;}
             ui.configure({api:SECURE_API,config:()=>configElezioni,logs:()=>fetchCompleteTechnicalLog(),notify:(...args)=>window.showNotification(...args),
-                saveMode:async()=>{const next={...configElezioni,privacyMode:'PRESENTIAL_UNLINKED_V1'};await SECURE_API.saveElectionConfig({config:next,annoScolastico:next.annoScolastico});configElezioni=next;window.configElezioni=next;}
+                saveMode:async()=>{
+                    collectConfigFormFields();
+                    const oldMode=configElezioni.privacyMode;
+                    configElezioni={...configElezioni,privacyMode:'PRESENTIAL_UNLINKED_V1'};
+                    window.configElezioni=configElezioni;
+                    if(!(await saveConfigToDB({captureForms:false,notify:false}))){
+                        configElezioni.privacyMode=oldMode;
+                        throw new Error(window.lastConfigSaveError||'Modalità credenziali non verificata nel cloud.');
+                    }
+                }
             });
             await ui.show(options);
         };
@@ -921,37 +931,42 @@
         }
 
         let configSaveQueue=Promise.resolve();
-        window.saveConfigToDB=function() {
-            collectConfigFormFields();
-            const snapshot=JSON.parse(JSON.stringify(configElezioni));
+        window.lastConfigSaveError='';
+        window.saveConfigToDB=function(options={}) {
+            if(options.captureForms!==false)collectConfigFormFields();
+            const snapshot=JSON.parse(JSON.stringify(options.snapshot||configElezioni));
             const operation=configSaveQueue.catch(()=>{}).then(async()=>{
                 if(!auth.currentUser||!commissionSessionReady)throw new Error('Autenticazione Commissione richiesta.');
                 const claims=(await auth.currentUser.getIdTokenResult()).claims;
                 if(claims.staffYear!==snapshot.annoScolastico)throw new Error('La sessione non è autorizzata per questa annualità.');
-                const response=await SECURE_API.saveElectionConfig({config:snapshot,annoScolastico:snapshot.annoScolastico});
-                if(response.data?.ok!==true)throw new Error('Il servizio non ha confermato il salvataggio.');
                 const ref=doc(db,'artifacts',appId,'public','data','config',
                     'yearly_settings_'+snapshot.annoScolastico.replace('/','_'));
+                // Never replace a valid cloud record with defaults after a failed load.
+                if(!firebaseStateConnected){
+                    const initialRead=await getDocFromServer(ref);
+                    if(initialRead.exists())throw new Error('La configurazione cloud esiste ma non è stata caricata. Ricaricare la pagina e accedere nuovamente prima di modificarla.');
+                }
+                const response=await SECURE_API.saveElectionConfig({config:snapshot,annoScolastico:snapshot.annoScolastico});
+                if(response.data?.ok!==true)throw new Error('Il servizio non ha confermato il salvataggio.');
                 const readback=await getDocFromServer(ref);
-                if(!readback.exists())throw new Error('Configurazione salvata ma non trovata nel database del sito.');
+                if(!readback.exists())throw new Error('Configurazione inviata ma non riletta dal database: non considerarla verificata.');
                 const stored=readback.data();
-                const keys=['commissione','personaleDirezione','assistenteTecnico','calendario',
-                    'riferimentoCircolare','tipologiaElezioni','commissionMessage','commissionMessageEnabled',
-                    'commissionFinalized','consiglioAttivo','consultaAttiva','rappresentantiIstitutoAttivo',
-                    'rappresentantiClasseStudentiAttivo','rappresentantiClasseGenitoriAttivo',
-                    'divietoVotoDisgiunto','maxPrefConsiglio','maxPrefIstituto','maxPrefConsulta',
-                    'maxPrefClasseStudenti','maxPrefClasseGenitori'];
-                if(stored.annoScolastico!==snapshot.annoScolastico||
-                    keys.some(k=>JSON.stringify(stored[k])!==JSON.stringify(snapshot[k])))
-                    throw new Error('Verifica di persistenza fallita: i dati riletti non corrispondono.');
+                const different=LeviConfigPersistence.differences(snapshot,stored);
+                if(different.length)
+                    throw new Error('Verifica di persistenza fallita nei campi: '+different.join(', ')+'. Verificare eventuali modifiche contemporanee.');
                 firebaseStateConnected=true;
+                return stored;
             });
             configSaveQueue=operation;
             return operation.then(()=>{
-                showNotification('Configurazione verificata','Modifiche salvate e rilette dal cloud per l’A.S. '+snapshot.annoScolastico+'.','success');
+                window.lastConfigSaveError='';
+                if(options.notify!==false)
+                    showNotification('Configurazione verificata','Modifiche salvate e rilette dal cloud per l’A.S. '+snapshot.annoScolastico+'.','success');
                 return true;
             },error=>{
-                showNotification('Salvataggio non confermato',(error.message||String(error))+' Verificare i dati prima di lasciare questa pagina.','error');
+                window.lastConfigSaveError=error.message||String(error);
+                if(options.notify!==false)
+                    showNotification('Salvataggio non confermato',window.lastConfigSaveError+' Verificare i dati prima di lasciare questa pagina.','error');
                 return false;
             });
         };
@@ -1137,8 +1152,20 @@
             const profile={dedicated:true,period:data.get('period'),kind:data.get('kind'),windows:[],acts:[],releaseDate:data.get('releaseDate'),releaseTime:data.get('releaseTime'),frozen:data.has('frozen'),finalized:data.has('finalized')};
             for(let i=0;i<6;i++)if(data.get('date'+i)||data.get('from'+i)||data.get('to'+i))profile.windows.push({date:data.get('date'+i),from:data.get('from'+i),to:data.get('to'+i)});
             for(let i=0;i<6;i++)if(data.get('protocol'+i)||data.get('authority'+i)||data.get('subject'+i)||data.get('actDate'+i)||data.get('url'+i))profile.acts.push({authority:data.get('authority'+i).trim(),protocol:data.get('protocol'+i).trim(),date:data.get('actDate'+i),subject:data.get('subject'+i).trim(),url:data.get('url'+i).trim()});
-            try {LeviElectionPolicy.validateProfile(profile);button.disabled=true;status.textContent='Salvataggio...';const next={...configElezioni,consultazioni:{...(configElezioni.consultazioni||{}),[key]:profile}};await SECURE_API.saveElectionConfig({config:next,annoScolastico:next.annoScolastico});configElezioni=next;window.configElezioni=next;status.textContent='Calendario e atti salvati. I verbali useranno i riferimenti di questa consultazione.';}
-            catch(error){status.textContent=error.message||'Salvataggio non riuscito.';}finally{button.disabled=false;}
+            try{
+                LeviElectionPolicy.validateProfile(profile);
+                button.disabled=true;
+                status.textContent='Salvataggio e verifica cloud...';
+                // Persist form edits with the same serialized path as all other tabs.
+                collectConfigFormFields();
+                configElezioni={...configElezioni,consultazioni:{...(configElezioni.consultazioni||{}),[key]:profile}};
+                window.configElezioni=configElezioni;
+                const confirmed=await saveConfigToDB({captureForms:false,notify:false});
+                if(!confirmed)throw new Error(window.lastConfigSaveError||'Salvataggio non verificato.');
+                status.textContent='Calendario e atti salvati e verificati nel cloud.';
+            }catch(error){
+                status.textContent=error.message||'Salvataggio non riuscito: verificare i dati.';
+            }finally{button.disabled=false;}
         };
 
         function renderStudentLogin(container) {
@@ -2397,7 +2424,7 @@
             const previous = { ...(configElezioni.mimCompliance || {}) };
             configElezioni.mimCompliance = { ...previous, [control]: value === true, updatedAt: new Date().toISOString() };
             try {
-                await SECURE_API.saveElectionConfig({ config: configElezioni, annoScolastico: configElezioni.annoScolastico });
+                if(!(await saveConfigToDB({captureForms:false,notify:false})))throw new Error(window.lastConfigSaveError||'Controllo non salvato.');
                 window.configElezioni = configElezioni;
                 renderCollaudoTab(document.getElementById('admin-tab-content'));
             } catch (e) {
@@ -2516,9 +2543,10 @@
             if (enabled !== true && !window.confirm('Disattivare la modalità prova? Questa operazione non apre le votazioni: restano necessari gli orari dedicati, i controlli e l’ammissione registrata.')) return;
             const previous = configElezioni.modalitaProva === true;
             configElezioni.modalitaProva = enabled === true;
+            const previousUpdatedAt=configElezioni.modalitaProvaUpdatedAt;
             configElezioni.modalitaProvaUpdatedAt = new Date().toISOString();
             try {
-                await SECURE_API.saveElectionConfig({ config: configElezioni, annoScolastico: configElezioni.annoScolastico });
+                if(!(await saveConfigToDB({captureForms:false,notify:false})))throw new Error(window.lastConfigSaveError||'Modalità prova non salvata.');
                 window.configElezioni = configElezioni;
                 updateTestModeBanner();
                 showNotification(
@@ -2529,6 +2557,7 @@
                 renderCollaudoTab(document.getElementById('admin-tab-content'));
             } catch (e) {
                 configElezioni.modalitaProva = previous;
+                configElezioni.modalitaProvaUpdatedAt=previousUpdatedAt;
                 updateTestModeBanner();
                 showNotification('Modifica non salvata', e?.message || 'Impossibile aggiornare la modalità di esercizio.', 'error');
             }
@@ -2623,14 +2652,19 @@
             const hours=Math.min(8,Math.max(1,parseInt(document.getElementById('quickOpeningHours')?.value||'4')));
             const now=new Date(), end=new Date(now.getTime()+hours*3600000);
             const a=romeParts(new Date(now.getTime()-60000)), b=romeParts(end);
+            const previousMode=configElezioni.modalitaProva;
+            const previousCalendar={...(configElezioni.calendario||{})};
             configElezioni.modalitaProva=false;
             configElezioni.calendario={...(configElezioni.calendario||{}),votingStartDate:a.date,votingStartTime:a.time,votingEndDate:b.date,votingEndTime:b.time};
             try {
-                await SECURE_API.saveElectionConfig({config:configElezioni,annoScolastico:configElezioni.annoScolastico});
+                if(!(await saveConfigToDB({captureForms:false,notify:false})))throw new Error(window.lastConfigSaveError||'Apertura non verificata.');
                 window.configElezioni=configElezioni; updateTestModeBanner();
                 showNotification('VOTAZIONI APERTE','Chiusura automatica prevista tra '+hours+' ore.','success');
                 renderOpeningTab(document.getElementById('admin-tab-content'));
-            } catch(e) { showNotification('Apertura non riuscita',e.message||'Errore','error'); }
+            } catch(e) {
+                configElezioni.modalitaProva=previousMode;configElezioni.calendario=previousCalendar;
+                showNotification('Apertura non riuscita',e.message||'Errore','error');
+            }
         };
 
         window.closeElectionNow = async function() {
@@ -2642,13 +2676,17 @@
                 try {await SECURE_API.setEmergencySuspension({annoScolastico:configElezioni.annoScolastico,suspended:true,reason});showNotification('Voto sospeso','Nuovi invii bloccati. Registrare la ripresa dalla sezione Regolarità.','success');}catch(error){showNotification('Sospensione non riuscita',error.message,'error');}return;
             }
             const t=romeParts(new Date(Date.now()-60000));
+            const previousCalendar={...(configElezioni.calendario||{})};
             configElezioni.calendario={...(configElezioni.calendario||{}),votingEndDate:t.date,votingEndTime:t.time};
             try {
-                await SECURE_API.saveElectionConfig({config:configElezioni,annoScolastico:configElezioni.annoScolastico});
+                if(!(await saveConfigToDB({captureForms:false,notify:false})))throw new Error(window.lastConfigSaveError||'Chiusura non verificata.');
                 window.configElezioni=configElezioni;
                 showNotification('VOTAZIONI CHIUSE','Non vengono più accettati nuovi voti.','success');
                 renderOpeningTab(document.getElementById('admin-tab-content'));
-            } catch(e) { showNotification('Chiusura non riuscita',e.message||'Errore','error'); }
+            } catch(e) {
+                configElezioni.calendario=previousCalendar;
+                showNotification('Chiusura non riuscita',e.message||'Errore','error');
+            }
         };
 
         function renderActiveAdminTab() {
@@ -2688,11 +2726,13 @@
             if (configElezioni.personaleDirezione[idx]) configElezioni.personaleDirezione[idx][field] = value;
         };
         window.addInstitutionalStaffMember = function() {
+            collectConfigFormFields();
             configElezioni.personaleDirezione = configElezioni.personaleDirezione || [];
             configElezioni.personaleDirezione.push({nome:'Da configurare', ruolo:'Nuovo ruolo'});
             renderConfigTab(document.getElementById('admin-tab-content'));
         };
         window.deleteInstitutionalStaff = function(idx) {
+            collectConfigFormFields();
             configElezioni.personaleDirezione = configElezioni.personaleDirezione || [];
             configElezioni.personaleDirezione.splice(idx,1);
             renderConfigTab(document.getElementById('admin-tab-content'));
@@ -2731,33 +2771,33 @@
                                         <span class="font-extrabold text-xs text-slate-800">Consiglio d'Istituto</span>
                                         <p class="text-[9px] text-slate-500">Solo Genitori, Docenti e ATA.</p>
                                     </div>
-                                    <input type="checkbox" ${configElezioni.consiglioAttivo ? 'checked' : ''} onchange="configElezioni.consiglioAttivo = this.checked; saveConfigToDB();" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
+                                    <input type="checkbox" ${configElezioni.consiglioAttivo ? 'checked' : ''} onchange="window.persistVotingToggle('consiglioAttivo',this.checked,this)" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
                                 </label>
                                 <label class="flex items-center justify-between p-3 border rounded-xl hover:bg-slate-50 cursor-pointer">
                                     <div>
                                         <span class="font-extrabold text-xs text-slate-800">Rappresentanti d'Istituto</span>
                                         <p class="text-[9px] text-slate-500">Componente studenti.</p>
                                     </div>
-                                    <input type="checkbox" ${configElezioni.rappresentantiIstitutoAttivo ? 'checked' : ''} onchange="configElezioni.rappresentantiIstitutoAttivo = this.checked; saveConfigToDB();" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
+                                    <input type="checkbox" ${configElezioni.rappresentantiIstitutoAttivo ? 'checked' : ''} onchange="window.persistVotingToggle('rappresentantiIstitutoAttivo',this.checked,this)" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
                                 </label>
                                 <label class="flex items-center justify-between p-3 border rounded-xl hover:bg-slate-50 cursor-pointer">
                                     <div>
                                         <span class="font-extrabold text-xs text-slate-800">Consulta Provinciale</span>
                                         <p class="text-[9px] text-slate-500">Componente studenti.</p>
                                     </div>
-                                    <input type="checkbox" ${configElezioni.consultaAttiva ? 'checked' : ''} onchange="configElezioni.consultaAttiva = this.checked; saveConfigToDB();" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
+                                    <input type="checkbox" ${configElezioni.consultaAttiva ? 'checked' : ''} onchange="window.persistVotingToggle('consultaAttiva',this.checked,this)" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
                                 </label>
                                 <label class="flex items-center justify-between p-3 border rounded-xl hover:bg-slate-50 cursor-pointer">
                                     <div>
                                         <span class="font-extrabold text-xs text-slate-800">Rappresentanti di Classe - Studenti</span>
                                     </div>
-                                    <input type="checkbox" ${configElezioni.rappresentantiClasseStudentiAttivo ? 'checked' : ''} onchange="configElezioni.rappresentantiClasseStudentiAttivo = this.checked; saveConfigToDB();" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
+                                    <input type="checkbox" ${configElezioni.rappresentantiClasseStudentiAttivo ? 'checked' : ''} onchange="window.persistVotingToggle('rappresentantiClasseStudentiAttivo',this.checked,this)" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
                                 </label>
                                 <label class="flex items-center justify-between p-3 border rounded-xl hover:bg-rose-50/50 cursor-pointer">
                                     <div>
                                         <span class="font-extrabold text-xs text-rose-950">Rappresentanti di Classe - Genitori</span>
                                     </div>
-                                    <input type="checkbox" ${configElezioni.rappresentantiClasseGenitoriAttivo ? 'checked' : ''} onchange="configElezioni.rappresentantiClasseGenitoriAttivo = this.checked; saveConfigToDB();" class="w-4 h-4 rounded text-rose-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
+                                    <input type="checkbox" ${configElezioni.rappresentantiClasseGenitoriAttivo ? 'checked' : ''} onchange="window.persistVotingToggle('rappresentantiClasseGenitoriAttivo',this.checked,this)" class="w-4 h-4 rounded text-rose-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
                                 </label>
                             </div>
                         </div>
@@ -2771,7 +2811,7 @@
                                         <span class="font-extrabold block">Divieto Voto Disgiunto</span>
                                         <span class="text-[9px] text-slate-500 font-medium">Consente di scegliere preferenze SOLO della stessa lista scelta.</span>
                                     </div>
-                                    <input type="checkbox" ${configElezioni.divietoVotoDisgiunto ? 'checked' : ''} onchange="configElezioni.divietoVotoDisgiunto = this.checked; saveConfigToDB();" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
+                                    <input type="checkbox" ${configElezioni.divietoVotoDisgiunto ? 'checked' : ''} onchange="window.persistVotingToggle('divietoVotoDisgiunto',this.checked,this)" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
                                 </div>
 
                                 <div class="grid grid-cols-2 gap-3">
@@ -2881,6 +2921,7 @@
         }
 
         window.toggleAdminSafety = function(isEnabled) {
+            collectConfigFormFields(); // Preserve pending calendar and circular edits before re-render.
             adminSettingsEditEnabled = isEnabled;
             renderConfigTab(document.getElementById('admin-tab-content'));
         };
@@ -2889,17 +2930,29 @@
             if(!['nome','ruolo'].includes(field)||!configElezioni.commissione[idx])return;
             configElezioni.commissione[idx][field]=String(value||'').trim().slice(0,160);
         };
-        window.updateVotingPreference=function(field,value,max){
+        window.persistVotingToggle=async function(field,checked,input){
+            const allowed=['consiglioAttivo','rappresentantiIstitutoAttivo','consultaAttiva',
+                'rappresentantiClasseStudentiAttivo','rappresentantiClasseGenitoriAttivo','divietoVotoDisgiunto'];
+            if(!allowed.includes(field))return;
+            const old=!!configElezioni[field];
+            configElezioni[field]=!!checked;
+            if(!(await saveConfigToDB())){
+                configElezioni[field]=old;
+                if(input&&input.isConnected)input.checked=old;
+            }
+        };
+        window.updateVotingPreference=async function(field,value,max){
             const number=Number(value);
             if(!Number.isInteger(number)||number<1||number>max){
                 showNotification('Preferenze non valide','Inserire un valore compreso tra 1 e '+max+'.','error');
                 renderActiveAdminTab();return;
             }
+            const old=configElezioni[field];
             configElezioni[field]=number;
-            saveConfigToDB();
+            if(!(await saveConfigToDB()))configElezioni[field]=old;
         };
-        window.deleteCommissioneMember = function(idx) { configElezioni.commissione.splice(idx, 1); renderActiveAdminTab(); };
-        window.addCommissioneMember = function() { configElezioni.commissione.push({ nome: "Nuovo Membro", ruolo: "Componente" }); renderActiveAdminTab(); };
+        window.deleteCommissioneMember = function(idx) { collectConfigFormFields(); configElezioni.commissione.splice(idx, 1); renderActiveAdminTab(); };
+        window.addCommissioneMember = function() { collectConfigFormFields(); configElezioni.commissione.push({ nome: "Nuovo Membro", ruolo: "Componente" }); renderActiveAdminTab(); };
         window.updateTechnicalAssistantField = function(field, value) {
             configElezioni.assistenteTecnico = configElezioni.assistenteTecnico || { nome: 'Da designare', ruolo: 'Assistente tecnico di riferimento', postazione: 'Postazione PC laboratoriale designata dall’Istituto' };
             if (['nome','postazione','orari','contatto'].includes(field)) configElezioni.assistenteTecnico[field] = String(value || '').trim().slice(0, 160);
@@ -6115,29 +6168,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
         };
 
         window.saveElectionScheduleAndMessage = async function() {
-            configElezioni.tipologiaElezioni = document.getElementById('cfgElectionType')?.value.trim() || configElezioni.tipologiaElezioni;
-            configElezioni.calendario = {
-                votingStartDate: document.getElementById('cfgVotingStartDate').value.trim(),
-                votingStartTime: document.getElementById('cfgVotingStartTime').value.trim(),
-                votingEndDate: document.getElementById('cfgVotingEndDate').value.trim(),
-                votingEndTime: document.getElementById('cfgVotingEndTime').value.trim(),
-                resultsReleaseDate: document.getElementById('cfgReleaseDate').value.trim(),
-                resultsReleaseTime: document.getElementById('cfgReleaseTime').value.trim()
-            };
-            configElezioni.riferimentoCircolare = {
-                numero: document.getElementById('cfgCircNumero')?.value.trim() || '',
-                data: document.getElementById('cfgCircData')?.value.trim() || '',
-                oggetto: document.getElementById('cfgCircOggetto')?.value.trim() || '',
-                url: document.getElementById('cfgCircUrl')?.value.trim() || '',
-                note: document.getElementById('cfgCircNote')?.value.trim() || ''
-            };
-            configElezioni.commissionMessage = document.getElementById('cfgCommissionMessage').value.trim();
-            configElezioni.commissionMessageEnabled = document.getElementById('cfgMessageEnabled').checked;
-            configElezioni.commissionFinalized = document.getElementById('cfgCommissionFinalized').checked;
-            configElezioni.assistenteTecnico = configElezioni.assistenteTecnico || { nome: 'Da designare', ruolo: 'Assistente tecnico di riferimento', postazione: 'Postazione PC laboratoriale designata dall’Istituto' };
-            configElezioni.assistenteTecnico.nome = document.getElementById('cfgTechnicalName')?.value.trim() || 'Da designare';
-            configElezioni.assistenteTecnico.postazione = document.getElementById('cfgTechnicalStation')?.value.trim() || 'Postazione PC laboratoriale designata dall’Istituto';
-            configElezioni.assistenteTecnico.ruolo = 'Assistente tecnico di riferimento';
+            // Shared collector preserves extra calendar, circular and technical fields.
             return saveConfigToDB();
         };
 
@@ -6229,20 +6260,68 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             </div>`;
             lucide.createIcons();
         }
-        window.saveWorkflowChecklist=async function(){
+        // Workflow actions share the verified save path and restore local state on failure.
+        async function persistWorkflowEdit(applyChange) {
+            const before=JSON.parse(JSON.stringify(configElezioni.workflowDigitale||{}));
             configElezioni.workflowDigitale=configElezioni.workflowDigitale||{};
+            applyChange(configElezioni.workflowDigitale);
+            if(await saveConfigToDB())return true;
+            configElezioni.workflowDigitale=before;
+            return false;
+        }
+        window.saveWorkflowChecklist=async function(){
             const checks={};
             document.querySelectorAll('[data-wf-check]').forEach(el=>checks[el.dataset.wfCheck]=el.checked===true);
-            configElezioni.workflowDigitale.checklist=checks;
-            if(!Object.values(checks).every(Boolean)) configElezioni.workflowDigitale.verbaliUnlocked=false;
-            await saveConfigToDB();
+            const ok=await persistWorkflowEdit(w=>{
+                w.checklist=checks;
+                if(!Object.values(checks).every(Boolean))w.verbaliUnlocked=false;
+            });
+            if(!ok){renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));return;}
             showNotification('Checklist salvata',Object.values(checks).every(Boolean)?'Tutti i controlli di chiusura risultano completati.':'La checklist è stata aggiornata; completare tutti i controlli prima dello sblocco.','success');
             renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));
         };
-        window.saveWorkflowStage=async function(stage){configElezioni.workflowDigitale=configElezioni.workflowDigitale||{};if(stage==='docenti')configElezioni.workflowDigitale.docentiApproved=!!document.getElementById('workflowDocentiCheck')?.checked;if(stage==='commissione')configElezioni.workflowDigitale.commissionApproved=!!document.getElementById('workflowCommissionCheck')?.checked;if(!(configElezioni.workflowDigitale.docentiApproved&&configElezioni.workflowDigitale.commissionApproved))configElezioni.workflowDigitale.verbaliUnlocked=false;await saveConfigToDB();renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));};
-        window.unlockDigitalMinutes=async function(){configElezioni.workflowDigitale=configElezioni.workflowDigitale||{};const w=workflowStatus();if(!w.docentiApproved||!w.commissionApproved)return showNotification('Workflow bloccato','Servono entrambi i via libera: Docenti e Commissione.','error');if(!w.checklistComplete)return showNotification('Checklist incompleta','Completare tutti i controlli di chiusura prima dello sblocco.','error');configElezioni.workflowDigitale.verbaliUnlocked=true;configElezioni.workflowDigitale.releasedAt=new Date().toISOString();configElezioni.workflowDigitale.releasedBy=currentUserData?.nome||'Commissione Elettorale';await saveConfigToDB();showNotification('Verbali sbloccati','La Segreteria può ora consultare verbali e atti in sola lettura.','success');renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));};
-        window.generateDigitalAttestation=async function(){const payload=JSON.stringify({annoScolastico:configElezioni.annoScolastico,tipologiaElezioni:configElezioni.tipologiaElezioni,riferimentoCircolare:configElezioni.riferimentoCircolare,consultazioni:configElezioni.consultazioni||{},commissione:configElezioni.commissione,calendario:configElezioni.calendario,workflow:workflowStatus(),timestamp:new Date().toISOString()});const hash=await sha256Text(payload);configElezioni.workflowDigitale=configElezioni.workflowDigitale||{};configElezioni.workflowDigitale.digitalAttestationHash=hash;configElezioni.workflowDigitale.digitalAttestationAt=new Date().toISOString();await saveConfigToDB();showNotification('Attestazione generata','Impronta SHA-256 registrata per l\'anno scolastico selezionato.','success');renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));};
-        window.markDigitalArchiveReady=async function(){configElezioni.workflowDigitale=configElezioni.workflowDigitale||{};if(!workflowCanSecretarySeeDocuments())return showNotification('Archivio non pronto','Completare Docenti, Commissione e sblocco verbali.','error');if(!configElezioni.workflowDigitale.digitalAttestationHash)return showNotification('Attestazione mancante','Generare prima l\'impronta digitale.','error');configElezioni.workflowDigitale.archived=true;configElezioni.workflowDigitale.archivedAt=new Date().toISOString();configElezioni.workflowDigitale.archivedBy=currentUserData?.nome||'Commissione Elettorale';await saveConfigToDB();showNotification('Archivio registrato','Il fascicolo digitale dell\'A.S. è stato marcato come pronto per la conservazione agli atti.','success');renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));};
+        window.saveWorkflowStage=async function(stage){
+            const ok=await persistWorkflowEdit(w=>{
+                if(stage==='docenti')w.docentiApproved=!!document.getElementById('workflowDocentiCheck')?.checked;
+                if(stage==='commissione')w.commissionApproved=!!document.getElementById('workflowCommissionCheck')?.checked;
+                if(!(w.docentiApproved&&w.commissionApproved))w.verbaliUnlocked=false;
+            });
+            renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));
+        };
+        window.unlockDigitalMinutes=async function(){
+            const w=workflowStatus();
+            if(!w.docentiApproved||!w.commissionApproved)return showNotification('Workflow bloccato','Servono entrambi i via libera: Docenti e Commissione.','error');
+            if(!w.checklistComplete)return showNotification('Checklist incompleta','Completare tutti i controlli di chiusura prima dello sblocco.','error');
+            const ok=await persistWorkflowEdit(workflow=>{
+                workflow.verbaliUnlocked=true;
+                workflow.releasedAt=new Date().toISOString();
+                workflow.releasedBy=currentUserData?.nome||'Commissione Elettorale';
+            });
+            if(!ok){renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));return;}
+            showNotification('Verbali sbloccati','La Segreteria può ora consultare verbali e atti in sola lettura.','success');
+            renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));
+        };
+        window.generateDigitalAttestation=async function(){
+            const payload=JSON.stringify({annoScolastico:configElezioni.annoScolastico,tipologiaElezioni:configElezioni.tipologiaElezioni,riferimentoCircolare:configElezioni.riferimentoCircolare,consultazioni:configElezioni.consultazioni||{},commissione:configElezioni.commissione,calendario:configElezioni.calendario,workflow:workflowStatus(),timestamp:new Date().toISOString()});
+            const hash=await sha256Text(payload);
+            const ok=await persistWorkflowEdit(w=>{
+                w.digitalAttestationHash=hash;
+                w.digitalAttestationAt=new Date().toISOString();
+            });
+            if(!ok){renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));return;}
+            showNotification('Attestazione generata','Impronta SHA-256 registrata per l\'anno scolastico selezionato.','success');
+            renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));
+        };
+        window.markDigitalArchiveReady=async function(){
+            if(!workflowCanSecretarySeeDocuments())return showNotification('Archivio non pronto','Completare Docenti, Commissione e sblocco verbali.','error');
+            if(!configElezioni.workflowDigitale?.digitalAttestationHash)return showNotification('Attestazione mancante','Generare prima l\'impronta digitale.','error');
+            const ok=await persistWorkflowEdit(w=>{
+                w.archived=true;w.archivedAt=new Date().toISOString();w.archivedBy=currentUserData?.nome||'Commissione Elettorale';
+            });
+            if(!ok){renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));return;}
+            showNotification('Archivio registrato','Il fascicolo digitale dell\'A.S. è stato marcato come pronto per la conservazione agli atti.','success');
+            renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));
+        };
 
         function escapeXmlDocx(value) {
             return String(value ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
