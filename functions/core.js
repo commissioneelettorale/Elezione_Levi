@@ -1461,6 +1461,17 @@ exports.getVotingReview=async request=>{
   return {year,role:actor.role,release:releaseIdentity(),configurationAvailable,configurationSha256:configurationAvailable?configurationHash(config):null,credentialRevision:state.credentialRevision||null,privacyMode:config.privacyMode||'LEGACY_NAMED',review:state.votingReview||{stage:'PREPARATION'},suspended:state.emergencySuspended===true,closed:state.procedureClosed===true,
     assessment,privacy:privacyArchitectureAssessment(config),batches:batches.docs.map(d=>{const x=d.data();return {tipo:x.tipo,classe:x.classe,electionKey:x.electionKey||null,issued:x.issued,eligible:x.eligible};})};
 };
+// Only aggregated register counts enter the annual archive; no raw access codes.
+exports.getVoterRegisterSummary=async request=>{
+  const actor=await requireAuth(request,['COMMISSIONE']);
+  const year=actor.claims.staffYear;
+  const roll=await yearlyCollection('tokens',year).select('tipo','hasVoted').get();
+  const stats=Object.fromEntries(['STUDENTE','GENITORE','DOCENTE','ATA'].map(type=>[type,{generated:0,voted:0}]));
+  roll.forEach(record=>{const d=record.data(),row=stats[normalize(d.tipo)];
+    if(row){row.generated++;if(d.hasVoted===true)row.voted++;}
+  });
+  return {year,stats,definition:'Solo conteggi aggregati del registro, senza codici, identita o preferenze. Per il processo anonimo prevale il report separato dei diritti esercitati.'};
+};
 exports.getAnonymousParticipation=async request=>{
   const actor=await requireAuth(request,['COMMISSIONE','DIRIGENTE','VICEPRESIDE','DSGA','SEGRETERIA']),year=actor.claims.staffYear;
   const config=await loadElectionConfig(year);
