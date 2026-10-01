@@ -1223,8 +1223,17 @@ const classElectionInfo=type=>type==='STUDENTE'?{key:'classeStudente',collection
  type==='GENITORE'?{key:'classeGenitore',collection:'voti_classe_genitori'}:null;
 exports.getNoElectedClasses=async request=>{
   const actor=await requireAuth(request,['COMMISSIONE','DIRIGENTE','VICEPRESIDE','DSGA','SEGRETERIA']);
-  const snap=await noElectedClassesRef(actor.claims.staffYear).get();
-  return {year:actor.claims.staffYear,entries:snap.data()?.entries||{}};
+  const year=actor.claims.staffYear;
+  const [snap,roll]=await Promise.all([noElectedClassesRef(year).get(),yearlyCollection('tokens',year).select('classe','tipo').get()]);
+  const classes={STUDENTE:[],GENITORE:[]};
+  roll.forEach(doc=>{const entry=doc.data(),type=normalize(entry.tipo),cls=normalize(entry.classe);
+    if(classes[type]&&/^([1-5])[A-Z0-9]{1,4}$/.test(cls)&&!classes[type].includes(cls))classes[type].push(cls);
+  });
+  for(const entry of Object.values(snap.data()?.entries||{})){
+    if(classes[entry.tipo]&&!classes[entry.tipo].includes(entry.classe))classes[entry.tipo].push(entry.classe);
+  }
+  classes.STUDENTE.sort();classes.GENITORE.sort();
+  return {year,entries:snap.data()?.entries||{},classes};
 };
 exports.setNoElectedClass=async request=>{
   const actor=await requireAuth(request,['COMMISSIONE']);
