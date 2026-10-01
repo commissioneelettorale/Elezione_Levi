@@ -5203,6 +5203,83 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             }
         };
 
+        function archivePdfClean(value){
+            return String(value??'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'')
+              .replace(/[^\x20-\x7e\n]/g,' ').replace(/\s+/g,' ').trim();
+        }
+        function archivePdfDocument(title,sections){
+            const JsPDF=window.jspdf?.jsPDF;
+            if(!JsPDF)throw new Error('Libreria PDF non disponibile: esportazione interrotta per evitare un archivio incompleto.');
+            const doc=new JsPDF({unit:'mm',format:'a4'});let y=22;
+            const line=(text,isHeading=false)=>{
+                const width=182,lines=doc.splitTextToSize(archivePdfClean(text),width);
+                doc.setFont('helvetica',isHeading?'bold':'normal');
+                doc.setFontSize(isHeading?10:9);
+                for(const row of lines){
+                    if(y>271){doc.addPage();y=19;}
+                    doc.text(row||' ',14,y);y+=isHeading?5.9:4.8;
+                }
+                y+=isHeading?3:1.4;
+            };
+            doc.setFillColor(23,50,100);doc.rect(0,0,210,12,'F');
+            line('I.I.S. PRIMO LEVI - SEREGNO | A.S. '+(configElezioni.annoScolastico||'DA VERIFICARE'),true);
+            line(title,true);
+            line('Bozza tecnica generata: '+new Date().toLocaleString('it-IT')+
+                '. Completarla, controllarla, sottoscriverla e protocollarla prima della conservazione.');
+            for(const block of sections){line(block.heading,true);for(const item of block.lines||[])line(item);}
+            line('FIRME DELLA COMMISSIONE (da acquisire):',true);
+            for(const m of configElezioni.commissione||[])line((m.ruolo||'Componente')+' - '+(m.nome||'________________')+'    Firma: __________________');
+            line('N. protocollo: ______________   Data firma: ______________  Allegati verificati: ______________');
+            const pages=doc.getNumberOfPages();
+            for(let i=1;i<=pages;i++){doc.setPage(i);doc.setFontSize(8);doc.text('Bozza non firmata - pagina '+i+'/'+pages,14,290);}
+            return doc;
+        }
+        function noElectedPdf(type,cls,record){
+            const key=type==='STUDENTE'?'classeStudente':'classeGenitore';
+            const profile=LeviElectionPolicy.profile(configElezioni,key);
+            if(record?.confirmed!==true)throw new Error('Dichiarazione per la classe non verificata.');
+            const sources=[
+                'D.Lgs. 16 aprile 1994, n. 297: composizione e rappresentanza degli organi collegiali.',
+                'O.M. 15 luglio 1991, n. 215, art. 21: assemblee elettorali per i consigli di classe.',
+                'O.M. 215/1991, art. 22, comma 4: seggio elettorale per le operazioni di voto, scrutinio e proclamazione.',
+                'O.M. 215/1991, art. 22, comma 7: unica lista formata da tutti gli elettori, anche senza candidature spontanee.',
+                'O.M. 215/1991, art. 22, comma 8: sorteggio in caso di parita di voti ai fini della proclamazione.',
+                'GDPR art. 5 e CAD D.Lgs. 82/2005: minimizzazione, integrita e gestione documentale.'
+            ];
+            const windows=(profile.windows||[]).map(w=>w.date+' ore '+w.from+'-'+w.to);
+            const acts=(profile.acts||[]).map(a=>[a.authority,a.protocol,a.date,a.subject].filter(Boolean).join(' | '));
+            return archivePdfDocument('VERBALE RISCONTRO: NESSUN RAPPRESENTANTE ELETTO - '+type+' CLASSE '+cls,[
+                {heading:'1. Dati della consultazione',lines:[
+                    'Classe: '+cls+'; componente: '+type+'; schede della classe riscontrate dal backend: '+record.ballotCount,
+                    'Registrazione Commissione: '+(record.declaredAt||'da verificare'),
+                    'Operatore della Commissione: '+(record.declaredBy||'da verificare'),
+                    'Fasce di votazione: '+(windows.join('; ')||'consultare atto di indizione')
+                ]},
+                {heading:'2. Atti applicabili e documentazione',lines:acts.length?acts:['Atto di indizione e registro dello scrutinio da acquisire agli atti.']},
+                {heading:'3. Accertamento della Commissione',lines:[
+                    'NESSUNO ELETTO per la componente e la classe sopra indicate, in base alla constatazione registrata.',
+                    'Motivazione verbalizzata: '+record.reason,
+                    'Il sistema ammette questa dichiarazione soltanto quando il backend non rileva preferenze nominali nella classe e la fascia di voto e chiusa.',
+                    'Non si confonde la mancanza di candidature volontarie con l assenza di eletti; gli elettori restano tutti eleggibili secondo la normativa.',
+                    'Verificare eventuali contestazioni, documentazione di seggio e misure conseguenti da adottare attraverso gli organi competenti.'
+                ]},
+                {heading:'4. Quadro normativo da verificare sul testo vigente',lines:sources},
+                {heading:'5. Documenti richiesti prima della protocollazione',lines:[
+                    'Atto di indizione; estratto registro della classe; evidenze scrutinio; eventuali osservazioni e riserve; esito verifica Commissione.',
+                    'Riferimento degli allegati: _____________________; eventuali osservazioni: _____________________.'
+                ]}
+            ]);
+        }
+        window.downloadNoElectedClassPDF=async function(type,cls){
+            try{
+                const response=await SECURE_API.getNoElectedClasses({annoScolastico:configElezioni.annoScolastico});
+                const entry=response.data?.entries?.[type+'_'+cls];
+                const doc=noElectedPdf(type,cls,entry);
+                doc.save('Verbale_Nessuno_Eletto_'+type+'_'+cls+'_'+configElezioni.annoScolastico.replace('/','_')+'.pdf');
+                showNotification('Verbale PDF generato','Verificare e sottoscrivere il documento prima di acquisirlo agli atti.','success');
+            }catch(error){showNotification('PDF non generato',error.message||'Errore','error');}
+        };
+
         window.downloadVerbaleProclamazionePDF = async function(section, subComponent) {
             try {
                 let colName = section === 'consiglio' ? 'voti_consiglio' : (section === 'consulta' ? 'voti_consulta' : 'voti_istituto');
