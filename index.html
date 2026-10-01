@@ -450,7 +450,16 @@
             const ui=window.LeviPrivacyReview;
             if(!ui?.configure||!ui?.show){showNotification('Fascicolo non disponibile','Ricarica la pagina per riprovare. Gli altri accessi restano disponibili.','error');return;}
             ui.configure({api:SECURE_API,config:()=>configElezioni,logs:()=>fetchCompleteTechnicalLog(),notify:(...args)=>window.showNotification(...args),
-                saveMode:async()=>{const next={...configElezioni,privacyMode:'PRESENTIAL_UNLINKED_V1'};await SECURE_API.saveElectionConfig({config:next,annoScolastico:next.annoScolastico});configElezioni=next;window.configElezioni=next;}
+                saveMode:async()=>{
+                    collectConfigFormFields();
+                    const oldMode=configElezioni.privacyMode;
+                    configElezioni={...configElezioni,privacyMode:'PRESENTIAL_UNLINKED_V1'};
+                    window.configElezioni=configElezioni;
+                    if(!(await saveConfigToDB({captureForms:false,notify:false}))){
+                        configElezioni.privacyMode=oldMode;
+                        throw new Error(window.lastConfigSaveError||'Modalità credenziali non verificata nel cloud.');
+                    }
+                }
             });
             await ui.show(options);
         };
@@ -2415,7 +2424,7 @@
             const previous = { ...(configElezioni.mimCompliance || {}) };
             configElezioni.mimCompliance = { ...previous, [control]: value === true, updatedAt: new Date().toISOString() };
             try {
-                await SECURE_API.saveElectionConfig({ config: configElezioni, annoScolastico: configElezioni.annoScolastico });
+                if(!(await saveConfigToDB({captureForms:false,notify:false})))throw new Error(window.lastConfigSaveError||'Controllo non salvato.');
                 window.configElezioni = configElezioni;
                 renderCollaudoTab(document.getElementById('admin-tab-content'));
             } catch (e) {
@@ -2534,9 +2543,10 @@
             if (enabled !== true && !window.confirm('Disattivare la modalità prova? Questa operazione non apre le votazioni: restano necessari gli orari dedicati, i controlli e l’ammissione registrata.')) return;
             const previous = configElezioni.modalitaProva === true;
             configElezioni.modalitaProva = enabled === true;
+            const previousUpdatedAt=configElezioni.modalitaProvaUpdatedAt;
             configElezioni.modalitaProvaUpdatedAt = new Date().toISOString();
             try {
-                await SECURE_API.saveElectionConfig({ config: configElezioni, annoScolastico: configElezioni.annoScolastico });
+                if(!(await saveConfigToDB({captureForms:false,notify:false})))throw new Error(window.lastConfigSaveError||'Modalità prova non salvata.');
                 window.configElezioni = configElezioni;
                 updateTestModeBanner();
                 showNotification(
@@ -2547,6 +2557,7 @@
                 renderCollaudoTab(document.getElementById('admin-tab-content'));
             } catch (e) {
                 configElezioni.modalitaProva = previous;
+                configElezioni.modalitaProvaUpdatedAt=previousUpdatedAt;
                 updateTestModeBanner();
                 showNotification('Modifica non salvata', e?.message || 'Impossibile aggiornare la modalità di esercizio.', 'error');
             }
@@ -2641,14 +2652,19 @@
             const hours=Math.min(8,Math.max(1,parseInt(document.getElementById('quickOpeningHours')?.value||'4')));
             const now=new Date(), end=new Date(now.getTime()+hours*3600000);
             const a=romeParts(new Date(now.getTime()-60000)), b=romeParts(end);
+            const previousMode=configElezioni.modalitaProva;
+            const previousCalendar={...(configElezioni.calendario||{})};
             configElezioni.modalitaProva=false;
             configElezioni.calendario={...(configElezioni.calendario||{}),votingStartDate:a.date,votingStartTime:a.time,votingEndDate:b.date,votingEndTime:b.time};
             try {
-                await SECURE_API.saveElectionConfig({config:configElezioni,annoScolastico:configElezioni.annoScolastico});
+                if(!(await saveConfigToDB({captureForms:false,notify:false})))throw new Error(window.lastConfigSaveError||'Apertura non verificata.');
                 window.configElezioni=configElezioni; updateTestModeBanner();
                 showNotification('VOTAZIONI APERTE','Chiusura automatica prevista tra '+hours+' ore.','success');
                 renderOpeningTab(document.getElementById('admin-tab-content'));
-            } catch(e) { showNotification('Apertura non riuscita',e.message||'Errore','error'); }
+            } catch(e) {
+                configElezioni.modalitaProva=previousMode;configElezioni.calendario=previousCalendar;
+                showNotification('Apertura non riuscita',e.message||'Errore','error');
+            }
         };
 
         window.closeElectionNow = async function() {
@@ -2660,13 +2676,17 @@
                 try {await SECURE_API.setEmergencySuspension({annoScolastico:configElezioni.annoScolastico,suspended:true,reason});showNotification('Voto sospeso','Nuovi invii bloccati. Registrare la ripresa dalla sezione Regolarità.','success');}catch(error){showNotification('Sospensione non riuscita',error.message,'error');}return;
             }
             const t=romeParts(new Date(Date.now()-60000));
+            const previousCalendar={...(configElezioni.calendario||{})};
             configElezioni.calendario={...(configElezioni.calendario||{}),votingEndDate:t.date,votingEndTime:t.time};
             try {
-                await SECURE_API.saveElectionConfig({config:configElezioni,annoScolastico:configElezioni.annoScolastico});
+                if(!(await saveConfigToDB({captureForms:false,notify:false})))throw new Error(window.lastConfigSaveError||'Chiusura non verificata.');
                 window.configElezioni=configElezioni;
                 showNotification('VOTAZIONI CHIUSE','Non vengono più accettati nuovi voti.','success');
                 renderOpeningTab(document.getElementById('admin-tab-content'));
-            } catch(e) { showNotification('Chiusura non riuscita',e.message||'Errore','error'); }
+            } catch(e) {
+                configElezioni.calendario=previousCalendar;
+                showNotification('Chiusura non riuscita',e.message||'Errore','error');
+            }
         };
 
         function renderActiveAdminTab() {
