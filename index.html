@@ -13,6 +13,7 @@
     
     <!-- Tailwind CSS per styling moderno e reattivo -->
     <script src="lib/election-policy.js"></script>
+    <script src="lib/config-persistence.js"></script>
     <script src="lib/voter-register.js"></script>
     <script src="lib/election-sandbox.js"></script>
     <script src="lib/election-sandbox-ui.js"></script>
@@ -921,37 +922,42 @@
         }
 
         let configSaveQueue=Promise.resolve();
-        window.saveConfigToDB=function() {
-            collectConfigFormFields();
-            const snapshot=JSON.parse(JSON.stringify(configElezioni));
+        window.lastConfigSaveError='';
+        window.saveConfigToDB=function(options={}) {
+            if(options.captureForms!==false)collectConfigFormFields();
+            const snapshot=JSON.parse(JSON.stringify(options.snapshot||configElezioni));
             const operation=configSaveQueue.catch(()=>{}).then(async()=>{
                 if(!auth.currentUser||!commissionSessionReady)throw new Error('Autenticazione Commissione richiesta.');
                 const claims=(await auth.currentUser.getIdTokenResult()).claims;
                 if(claims.staffYear!==snapshot.annoScolastico)throw new Error('La sessione non è autorizzata per questa annualità.');
-                const response=await SECURE_API.saveElectionConfig({config:snapshot,annoScolastico:snapshot.annoScolastico});
-                if(response.data?.ok!==true)throw new Error('Il servizio non ha confermato il salvataggio.');
                 const ref=doc(db,'artifacts',appId,'public','data','config',
                     'yearly_settings_'+snapshot.annoScolastico.replace('/','_'));
+                // Never replace a valid cloud record with defaults after a failed load.
+                if(!firebaseStateConnected){
+                    const initialRead=await getDocFromServer(ref);
+                    if(initialRead.exists())throw new Error('La configurazione cloud esiste ma non è stata caricata. Ricaricare la pagina e accedere nuovamente prima di modificarla.');
+                }
+                const response=await SECURE_API.saveElectionConfig({config:snapshot,annoScolastico:snapshot.annoScolastico});
+                if(response.data?.ok!==true)throw new Error('Il servizio non ha confermato il salvataggio.');
                 const readback=await getDocFromServer(ref);
-                if(!readback.exists())throw new Error('Configurazione salvata ma non trovata nel database del sito.');
+                if(!readback.exists())throw new Error('Configurazione inviata ma non riletta dal database: non considerarla verificata.');
                 const stored=readback.data();
-                const keys=['commissione','personaleDirezione','assistenteTecnico','calendario',
-                    'riferimentoCircolare','tipologiaElezioni','commissionMessage','commissionMessageEnabled',
-                    'commissionFinalized','consiglioAttivo','consultaAttiva','rappresentantiIstitutoAttivo',
-                    'rappresentantiClasseStudentiAttivo','rappresentantiClasseGenitoriAttivo',
-                    'divietoVotoDisgiunto','maxPrefConsiglio','maxPrefIstituto','maxPrefConsulta',
-                    'maxPrefClasseStudenti','maxPrefClasseGenitori'];
-                if(stored.annoScolastico!==snapshot.annoScolastico||
-                    keys.some(k=>JSON.stringify(stored[k])!==JSON.stringify(snapshot[k])))
-                    throw new Error('Verifica di persistenza fallita: i dati riletti non corrispondono.');
+                const different=LeviConfigPersistence.differences(snapshot,stored);
+                if(different.length)
+                    throw new Error('Verifica di persistenza fallita nei campi: '+different.join(', ')+'. Verificare eventuali modifiche contemporanee.');
                 firebaseStateConnected=true;
+                return stored;
             });
             configSaveQueue=operation;
             return operation.then(()=>{
-                showNotification('Configurazione verificata','Modifiche salvate e rilette dal cloud per l’A.S. '+snapshot.annoScolastico+'.','success');
+                window.lastConfigSaveError='';
+                if(options.notify!==false)
+                    showNotification('Configurazione verificata','Modifiche salvate e rilette dal cloud per l’A.S. '+snapshot.annoScolastico+'.','success');
                 return true;
             },error=>{
-                showNotification('Salvataggio non confermato',(error.message||String(error))+' Verificare i dati prima di lasciare questa pagina.','error');
+                window.lastConfigSaveError=error.message||String(error);
+                if(options.notify!==false)
+                    showNotification('Salvataggio non confermato',window.lastConfigSaveError+' Verificare i dati prima di lasciare questa pagina.','error');
                 return false;
             });
         };
@@ -1137,8 +1143,20 @@
             const profile={dedicated:true,period:data.get('period'),kind:data.get('kind'),windows:[],acts:[],releaseDate:data.get('releaseDate'),releaseTime:data.get('releaseTime'),frozen:data.has('frozen'),finalized:data.has('finalized')};
             for(let i=0;i<6;i++)if(data.get('date'+i)||data.get('from'+i)||data.get('to'+i))profile.windows.push({date:data.get('date'+i),from:data.get('from'+i),to:data.get('to'+i)});
             for(let i=0;i<6;i++)if(data.get('protocol'+i)||data.get('authority'+i)||data.get('subject'+i)||data.get('actDate'+i)||data.get('url'+i))profile.acts.push({authority:data.get('authority'+i).trim(),protocol:data.get('protocol'+i).trim(),date:data.get('actDate'+i),subject:data.get('subject'+i).trim(),url:data.get('url'+i).trim()});
-            try {LeviElectionPolicy.validateProfile(profile);button.disabled=true;status.textContent='Salvataggio...';const next={...configElezioni,consultazioni:{...(configElezioni.consultazioni||{}),[key]:profile}};await SECURE_API.saveElectionConfig({config:next,annoScolastico:next.annoScolastico});configElezioni=next;window.configElezioni=next;status.textContent='Calendario e atti salvati. I verbali useranno i riferimenti di questa consultazione.';}
-            catch(error){status.textContent=error.message||'Salvataggio non riuscito.';}finally{button.disabled=false;}
+            try{
+                LeviElectionPolicy.validateProfile(profile);
+                button.disabled=true;
+                status.textContent='Salvataggio e verifica cloud...';
+                // Persist form edits with the same serialized path as all other tabs.
+                collectConfigFormFields();
+                configElezioni={...configElezioni,consultazioni:{...(configElezioni.consultazioni||{}),[key]:profile}};
+                window.configElezioni=configElezioni;
+                const confirmed=await saveConfigToDB({captureForms:false,notify:false});
+                if(!confirmed)throw new Error(window.lastConfigSaveError||'Salvataggio non verificato.');
+                status.textContent='Calendario e atti salvati e verificati nel cloud.';
+            }catch(error){
+                status.textContent=error.message||'Salvataggio non riuscito: verificare i dati.';
+            }finally{button.disabled=false;}
         };
 
         function renderStudentLogin(container) {
@@ -2688,11 +2706,13 @@
             if (configElezioni.personaleDirezione[idx]) configElezioni.personaleDirezione[idx][field] = value;
         };
         window.addInstitutionalStaffMember = function() {
+            collectConfigFormFields();
             configElezioni.personaleDirezione = configElezioni.personaleDirezione || [];
             configElezioni.personaleDirezione.push({nome:'Da configurare', ruolo:'Nuovo ruolo'});
             renderConfigTab(document.getElementById('admin-tab-content'));
         };
         window.deleteInstitutionalStaff = function(idx) {
+            collectConfigFormFields();
             configElezioni.personaleDirezione = configElezioni.personaleDirezione || [];
             configElezioni.personaleDirezione.splice(idx,1);
             renderConfigTab(document.getElementById('admin-tab-content'));
@@ -2881,6 +2901,7 @@
         }
 
         window.toggleAdminSafety = function(isEnabled) {
+            collectConfigFormFields(); // Preserve pending calendar and circular edits before re-render.
             adminSettingsEditEnabled = isEnabled;
             renderConfigTab(document.getElementById('admin-tab-content'));
         };
@@ -2898,8 +2919,8 @@
             configElezioni[field]=number;
             saveConfigToDB();
         };
-        window.deleteCommissioneMember = function(idx) { configElezioni.commissione.splice(idx, 1); renderActiveAdminTab(); };
-        window.addCommissioneMember = function() { configElezioni.commissione.push({ nome: "Nuovo Membro", ruolo: "Componente" }); renderActiveAdminTab(); };
+        window.deleteCommissioneMember = function(idx) { collectConfigFormFields(); configElezioni.commissione.splice(idx, 1); renderActiveAdminTab(); };
+        window.addCommissioneMember = function() { collectConfigFormFields(); configElezioni.commissione.push({ nome: "Nuovo Membro", ruolo: "Componente" }); renderActiveAdminTab(); };
         window.updateTechnicalAssistantField = function(field, value) {
             configElezioni.assistenteTecnico = configElezioni.assistenteTecnico || { nome: 'Da designare', ruolo: 'Assistente tecnico di riferimento', postazione: 'Postazione PC laboratoriale designata dall’Istituto' };
             if (['nome','postazione','orari','contatto'].includes(field)) configElezioni.assistenteTecnico[field] = String(value || '').trim().slice(0, 160);
@@ -6115,29 +6136,7 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
         };
 
         window.saveElectionScheduleAndMessage = async function() {
-            configElezioni.tipologiaElezioni = document.getElementById('cfgElectionType')?.value.trim() || configElezioni.tipologiaElezioni;
-            configElezioni.calendario = {
-                votingStartDate: document.getElementById('cfgVotingStartDate').value.trim(),
-                votingStartTime: document.getElementById('cfgVotingStartTime').value.trim(),
-                votingEndDate: document.getElementById('cfgVotingEndDate').value.trim(),
-                votingEndTime: document.getElementById('cfgVotingEndTime').value.trim(),
-                resultsReleaseDate: document.getElementById('cfgReleaseDate').value.trim(),
-                resultsReleaseTime: document.getElementById('cfgReleaseTime').value.trim()
-            };
-            configElezioni.riferimentoCircolare = {
-                numero: document.getElementById('cfgCircNumero')?.value.trim() || '',
-                data: document.getElementById('cfgCircData')?.value.trim() || '',
-                oggetto: document.getElementById('cfgCircOggetto')?.value.trim() || '',
-                url: document.getElementById('cfgCircUrl')?.value.trim() || '',
-                note: document.getElementById('cfgCircNote')?.value.trim() || ''
-            };
-            configElezioni.commissionMessage = document.getElementById('cfgCommissionMessage').value.trim();
-            configElezioni.commissionMessageEnabled = document.getElementById('cfgMessageEnabled').checked;
-            configElezioni.commissionFinalized = document.getElementById('cfgCommissionFinalized').checked;
-            configElezioni.assistenteTecnico = configElezioni.assistenteTecnico || { nome: 'Da designare', ruolo: 'Assistente tecnico di riferimento', postazione: 'Postazione PC laboratoriale designata dall’Istituto' };
-            configElezioni.assistenteTecnico.nome = document.getElementById('cfgTechnicalName')?.value.trim() || 'Da designare';
-            configElezioni.assistenteTecnico.postazione = document.getElementById('cfgTechnicalStation')?.value.trim() || 'Postazione PC laboratoriale designata dall’Istituto';
-            configElezioni.assistenteTecnico.ruolo = 'Assistente tecnico di riferimento';
+            // Shared collector preserves extra calendar, circular and technical fields.
             return saveConfigToDB();
         };
 
