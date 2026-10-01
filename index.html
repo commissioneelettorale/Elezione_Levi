@@ -2751,33 +2751,33 @@
                                         <span class="font-extrabold text-xs text-slate-800">Consiglio d'Istituto</span>
                                         <p class="text-[9px] text-slate-500">Solo Genitori, Docenti e ATA.</p>
                                     </div>
-                                    <input type="checkbox" ${configElezioni.consiglioAttivo ? 'checked' : ''} onchange="configElezioni.consiglioAttivo = this.checked; saveConfigToDB();" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
+                                    <input type="checkbox" ${configElezioni.consiglioAttivo ? 'checked' : ''} onchange="window.persistVotingToggle('consiglioAttivo',this.checked,this)" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
                                 </label>
                                 <label class="flex items-center justify-between p-3 border rounded-xl hover:bg-slate-50 cursor-pointer">
                                     <div>
                                         <span class="font-extrabold text-xs text-slate-800">Rappresentanti d'Istituto</span>
                                         <p class="text-[9px] text-slate-500">Componente studenti.</p>
                                     </div>
-                                    <input type="checkbox" ${configElezioni.rappresentantiIstitutoAttivo ? 'checked' : ''} onchange="configElezioni.rappresentantiIstitutoAttivo = this.checked; saveConfigToDB();" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
+                                    <input type="checkbox" ${configElezioni.rappresentantiIstitutoAttivo ? 'checked' : ''} onchange="window.persistVotingToggle('rappresentantiIstitutoAttivo',this.checked,this)" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
                                 </label>
                                 <label class="flex items-center justify-between p-3 border rounded-xl hover:bg-slate-50 cursor-pointer">
                                     <div>
                                         <span class="font-extrabold text-xs text-slate-800">Consulta Provinciale</span>
                                         <p class="text-[9px] text-slate-500">Componente studenti.</p>
                                     </div>
-                                    <input type="checkbox" ${configElezioni.consultaAttiva ? 'checked' : ''} onchange="configElezioni.consultaAttiva = this.checked; saveConfigToDB();" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
+                                    <input type="checkbox" ${configElezioni.consultaAttiva ? 'checked' : ''} onchange="window.persistVotingToggle('consultaAttiva',this.checked,this)" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
                                 </label>
                                 <label class="flex items-center justify-between p-3 border rounded-xl hover:bg-slate-50 cursor-pointer">
                                     <div>
                                         <span class="font-extrabold text-xs text-slate-800">Rappresentanti di Classe - Studenti</span>
                                     </div>
-                                    <input type="checkbox" ${configElezioni.rappresentantiClasseStudentiAttivo ? 'checked' : ''} onchange="configElezioni.rappresentantiClasseStudentiAttivo = this.checked; saveConfigToDB();" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
+                                    <input type="checkbox" ${configElezioni.rappresentantiClasseStudentiAttivo ? 'checked' : ''} onchange="window.persistVotingToggle('rappresentantiClasseStudentiAttivo',this.checked,this)" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
                                 </label>
                                 <label class="flex items-center justify-between p-3 border rounded-xl hover:bg-rose-50/50 cursor-pointer">
                                     <div>
                                         <span class="font-extrabold text-xs text-rose-950">Rappresentanti di Classe - Genitori</span>
                                     </div>
-                                    <input type="checkbox" ${configElezioni.rappresentantiClasseGenitoriAttivo ? 'checked' : ''} onchange="configElezioni.rappresentantiClasseGenitoriAttivo = this.checked; saveConfigToDB();" class="w-4 h-4 rounded text-rose-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
+                                    <input type="checkbox" ${configElezioni.rappresentantiClasseGenitoriAttivo ? 'checked' : ''} onchange="window.persistVotingToggle('rappresentantiClasseGenitoriAttivo',this.checked,this)" class="w-4 h-4 rounded text-rose-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
                                 </label>
                             </div>
                         </div>
@@ -2791,7 +2791,7 @@
                                         <span class="font-extrabold block">Divieto Voto Disgiunto</span>
                                         <span class="text-[9px] text-slate-500 font-medium">Consente di scegliere preferenze SOLO della stessa lista scelta.</span>
                                     </div>
-                                    <input type="checkbox" ${configElezioni.divietoVotoDisgiunto ? 'checked' : ''} onchange="configElezioni.divietoVotoDisgiunto = this.checked; saveConfigToDB();" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
+                                    <input type="checkbox" ${configElezioni.divietoVotoDisgiunto ? 'checked' : ''} onchange="window.persistVotingToggle('divietoVotoDisgiunto',this.checked,this)" class="w-4 h-4 rounded text-blue-900" ${!adminSettingsEditEnabled ? 'disabled' : ''}>
                                 </div>
 
                                 <div class="grid grid-cols-2 gap-3">
@@ -2910,14 +2910,26 @@
             if(!['nome','ruolo'].includes(field)||!configElezioni.commissione[idx])return;
             configElezioni.commissione[idx][field]=String(value||'').trim().slice(0,160);
         };
-        window.updateVotingPreference=function(field,value,max){
+        window.persistVotingToggle=async function(field,checked,input){
+            const allowed=['consiglioAttivo','rappresentantiIstitutoAttivo','consultaAttiva',
+                'rappresentantiClasseStudentiAttivo','rappresentantiClasseGenitoriAttivo','divietoVotoDisgiunto'];
+            if(!allowed.includes(field))return;
+            const old=!!configElezioni[field];
+            configElezioni[field]=!!checked;
+            if(!(await saveConfigToDB())){
+                configElezioni[field]=old;
+                if(input&&input.isConnected)input.checked=old;
+            }
+        };
+        window.updateVotingPreference=async function(field,value,max){
             const number=Number(value);
             if(!Number.isInteger(number)||number<1||number>max){
                 showNotification('Preferenze non valide','Inserire un valore compreso tra 1 e '+max+'.','error');
                 renderActiveAdminTab();return;
             }
+            const old=configElezioni[field];
             configElezioni[field]=number;
-            saveConfigToDB();
+            if(!(await saveConfigToDB()))configElezioni[field]=old;
         };
         window.deleteCommissioneMember = function(idx) { collectConfigFormFields(); configElezioni.commissione.splice(idx, 1); renderActiveAdminTab(); };
         window.addCommissioneMember = function() { collectConfigFormFields(); configElezioni.commissione.push({ nome: "Nuovo Membro", ruolo: "Componente" }); renderActiveAdminTab(); };
@@ -6228,20 +6240,68 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
             </div>`;
             lucide.createIcons();
         }
-        window.saveWorkflowChecklist=async function(){
+        // Workflow actions share the verified save path and restore local state on failure.
+        async function persistWorkflowEdit(applyChange) {
+            const before=JSON.parse(JSON.stringify(configElezioni.workflowDigitale||{}));
             configElezioni.workflowDigitale=configElezioni.workflowDigitale||{};
+            applyChange(configElezioni.workflowDigitale);
+            if(await saveConfigToDB())return true;
+            configElezioni.workflowDigitale=before;
+            return false;
+        }
+        window.saveWorkflowChecklist=async function(){
             const checks={};
             document.querySelectorAll('[data-wf-check]').forEach(el=>checks[el.dataset.wfCheck]=el.checked===true);
-            configElezioni.workflowDigitale.checklist=checks;
-            if(!Object.values(checks).every(Boolean)) configElezioni.workflowDigitale.verbaliUnlocked=false;
-            await saveConfigToDB();
+            const ok=await persistWorkflowEdit(w=>{
+                w.checklist=checks;
+                if(!Object.values(checks).every(Boolean))w.verbaliUnlocked=false;
+            });
+            if(!ok){renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));return;}
             showNotification('Checklist salvata',Object.values(checks).every(Boolean)?'Tutti i controlli di chiusura risultano completati.':'La checklist è stata aggiornata; completare tutti i controlli prima dello sblocco.','success');
             renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));
         };
-        window.saveWorkflowStage=async function(stage){configElezioni.workflowDigitale=configElezioni.workflowDigitale||{};if(stage==='docenti')configElezioni.workflowDigitale.docentiApproved=!!document.getElementById('workflowDocentiCheck')?.checked;if(stage==='commissione')configElezioni.workflowDigitale.commissionApproved=!!document.getElementById('workflowCommissionCheck')?.checked;if(!(configElezioni.workflowDigitale.docentiApproved&&configElezioni.workflowDigitale.commissionApproved))configElezioni.workflowDigitale.verbaliUnlocked=false;await saveConfigToDB();renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));};
-        window.unlockDigitalMinutes=async function(){configElezioni.workflowDigitale=configElezioni.workflowDigitale||{};const w=workflowStatus();if(!w.docentiApproved||!w.commissionApproved)return showNotification('Workflow bloccato','Servono entrambi i via libera: Docenti e Commissione.','error');if(!w.checklistComplete)return showNotification('Checklist incompleta','Completare tutti i controlli di chiusura prima dello sblocco.','error');configElezioni.workflowDigitale.verbaliUnlocked=true;configElezioni.workflowDigitale.releasedAt=new Date().toISOString();configElezioni.workflowDigitale.releasedBy=currentUserData?.nome||'Commissione Elettorale';await saveConfigToDB();showNotification('Verbali sbloccati','La Segreteria può ora consultare verbali e atti in sola lettura.','success');renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));};
-        window.generateDigitalAttestation=async function(){const payload=JSON.stringify({annoScolastico:configElezioni.annoScolastico,tipologiaElezioni:configElezioni.tipologiaElezioni,riferimentoCircolare:configElezioni.riferimentoCircolare,consultazioni:configElezioni.consultazioni||{},commissione:configElezioni.commissione,calendario:configElezioni.calendario,workflow:workflowStatus(),timestamp:new Date().toISOString()});const hash=await sha256Text(payload);configElezioni.workflowDigitale=configElezioni.workflowDigitale||{};configElezioni.workflowDigitale.digitalAttestationHash=hash;configElezioni.workflowDigitale.digitalAttestationAt=new Date().toISOString();await saveConfigToDB();showNotification('Attestazione generata','Impronta SHA-256 registrata per l\'anno scolastico selezionato.','success');renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));};
-        window.markDigitalArchiveReady=async function(){configElezioni.workflowDigitale=configElezioni.workflowDigitale||{};if(!workflowCanSecretarySeeDocuments())return showNotification('Archivio non pronto','Completare Docenti, Commissione e sblocco verbali.','error');if(!configElezioni.workflowDigitale.digitalAttestationHash)return showNotification('Attestazione mancante','Generare prima l\'impronta digitale.','error');configElezioni.workflowDigitale.archived=true;configElezioni.workflowDigitale.archivedAt=new Date().toISOString();configElezioni.workflowDigitale.archivedBy=currentUserData?.nome||'Commissione Elettorale';await saveConfigToDB();showNotification('Archivio registrato','Il fascicolo digitale dell\'A.S. è stato marcato come pronto per la conservazione agli atti.','success');renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));};
+        window.saveWorkflowStage=async function(stage){
+            const ok=await persistWorkflowEdit(w=>{
+                if(stage==='docenti')w.docentiApproved=!!document.getElementById('workflowDocentiCheck')?.checked;
+                if(stage==='commissione')w.commissionApproved=!!document.getElementById('workflowCommissionCheck')?.checked;
+                if(!(w.docentiApproved&&w.commissionApproved))w.verbaliUnlocked=false;
+            });
+            renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));
+        };
+        window.unlockDigitalMinutes=async function(){
+            const w=workflowStatus();
+            if(!w.docentiApproved||!w.commissionApproved)return showNotification('Workflow bloccato','Servono entrambi i via libera: Docenti e Commissione.','error');
+            if(!w.checklistComplete)return showNotification('Checklist incompleta','Completare tutti i controlli di chiusura prima dello sblocco.','error');
+            const ok=await persistWorkflowEdit(workflow=>{
+                workflow.verbaliUnlocked=true;
+                workflow.releasedAt=new Date().toISOString();
+                workflow.releasedBy=currentUserData?.nome||'Commissione Elettorale';
+            });
+            if(!ok){renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));return;}
+            showNotification('Verbali sbloccati','La Segreteria può ora consultare verbali e atti in sola lettura.','success');
+            renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));
+        };
+        window.generateDigitalAttestation=async function(){
+            const payload=JSON.stringify({annoScolastico:configElezioni.annoScolastico,tipologiaElezioni:configElezioni.tipologiaElezioni,riferimentoCircolare:configElezioni.riferimentoCircolare,consultazioni:configElezioni.consultazioni||{},commissione:configElezioni.commissione,calendario:configElezioni.calendario,workflow:workflowStatus(),timestamp:new Date().toISOString()});
+            const hash=await sha256Text(payload);
+            const ok=await persistWorkflowEdit(w=>{
+                w.digitalAttestationHash=hash;
+                w.digitalAttestationAt=new Date().toISOString();
+            });
+            if(!ok){renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));return;}
+            showNotification('Attestazione generata','Impronta SHA-256 registrata per l\'anno scolastico selezionato.','success');
+            renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));
+        };
+        window.markDigitalArchiveReady=async function(){
+            if(!workflowCanSecretarySeeDocuments())return showNotification('Archivio non pronto','Completare Docenti, Commissione e sblocco verbali.','error');
+            if(!configElezioni.workflowDigitale?.digitalAttestationHash)return showNotification('Attestazione mancante','Generare prima l\'impronta digitale.','error');
+            const ok=await persistWorkflowEdit(w=>{
+                w.archived=true;w.archivedAt=new Date().toISOString();w.archivedBy=currentUserData?.nome||'Commissione Elettorale';
+            });
+            if(!ok){renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));return;}
+            showNotification('Archivio registrato','Il fascicolo digitale dell\'A.S. è stato marcato come pronto per la conservazione agli atti.','success');
+            renderDigitalWorkflowTab(document.getElementById('admin-tab-content'));
+        };
 
         function escapeXmlDocx(value) {
             return String(value ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
