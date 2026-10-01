@@ -5320,15 +5320,23 @@ I file sono pronti per essere stampati, aperti offline senza connessione ad Inte
                 let rows = [];
 
                 if (isClasse) {
-                    let classesVoti = officialVotiScrutinio.classi[colName] || {};
-                    Object.entries(classesVoti).forEach(([cl, candMap]) => {
-                        let sortedC = sortCandidatesByVotesWithExAequo(Object.values(candMap), 'SCRUTINIO')
-                            .slice(0, 2);
-
-                        sortedC.forEach((c, idx) => {
-                            rows.push([cl, `Eletto ${idx+1}`, c.display.toUpperCase(), `${c.count} voti`]);
-                        });
-                    });
+                    const type=section==='classe_st'?'STUDENTE':'GENITORE';
+                    const verification=await SECURE_API.getNoElectedClasses({annoScolastico:configElezioni.annoScolastico});
+                    const entries=verification.data?.entries||{},classes=verification.data?.classes?.[type]||[];
+                    let classesVoti=officialVotiScrutinio.classi[colName]||{};
+                    for(const cl of classes){
+                        const declaration=entries[type+'_'+cl];
+                        if(declaration?.confirmed===true){
+                            rows.push([cl,'NESSUNO ELETTO','Nessuna preferenza nominale',
+                                'Riscontro Commissione del '+(declaration.declaredAt||'data da verificare')]);
+                            continue;
+                        }
+                        const candMap=classesVoti[cl]||{};
+                        const sortedC=sortCandidatesByVotesWithExAequo(Object.values(candMap),'SCRUTINIO').slice(0,2);
+                        sortedC.forEach((candidate,idx)=>rows.push([cl,`Eletto ${idx+1}`,candidate.display.toUpperCase(),`${candidate.count} voti`]));
+                        if(!sortedC.length)rows.push([cl,'NESSUN ELEGGIBILE PROCLAMATO',
+                            'Nessuna preferenza nominale - VERIFICA COMMISSIONE NECESSARIA','Dichiarazione non ancora registrata']);
+                    }
 
                     doc.autoTable({
                         startY: startY,
