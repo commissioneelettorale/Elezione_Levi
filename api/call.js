@@ -12,6 +12,7 @@ const ALLOWED_FUNCTIONS = new Set([
   "getVotingReview",
   "getVotingReviewEvents",
   "getAnonymousParticipation",
+  "getVoterRegisterSummary",
   "advanceVotingReview",
   "createAnonymousCredentials",
   "getDpoReviewProfile",
