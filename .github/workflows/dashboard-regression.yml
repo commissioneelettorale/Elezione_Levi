@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'index.html'
+      - 'scripts/check-token-listener-lazy.cjs'
       - 'api/call.js'
       - 'scripts/check-login-quota-errors.cjs'
       - 'lib/election-sandbox-ui.js'
@@ -30,6 +31,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Confirm Commission Firestore token listener loads on demand
+        run: node scripts/check-token-listener-lazy.cjs
       - name: Validate dashboard aggregator
         run: node scripts/check-management-aggregate.cjs
       - name: Install isolated jsdom test dependency
