@@ -104,42 +104,13 @@
             100% { transform: rotate(360deg); }
         }
     
-        /* Cabina elettorale protetta: deterrenza client-side, non sostituisce i controlli fisici */
-        #privacy-shield {
-            position: fixed; inset: 0; z-index: 2147483647;
-            background: #020617; color: #fff;
-            display: none; align-items: center; justify-content: center;
-            text-align: center; padding: 2rem;
-        }
-        #privacy-shield.active { display: flex !important; }
-        #privacy-shield .privacy-card {
-            max-width: 560px; border: 1px solid rgba(255,255,255,.18);
-            border-radius: 1.5rem; padding: 2rem;
-            background: rgba(15,23,42,.96); box-shadow: 0 24px 80px rgba(0,0,0,.55);
-        }
-        .secure-ballot-active #app-container {
-            -webkit-user-select: none; user-select: none;
-            -webkit-touch-callout: none;
-        }
-        .secure-ballot-active img { -webkit-user-drag: none; user-drag: none; }
-        .secure-watermark {
-            position: fixed; inset: 0; z-index: 35; pointer-events: none;
-            display: none; overflow: hidden; opacity: .07;
-        }
-        .secure-ballot-active .secure-watermark { display: block; }
-        .secure-watermark::before {
-            content: "CABINA ELETTORALE PROTETTA  •  RIPRODUZIONE VIETATA  •  ";
-            position: absolute; width: 180%; left: -30%; top: 44%;
-            transform: rotate(-24deg); white-space: nowrap;
-            font-size: clamp(24px, 4vw, 54px); font-weight: 900; letter-spacing: .18em;
-            color: #0f172a;
-        }
+        /* Solo nel voto: la stampa della scheda è esclusa, senza oscurare lo schermo interattivo. */
         @media print {
-            body * { visibility: hidden !important; }
-            body::before {
-                visibility: visible !important; content: "STAMPA DISABILITATA — CABINA ELETTORALE PROTETTA";
-                position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-                background: #000; color: #fff; font: 800 22px/1.4 sans-serif; text-align: center; padding: 2rem;
+            body.secure-ballot-active #app-container { visibility: hidden !important; }
+            body.secure-ballot-active #app-container::after {
+                content: "Stampa della scheda non disponibile.";
+                visibility: visible; display: block; position: fixed; inset: 0;
+                text-align: center; padding-top: 45vh; font: 700 18px sans-serif;
             }
         }
 
@@ -150,20 +121,7 @@
     <a href="#app-container" class="skip-link">Vai al contenuto</a>
     <noscript><p>Per gli accessi è necessario JavaScript. <a href="note-legali.html">Informazioni legali e assistenza</a>.</p></noscript>
 
-    <div id="privacy-shield" role="alert" aria-live="assertive">
-        <div class="privacy-card">
-            <div class="text-5xl mb-4">🔒</div>
-            <h2 class="text-xl md:text-2xl font-black mb-3">Schermo protetto</h2>
-            <p class="text-sm text-slate-200 leading-relaxed">
-                La cabina è stata oscurata perché la finestra ha perso il focus, è stato richiesto un tentativo di stampa/cattura
-                oppure è stata abbandonata la modalità protetta. Torna alla finestra elettorale per proseguire.
-            </p>
-            <button onclick="enterProtectedCabin()" class="mt-6 px-5 py-3 rounded-xl bg-white text-slate-950 font-black text-sm shadow-lg">RIENTRA NELLA CABINA PROTETTA</button>
-            <p class="mt-3 text-[10px] text-slate-400">Il browser applica misure di deterrenza; una fotografia effettuata con un dispositivo esterno richiede comunque postazione controllata e misure fisiche/organizzative.</p>
-        </div>
-    </div>
-    <div class="secure-watermark" aria-hidden="true"></div>
-
+    <!-- Nessuna maschera di oscuramento: il voto rimane leggibile durante i cambi di focus. -->
 
     <div class="brand-background" aria-hidden="true"></div>
 
@@ -206,9 +164,7 @@
             </div>
             
             <div class="flex items-center gap-2">
-                <button id="secure-cabin-button" onclick="enterProtectedCabin()" class="hidden bg-slate-950 hover:bg-black text-white font-extrabold py-1.5 px-3 rounded-lg shadow transition-all flex items-center gap-1.5 border border-slate-700">
-                    <i data-lucide="lock-keyhole" class="w-3.5 h-3.5 text-yellow-300"></i> Cabina protetta
-                </button>
+                <!-- Nessun accesso forzato a schermo intero durante il voto. -->
 <div id="header-actions" class="flex items-center space-x-3"></div></div>
         </div>
     </header>
@@ -640,100 +596,23 @@
         let activeAdminTab = 'apertura';
         let currentView = 'studentLogin';
 
-        // --- Protezioni della cabina elettorale (best effort browser-side) ---
-        let privacyShieldTimer = null;
-        let protectedFullscreenRequested = false;
-        let protectedCabinEntered = false;
-
+        // La cabina non deve oscurarsi per perdita di focus, chiamate, cambio finestra o
+        // cambio orientamento sul telefono. Browser e JS non possono impedire gli
+        // screenshot acquisiti dal sistema operativo.
         function isSensitiveVotingView() {
             return ['votoConsiglio','votoIstituto','votoConsulta','votoClasseStudenti','votoClasseGenitori','riepilogo'].includes(String(currentView || ''));
         }
-
         function updateSecureCabinState() {
-            const active = isSensitiveVotingView();
-            document.body.classList.toggle('secure-ballot-active', active);
-            const btn = document.getElementById('secure-cabin-button');
-            if (btn) btn.classList.toggle('hidden', !active);
-            if (active && !protectedCabinEntered) showPrivacyShield('enter-sensitive-view');
-            if (!active) {
-                protectedCabinEntered = false;
-                protectedFullscreenRequested = false;
-                document.getElementById('privacy-shield')?.classList.remove('active');
-            }
+            document.body.classList.toggle('secure-ballot-active', isSensitiveVotingView());
         }
-
-        function showPrivacyShield(reason = 'privacy') {
+        // Deterrenza discreta per alcune scorciatoie desktop, senza oscurare il voto.
+        document.addEventListener('keydown', event => {
             if (!isSensitiveVotingView()) return;
-            const el = document.getElementById('privacy-shield');
-            if (!el) return;
-            el.dataset.reason = reason;
-            protectedCabinEntered = false;
-            el.classList.add('active');
-        }
-
-        function hidePrivacyShieldSoon(force = false) {
-            clearTimeout(privacyShieldTimer);
-            privacyShieldTimer = setTimeout(() => {
-                if ((force || protectedCabinEntered) && document.visibilityState === 'visible' && document.hasFocus()) {
-                    document.getElementById('privacy-shield')?.classList.remove('active');
-                }
-            }, 150);
-        }
-
-        window.enterProtectedCabin = async function() {
-            try {
-                if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
-                    await document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
-                }
-                protectedFullscreenRequested = true;
-                protectedCabinEntered = true;
-                hidePrivacyShieldSoon(true);
-                showNotification('Cabina protetta attiva',
-                    'Modalità a schermo intero attivata. Screenshot e fotografie esterne non possono essere garantiti dal browser: usare una postazione sorvegliata e senza telefoni esterni.',
-                    'info');
-            } catch(e) {}
-        };
-
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState !== 'visible') showPrivacyShield('visibilitychange');
-            else { /* resta oscurato finché l’elettore non rientra esplicitamente */ }
-        });
-        window.addEventListener('blur', () => showPrivacyShield('blur'));
-        window.addEventListener('focus', () => { /* nessun auto-sblocco */ });
-        document.addEventListener('fullscreenchange', () => {
-            if (protectedFullscreenRequested && isSensitiveVotingView() && !document.fullscreenElement) {
-                showPrivacyShield('fullscreen-exit');
-            }
-        });
-        window.addEventListener('beforeprint', () => showPrivacyShield('print'));
-        window.addEventListener('afterprint', () => showPrivacyShield('afterprint'));
-
-        document.addEventListener('contextmenu', (e) => {
-            if (isSensitiveVotingView()) { e.preventDefault(); showPrivacyShield('contextmenu'); }
-        }, true);
-        document.addEventListener('copy', (e) => {
-            if (isSensitiveVotingView()) { e.preventDefault(); showPrivacyShield('copy'); }
-        }, true);
-        document.addEventListener('cut', (e) => {
-            if (isSensitiveVotingView()) { e.preventDefault(); }
-        }, true);
-        document.addEventListener('dragstart', (e) => {
-            if (isSensitiveVotingView()) e.preventDefault();
-        }, true);
-        document.addEventListener('keydown', (e) => {
-            if (!isSensitiveVotingView()) return;
-            const k = String(e.key || '').toLowerCase();
-            const blocked = k === 'printscreen' ||
-                ((e.ctrlKey || e.metaKey) && ['p','s','u'].includes(k)) ||
-                ((e.ctrlKey || e.metaKey) && e.shiftKey && ['i','j','c'].includes(k));
-            if (blocked) {
-                e.preventDefault(); e.stopPropagation();
-                showPrivacyShield('capture-key');
+            const key=String(event.key||'').toLowerCase();
+            if (key==='printscreen'||((event.ctrlKey||event.metaKey)&&key==='p')) {
+                event.preventDefault();
             }
         }, true);
-        navigator.mediaDevices?.addEventListener?.('devicechange', () => {
-            if (isSensitiveVotingView()) showPrivacyShield('devicechange');
-        });
 
         let currentAccordionSection = 'consiglio';
         let currentScrutinioSection = 'istituto'; 
@@ -2516,8 +2395,7 @@
                             <div class="flex flex-wrap gap-2"><button onclick="runElectionTechnicalCheck()" class="px-4 py-2 rounded-xl bg-blue-900 hover:bg-blue-950 text-white text-xs font-black">ESEGUI TEST BACKEND / FIREBASE</button><button onclick="window.showPage('technicalLogin')" class="px-4 py-2 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-xs font-black">APRI AREA ASSISTENTE TECNICO</button></div>
                             <div id="technical-check-result" class="mt-3 text-xs"></div><button onclick="window.refreshCommissionDiagnostics()" class="mt-3 px-4 py-3 rounded-xl bg-slate-900 text-white text-xs font-bold">Verifica problemi e soluzioni</button><div id="commission-diagnostics" class="grid md:grid-cols-2 gap-3 mt-4" aria-live="polite"></div>
                             <div class="mt-4 p-3 rounded-xl bg-slate-50 border text-[11px] text-slate-700 leading-relaxed">
-                                <b>TEST PRIVACY CABINA:</b> entra in una scheda di prova, premi “Cabina protetta”, prova cambio scheda/finestra, Ctrl/Cmd+P, menu contestuale e PrintScreen.
-                                La pagina deve oscurarsi. Per fotografie con un secondo dispositivo resta obbligatoria una misura organizzativa/fisica.
+                                <b>VERIFICA USABILITÀ CABINA:</b> il voto resta sempre visibile e accessibile dopo una chiamata, un cambio finestra o orientamento. Il browser può scoraggiare alcune scorciatoie desktop ma non può bloccare gli screenshot di Android/iOS né foto effettuate con altri dispositivi. La tutela della segretezza richiede istruzioni e presidio organizzativo.
                             </div>
                         </div>
                     </div>
@@ -5905,22 +5783,72 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             }
         };
 
-        function technicalStatusCards(controls) {
-            const entries = Object.entries(controls || {});
-            return entries.map(([key, value]) => {
-                const ok = technicalControlState(key, value);
-                const detail = key === 'regularityMissing'
-                    ? (Array.isArray(value) && value.length ? `${value.length} controllo/i da confermare dalla Commissione.` : 'Nessun controllo preliminare mancante.')
-                    : key === 'testMode'
-                        ? (value === true ? 'Usare esclusivamente dataset di prova fino al collaudo formale.' : 'Modalità reale configurata.')
-                        : (value === null ? 'Verifica separata richiesta nel collaudo: questo controllo non è misurato automaticamente.' : (ok ? 'Risposta verificata dal backend.' : 'Verifica non superata. Informare la Commissione.'));
-                const action=key==='regularityMissing'?'regularity':key==='testMode'?'configure':value===null?'report':'recheck';
-                return `<div class="p-3 rounded-2xl border ${ok ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}"><div class="flex items-start gap-2"><span class="inline-block rounded-full w-3 h-3 shrink-0 mt-1 ${ok?'bg-emerald-600':'bg-red-600'}" role="img" aria-label="${ok?'Verificato':'Da verificare'}"></span><div><b class="text-[10px] ${ok ? 'text-emerald-950' : 'text-red-950'}">${technicalEscape(technicalControlLabel(key))}</b><p class="text-[9px] text-slate-600 mt-1">${technicalEscape(detail)}</p>${ok?'':`<button onclick="window.resolveDiagnostic('${action}',this)" class="mt-2 px-3 py-2 rounded-lg bg-red-700 text-white text-xs font-bold">Risolvi</button>`}</div></div></div>`;
-            }).join('');
+        // Rileva registrazioni già presenti: la presenza del checkpoint è separata
+        // dall'esito dei controlli di conformità che accompagnavano la registrazione.
+        function summarizeTechnicalRegistrations(logs) {
+            const result={opening:null,closing:null,report:null};
+            for(const log of Array.isArray(logs)?logs:[]) {
+                const event=String(log?.event||'').toUpperCase();
+                const key=event==='OPENING'?'opening':event==='CLOSING'?'closing':event==='COLLAUDO'?'report':null;
+                if(!key)continue;
+                const previous=result[key];
+                if(!previous || (Date.parse(log.at||0)||0)>(Date.parse(previous.at||0)||0))result[key]=log;
+            }
+            return result;
+        }
+        function renderTechnicalRegistrations(status, complete=true) {
+            const items=[['opening','Checkpoint apertura'],['closing','Checkpoint chiusura'],['report','Rapporto collaudo generale']];
+            return `<section class="bg-white rounded-2xl border border-blue-200 p-5 shadow-sm">
+                <h3 class="text-sm font-black text-slate-900">Registrazioni già effettuate — recuperate dal registro</h3>
+                <p class="text-xs text-slate-600 mt-1 mb-3">Il sistema legge le registrazioni esistenti: NON occorre ripetere i checkpoint. La dicitura «ATTENZIONE» riguarda eventuali verifiche pendenti alla data di registrazione, non significa che il checkpoint non sia stato salvato.</p>
+                <div class="grid md:grid-cols-3 gap-3">${items.map(([key,label])=>{
+                    const log=status[key];
+                    return `<div class="p-3 rounded-xl border ${log?'bg-emerald-50 border-emerald-200':'bg-slate-50 border-slate-200'}">
+                        <b class="text-xs ${log?'text-emerald-900':'text-slate-800'}">${technicalEscape(label)}</b>
+                        <p class="text-xs mt-2">${log?'REGISTRATO':(complete?'Non risulta nel registro consultato':'Verifica del registro da completare')}</p>
+                        ${log?`<div class="mt-1 text-[10px] text-slate-700">Data: ${technicalEscape(log.at?new Date(log.at).toLocaleString('it-IT',{timeZone:'Europe/Rome'}):'—')}<br>Tecnico: ${technicalEscape(log.technicianName||'—')}<br>Esito registrato: ${technicalEscape(log.result||'—')}<br>ID: <code class="break-all select-all">${technicalEscape(log.id||'—')}</code></div>`:''}
+                    </div>`;
+                }).join('')}</div>
+                <p class="text-xs text-amber-900 mt-3">I checkpoint del giorno del voto devono essere riferiti alle operazioni effettive di quella giornata. Un checkpoint precedente non sostituisce quello previsto all'apertura o chiusura reale.</p>
+            </section>`;
         }
 
-        function diagnosticCards(diagnostics) {
-            return (diagnostics||[]).map(d=>`<div class="p-4 rounded-xl border ${d.ok?'bg-emerald-50 border-emerald-200':'bg-red-50 border-red-200'}"><div class="flex gap-2 items-start"><span class="inline-block w-3 h-3 shrink-0 rounded-full mt-1 ${d.ok?'bg-emerald-600':'bg-red-600'}" role="img" aria-label="${d.ok?'Verificato':'Intervento richiesto'}"></span><div><b class="text-xs text-black">${technicalEscape(d.label)}</b><p class="text-xs mt-2 text-slate-700">${technicalEscape(d.detail)}</p>${d.ok?'':`<button onclick="window.resolveDiagnostic('${technicalEscape(d.action)}',this)" class="mt-3 px-3 py-2 rounded-lg bg-red-700 text-white text-xs font-bold">Risolvi</button>`}</div></div></div>`).join('');
+        function technicalStatusCards(controls) {
+            const entries=Object.entries(controls||{});
+            return entries.map(([key,value])=>{
+                const notMeasured=value===null;
+                const ok=technicalControlState(key,value);
+                const detail=key==='regularityMissing'
+                    ? (Array.isArray(value)&&value.length?`${value.length} controllo/i documentali da completare a cura della Commissione.`:'Controlli documentali dichiarati completi.')
+                    :key==='testMode'
+                        ?(value===true?'Modalità prova globale attiva: verificare in Configurazione.':'Modalità prova globale disattivata.')
+                        :notMeasured?'Questo controllo richiede una verifica separata e non è misurato automaticamente. Non equivale a un checkpoint mancante.'
+                        :ok?'Verifica tecnica automatica positiva.':'Controllo da verificare.';
+                const kind=notMeasured?'neutral':ok?'ok':'warning';
+                const color=kind==='neutral'?'bg-slate-50 border-slate-200 text-slate-800':kind==='ok'?'bg-emerald-50 border-emerald-200 text-emerald-950':'bg-amber-50 border-amber-200 text-amber-950';
+                const go=key==='regularityMissing'?'regularity':key==='testMode'?'configure':'recheck';
+                return `<div class="p-3 rounded-2xl border ${color}">
+                    <b class="text-xs">${technicalEscape(technicalControlLabel(key))}</b>
+                    <p class="text-[10px] mt-1 text-slate-700">${technicalEscape(detail)}</p>
+                    ${!ok&&!notMeasured?`<button onclick="window.resolveDiagnostic('${go}',this)" class="mt-2 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold">${go==='recheck'?'Riesegui verifica':'Vai alla verifica'}</button>`:''}
+                </div>`;
+            }).join('');
+        }
+        function diagnosticCards(diagnostics, recorded=null) {
+            return (diagnostics||[]).map(d=>{
+                const alreadyRecorded=d.id==='evidence' && recorded?.report;
+                const visibleOk=d.ok===true;
+                const cls=visibleOk?'bg-emerald-50 border-emerald-200':alreadyRecorded?'bg-amber-50 border-amber-200':'bg-slate-50 border-slate-200';
+                const text=alreadyRecorded&&!visibleOk
+                    ?'Rapporto tecnico già registrato: ID '+recorded.report.id+'. Occorre la verifica del contenuto e la conferma della Commissione; non ripetere la registrazione.'
+                    :d.detail;
+                const label=alreadyRecorded?'Apri la verifica Commissione':d.action==='recheck'?'Riesegui il controllo':d.action==='report'?'Apri verbale tecnico':'Vai alla verifica';
+                return `<div class="p-4 rounded-xl border ${cls}">
+                    <b class="text-xs text-slate-900">${technicalEscape(d.label)}</b>
+                    <p class="text-xs mt-2 text-slate-700">${technicalEscape(text)}</p>
+                    ${visibleOk?'':`<button onclick="window.resolveDiagnostic('${technicalEscape(d.action)}',this)" class="mt-3 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold">${label}</button>`}
+                </div>`;
+            }).join('');
         }
         window.refreshCommissionDiagnostics=async()=>{
             const box=document.getElementById('commission-diagnostics');if(!box)return;
@@ -5935,6 +5863,10 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                 return window.switchAdminTab(action==='configure'?'config':'regolarita');
             }
             if(action==='report') {
+                const registered=(currentTechnicalLogs||[]).find(item=>item.event==='COLLAUDO');
+                if(registered){
+                    return showNotification('Rapporto già registrato','Rapporto tecnico ID '+(registered.id||'—')+'. La Commissione deve verificare le prove e richiamarlo in Regolarità; non occorre registrare nuovamente il checkpoint.','info');
+                }
                 const form=document.getElementById('technical-evidence-form');
                 if(form){const details=form.closest('details');if(details)details.open=true;form.scrollIntoView({behavior:'smooth'});}
                 return showNotification('Prove da documentare','Compilare e salvare il rapporto di collaudo. La Commissione potrà richiamarne l’ID in Regolarità; il sistema non conferma prove mai eseguite.','info');
@@ -6062,11 +5994,12 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                     </div>
                     <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-[10px] text-amber-950"><b>Postazione designata:</b> ${technicalEscape(assistant.postazione || 'Postazione PC laboratoriale designata dall’Istituto')}<br><span class="text-slate-600">Il nominativo e la postazione devono risultare nell’atto/verbale dell’Istituto. Il registro tecnico documenta i controlli, non sostituisce la nomina o il collaudo formale.</span></div>
                     <div class="bg-white p-4 rounded-2xl border"><b class="text-sm">Un solo rapporto di collaudo</b><p class="text-xs mt-1">Compilare esclusivamente qui le 12 prove, registrare gli esiti osservati e poi scaricare il verbale PDF. Le prove non svolte restano Non verificate.</p><div class="mt-3">${renderTechnicalEvidenceForm()}</div></div>
+                    <div id="technical-recorded-checkpoints" aria-live="polite" class="bg-white rounded-xl p-4 border text-xs text-slate-700">Verifica dei checkpoint registrati...</div>
                     <div id="technical-status-error" class="hidden"></div>
                     <div id="technical-status-summary" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><div class="spinner border-amber-700 border-t-transparent mx-auto"></div></div>
                     <div class="grid md:grid-cols-2 gap-4">
-                        <button onclick="window.recordTechnicalCheckpoint('OPENING')" class="p-5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-left shadow-lg"><div class="text-2xl mb-2">①</div><div class="font-black">REGISTRA CHECKPOINT DI APERTURA</div><div class="text-[10px] mt-1">Esegue e salva il controllo della postazione e dei servizi prima dell’apertura.</div></button>
-                        <button onclick="window.recordTechnicalCheckpoint('CLOSING')" class="p-5 rounded-2xl bg-slate-900 hover:bg-black text-white text-left shadow-lg"><div class="text-2xl mb-2">②</div><div class="font-black">REGISTRA CHECKPOINT DI CHIUSURA</div><div class="text-[10px] mt-1">Registra lo stato dei servizi e dei log alla chiusura.</div></button>
+                        <button onclick="window.recordTechnicalCheckpoint('OPENING')" class="p-5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-left shadow-lg"><div class="text-2xl mb-2">①</div><div class="font-black">REGISTRA CHECKPOINT DI APERTURA</div><div class="text-[10px] mt-1">Registra il checkpoint soltanto al momento dell’apertura effettiva; consulta prima le registrazioni già presenti.</div></button>
+                        <button onclick="window.recordTechnicalCheckpoint('CLOSING')" class="p-5 rounded-2xl bg-slate-900 hover:bg-black text-white text-left shadow-lg"><div class="text-2xl mb-2">②</div><div class="font-black">REGISTRA CHECKPOINT DI CHIUSURA</div><div class="text-[10px] mt-1">Registra il checkpoint soltanto alla chiusura effettiva; non duplicare quelli già salvati.</div></button>
                     </div>
                     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><div class="flex flex-col md:flex-row justify-between gap-3 items-start md:items-center"><div><button onclick="window.openPrivacyReview()" class="mb-3 p-3 bg-slate-900 text-white rounded-lg">Fascicolo DPO / gestione blocchi</button><h3 class="text-sm font-black text-slate-900">Verbale tecnico</h3><p class="text-[10px] text-slate-500 mt-1">PDF con nominativo del tecnico, postazione, fase, esito e timestamp dei checkpoint disponibili.</p></div><button onclick="window.downloadTechnicalMinutes()" class="bg-amber-700 hover:bg-amber-800 text-white px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2"><i data-lucide="file-down" class="w-4 h-4"></i> Scarica verbale PDF</button><button onclick="window.downloadTechnicalEvidence()" class="bg-slate-900 text-white px-4 py-2.5 rounded-xl text-xs font-black">Esporta tutte le evidenze JSON</button></div></div>
                     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><div class="flex justify-between gap-3 items-center mb-3"><div><h3 class="text-sm font-black text-slate-900">Registro checkpoint tecnici</h3><p class="text-[10px] text-slate-500">Ultime 100 registrazioni tecniche. L’esportazione include tutti i checkpoint disponibili per l’anno; i log del fornitore cloud sono separati.</p></div><span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-[9px] font-black">A.S. ${technicalEscape(configElezioni.annoScolastico)}</span></div><div class="overflow-auto max-h-[520px] custom-scrollbar"><table class="w-full text-left text-[10px]"><thead class="sticky top-0 bg-slate-50"><tr><th class="p-2.5">Evento</th><th class="p-2.5">Tecnico</th><th class="p-2.5">Postazione</th><th class="p-2.5">Fase</th><th class="p-2.5">Esito</th><th class="p-2.5">Data/ora</th><th class="p-2.5">Note</th></tr></thead><tbody id="technical-log-body"><tr><td colspan="7" class="p-8 text-center text-slate-400">Caricamento...</td></tr></tbody></table></div></div>
@@ -6090,7 +6023,16 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                 currentTechnicalStatus = statusResponse.data || {};
                 currentTechnicalLogs = logsResponse.data?.logs || currentTechnicalStatus.recentEvents || [];
                 const controls = currentTechnicalStatus.controls || {};
-                summary.innerHTML = `<div class="flex flex-col lg:flex-row justify-between gap-4 items-start lg:items-center mb-4"><div><span class="text-[9px] uppercase tracking-wider text-amber-700 font-black">STATO SISTEMA</span><h3 class="text-xl font-black text-slate-900 mt-1">${technicalEscape(currentTechnicalStatus.phase || '—')}</h3><p class="text-[10px] text-slate-500">Backend e registri verificati per l’A.S. ${technicalEscape(currentTechnicalStatus.year || configElezioni.annoScolastico)}</p></div><div class="px-3 py-2 rounded-xl bg-emerald-100 text-emerald-900 text-[10px] font-black">${Object.entries(controls).every(([k,v]) => technicalControlState(k,v)) ? 'SISTEMA OPERATIVO' : 'VERIFICHE DA COMPLETARE'}</div></div><div class="grid md:grid-cols-2 lg:grid-cols-4 gap-3">${technicalStatusCards(controls)}</div><h4 class="font-bold mt-5 mb-3 text-black">Controlli e rimedi</h4><div class="grid md:grid-cols-2 gap-3">${diagnosticCards(currentTechnicalStatus.diagnostics)}</div>`;
+                const firstPage=logsResponse.data?.logs||[];
+                let allLogs=firstPage, complete=true;
+                if(logsResponse.data?.nextCursor){
+                    try{const full=await fetchCompleteTechnicalLog();allLogs=full.logs;}
+                    catch(err){complete=false;console.warn('Registro checkpoint parziale',err);}
+                }
+                const records=summarizeTechnicalRegistrations(allLogs);
+                const checkpoints=document.getElementById('technical-recorded-checkpoints');
+                if(checkpoints)checkpoints.innerHTML=renderTechnicalRegistrations(records,complete);
+                summary.innerHTML = `<div class="flex flex-col lg:flex-row justify-between gap-4 items-start lg:items-center mb-4"><div><span class="text-[9px] uppercase tracking-wider text-amber-700 font-black">STATO SISTEMA</span><h3 class="text-xl font-black text-slate-900 mt-1">${technicalEscape(currentTechnicalStatus.phase || '—')}</h3><p class="text-[10px] text-slate-500">Backend e registri verificati per l’A.S. ${technicalEscape(currentTechnicalStatus.year || configElezioni.annoScolastico)}</p></div><div class="px-3 py-2 rounded-xl bg-emerald-100 text-emerald-900 text-[10px] font-black">${controls.backendReachable===true && controls.firebaseReachable===true && controls.serverSideAuth===true ? 'COLLEGAMENTO TECNICO VERIFICATO' : 'COLLEGAMENTO DA VERIFICARE'}</div></div><div class="grid md:grid-cols-2 lg:grid-cols-4 gap-3">${technicalStatusCards(controls)}</div><h4 class="font-bold mt-5 mb-3 text-black">Controlli e rimedi</h4><div class="grid md:grid-cols-2 gap-3">${diagnosticCards(currentTechnicalStatus.diagnostics, records)}</div>`;
                 if (body) body.innerHTML = technicalLogRows(currentTechnicalLogs);
                 const stamp = document.getElementById('technicalLastUpdate');
                 if (stamp) stamp.textContent = 'LIVE • ' + new Date().toLocaleTimeString('it-IT');
