@@ -6275,8 +6275,8 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             const cards = Object.entries(data).map(([col, rows]) => {
                 const agg = LeviManagementAggregate.aggregateVoteCollection(rows, selectedClass, role, col);
                 const total = agg.filtered.length;
-                const whites = agg.filtered.filter(v=>v.isBianca).length;
-                const valid = total - whites;
+                const whites = agg.hasTallies ? agg.filtered.filter(v=>v.isBianca).length : null;
+                const valid = agg.hasTallies ? total - whites : null;
                 return `<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4"><div class="flex justify-between items-start gap-3"><div><span class="text-[9px] uppercase text-emerald-700 font-black">${collectionLabels[col]}</span><h3 class="text-xl font-black text-slate-800 mt-1">${total}</h3><p class="text-[10px] text-slate-500">schede acquisite</p></div><div class="text-right text-[9px] text-slate-500"><div>Bianche <b>${whites===null?'—':whites}</b></div><div>Valide <b>${valid===null?'—':valid}</b></div></div></div></div>`;
             }).join('');
 
@@ -6284,7 +6284,7 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             Object.entries(data).forEach(([col, rows]) => {
                 const agg = LeviManagementAggregate.aggregateVoteCollection(rows, selectedClass, role, col);
                 Object.entries(agg.classes).sort(([a],[b])=>a.localeCompare(b)).forEach(([cl, x]) => {
-                    const topPrefs = agg.canShowPreferences && x.hasTallies ? Object.entries(x.preferences).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([n,c])=>`<span class="inline-flex items-center gap-1 bg-slate-100 rounded-full px-2 py-1 mr-1 mb-1 text-[9px]"><b>${n}</b><span>${c}</span></span>`).join('');
+                    const topPrefs = agg.canShowPreferences && x.hasTallies ? Object.entries(x.preferences).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([n,c])=>`<span class="inline-flex items-center gap-1 bg-slate-100 rounded-full px-2 py-1 mr-1 mb-1 text-[9px]"><b>${n}</b><span>${c}</span></span>`).join('') : '';
                     rowsHtml += `<tr class="border-b border-slate-100"><td class="p-2.5 font-black">${cl}</td><td class="p-2.5">${collectionLabels[col]}</td><td class="p-2.5 text-center font-black">${x.votanti}</td><td class="p-2.5 text-center">${x.hasTallies?x.bianche:'—'}</td><td class="p-2.5 text-center">${x.hasTallies?x.validi:'—'}</td><td class="p-2.5">${topPrefs || '<span class="text-slate-400">—</span>'}</td></tr>`;
                 });
             });
