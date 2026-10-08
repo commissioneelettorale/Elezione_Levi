@@ -885,12 +885,10 @@ function technicalControls(config, state) {
   };
 }
 
+// Lo stato del checkpoint certifica solo la risposta tecnica dei servizi,
+// non le verifiche GDPR, i requisiti documentali o l'ammissione del voto.
 function technicalControlsOk(controls) {
-  return Object.entries(controls || {}).every(([key, value]) => {
-    if (key === 'regularityMissing') return Array.isArray(value) ? value.length === 0 : value === false;
-    if (key === 'testMode') return value !== true;
-    return value === true;
-  });
+  return ['backendReachable','firebaseReachable','serverSideAuth'].every(key => controls?.[key] === true);
 }
 
 function privacyArchitectureAssessment(config={}) {
@@ -1593,7 +1591,8 @@ exports.setRegularityControl = async (request) => {
   if(control==='appealWindowClosed' && value) assertAllPublicationDeadlines(config,await loadRegularityState(year));
   let reportId='';
   if(control==='technicalTestPassed' && value) {
-    if(LegalReadiness.structuralBlockers(config).length) throw new HttpsError('failed-precondition',LegalReadiness.BLOCKER_LABELS.structuralSecrecy);
+    // Il collaudo tecnico e la revisione della segretezza sono controlli
+    // indipendenti. Solo l'ammissione del voto verifica entrambi.
     reportId=String(request.data?.reportId||'');
     if(!/^[A-Za-z0-9_-]{1,128}$/.test(reportId)) throw new HttpsError('invalid-argument','Indicare l’ID del rapporto di collaudo registrato nell’area tecnica.');
     const report=await yearlyCollection('audit_tecnico',year).doc(reportId).get();
