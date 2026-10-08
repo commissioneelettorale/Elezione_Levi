@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'index.html'
+      - 'api/call.js'
+      - 'scripts/check-login-quota-errors.cjs'
       - 'lib/election-sandbox-ui.js'
       - 'lib/election-sandbox.js'
       - 'scripts/check-sandbox.cjs'
@@ -50,5 +52,7 @@ jobs:
         run: node scripts/check-consultations.cjs
       - name: Verify one-time credentials PDF and manual re-download
         run: node scripts/check-credential-pdf.cjs
+      - name: Check login quota error classification
+        run: node scripts/check-login-quota-errors.cjs
       - name: Run public build smoke tests
         run: node scripts/build-public-site.cjs
