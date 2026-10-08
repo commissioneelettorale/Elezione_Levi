@@ -7,6 +7,8 @@ on:
       - 'scripts/check-management-ui.cjs'
       - 'scripts/check-collaudo-layout.cjs'
       - 'scripts/check-cabin-checkpoints.cjs'
+      - 'scripts/check-collaudo-gates.cjs'
+      - 'functions/core.js'
       - 'lib/management-aggregate.js'
       - 'scripts/check-management-aggregate.cjs'
       - '.github/workflows/dashboard-regression.yml'
@@ -31,5 +33,7 @@ jobs:
         run: node scripts/check-collaudo-layout.cjs
       - name: Test cabin visibility and checkpoint recognition
         run: node scripts/check-cabin-checkpoints.cjs
+      - name: Verify independent collaudo controls and real voting gates
+        run: node scripts/check-collaudo-gates.cjs
       - name: Run public build smoke tests
         run: node scripts/build-public-site.cjs

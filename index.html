@@ -2393,7 +2393,7 @@
                             <h4 class="font-black text-slate-900 text-sm mb-3">Diagnostica tecnica reale</h4>
                             <p class="text-xs text-slate-600 mb-3">Controlla il backend Vercel, il collegamento Firebase e lo stato di sicurezza senza inserire voti.</p>
                             <div class="flex flex-wrap gap-2"><button onclick="runElectionTechnicalCheck()" class="px-4 py-2 rounded-xl bg-blue-900 hover:bg-blue-950 text-white text-xs font-black">ESEGUI TEST BACKEND / FIREBASE</button><button onclick="window.showPage('technicalLogin')" class="px-4 py-2 rounded-xl bg-amber-700 hover:bg-amber-800 text-white text-xs font-black">APRI AREA ASSISTENTE TECNICO</button></div>
-                            <div id="technical-check-result" class="mt-3 text-xs"></div><button onclick="window.refreshCommissionDiagnostics()" class="mt-3 px-4 py-3 rounded-xl bg-slate-900 text-white text-xs font-bold">Verifica problemi e soluzioni</button><div id="commission-diagnostics" class="grid md:grid-cols-2 gap-3 mt-4" aria-live="polite"></div>
+                            <div id="technical-check-result" class="mt-3 text-xs"></div><button onclick="window.refreshCommissionDiagnostics()" class="mt-3 px-4 py-3 rounded-xl bg-slate-900 text-white text-xs font-bold">Verifica problemi e soluzioni</button><div id="commission-collaudo-report" class="mt-3 rounded-xl border bg-white p-3 text-xs text-slate-700" role="status">Premere «Verifica problemi e soluzioni» per rileggere il rapporto tecnico già registrato.</div><div id="commission-diagnostics" class="grid md:grid-cols-2 gap-3 mt-4" aria-live="polite"></div>
                             <div class="mt-4 p-3 rounded-xl bg-slate-50 border text-[11px] text-slate-700 leading-relaxed">
                                 <b>VERIFICA USABILITÀ CABINA:</b> il voto resta sempre visibile e accessibile dopo una chiamata, un cambio finestra o orientamento. Il browser può scoraggiare alcune scorciatoie desktop ma non può bloccare gli screenshot di Android/iOS né foto effettuate con altri dispositivi. La tutela della segretezza richiede istruzioni e presidio organizzativo.
                             </div>
@@ -5817,20 +5817,21 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             const entries=Object.entries(controls||{});
             return entries.map(([key,value])=>{
                 const notMeasured=value===null;
+                const neutralMode=key==='testMode';
                 const ok=technicalControlState(key,value);
                 const detail=key==='regularityMissing'
                     ? (Array.isArray(value)&&value.length?`${value.length} controllo/i documentali da completare a cura della Commissione.`:'Controlli documentali dichiarati completi.')
                     :key==='testMode'
-                        ?(value===true?'Modalità prova globale attiva: verificare in Configurazione.':'Modalità prova globale disattivata.')
+                        ?(value===true?'Modalità prova globale attiva: non è un errore tecnico. Prima del voto reale dovrà essere disattivata.':'Modalità prova globale disattivata.')
                         :notMeasured?'Questo controllo richiede una verifica separata e non è misurato automaticamente. Non equivale a un checkpoint mancante.'
                         :ok?'Verifica tecnica automatica positiva.':'Controllo da verificare.';
-                const kind=notMeasured?'neutral':ok?'ok':'warning';
+                const kind=(notMeasured||neutralMode)?'neutral':ok?'ok':'warning';
                 const color=kind==='neutral'?'bg-slate-50 border-slate-200 text-slate-800':kind==='ok'?'bg-emerald-50 border-emerald-200 text-emerald-950':'bg-amber-50 border-amber-200 text-amber-950';
                 const go=key==='regularityMissing'?'regularity':key==='testMode'?'configure':'recheck';
                 return `<div class="p-3 rounded-2xl border ${color}">
                     <b class="text-xs">${technicalEscape(technicalControlLabel(key))}</b>
                     <p class="text-[10px] mt-1 text-slate-700">${technicalEscape(detail)}</p>
-                    ${!ok&&!notMeasured?`<button onclick="window.resolveDiagnostic('${go}',this)" class="mt-2 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold">${go==='recheck'?'Riesegui verifica':'Vai alla verifica'}</button>`:''}
+                    ${!ok&&!notMeasured&&!neutralMode?`<button onclick="window.resolveDiagnostic('${go}',this)" class="mt-2 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold">${go==='recheck'?'Riesegui verifica':'Vai alla verifica'}</button>`:''}
                 </div>`;
             }).join('');
         }
@@ -5842,7 +5843,7 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                 const text=alreadyRecorded&&!visibleOk
                     ?'Rapporto tecnico già registrato: ID '+recorded.report.id+'. Occorre la verifica del contenuto e la conferma della Commissione; non ripetere la registrazione.'
                     :d.detail;
-                const label=alreadyRecorded?'Apri la verifica Commissione':d.action==='recheck'?'Riesegui il controllo':d.action==='report'?'Apri verbale tecnico':'Vai alla verifica';
+                const label=alreadyRecorded?'Vai a Regolarità':d.action==='recheck'?'Riesegui il controllo':d.action==='report'?'Apri verbale tecnico':'Vai alla verifica';
                 return `<div class="p-4 rounded-xl border ${cls}">
                     <b class="text-xs text-slate-900">${technicalEscape(d.label)}</b>
                     <p class="text-xs mt-2 text-slate-700">${technicalEscape(text)}</p>
@@ -5851,18 +5852,39 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             }).join('');
         }
         window.refreshCommissionDiagnostics=async()=>{
-            const box=document.getElementById('commission-diagnostics');if(!box)return;
+            const box=document.getElementById('commission-diagnostics');
+            const reportBox=document.getElementById('commission-collaudo-report');
+            if(!box)return;
             box.textContent='Verifica in corso...';
-            try {const response=await SECURE_API.getTechnicalStatus({annoScolastico:configElezioni.annoScolastico});currentTechnicalStatus=response.data;box.innerHTML=diagnosticCards(currentTechnicalStatus.diagnostics);}
-            catch(e){box.innerHTML=`<div class="text-red-800 text-xs">${technicalEscape(e.message)} <button onclick="window.refreshCommissionDiagnostics()" class="underline">Riprova</button></div>`;}
+            if(reportBox)reportBox.textContent='Lettura del rapporto tecnico già registrato...';
+            try {
+                const [statusResponse,stored]=await Promise.all([
+                    SECURE_API.getTechnicalStatus({annoScolastico:configElezioni.annoScolastico}),
+                    fetchCompleteTechnicalLog()
+                ]);
+                currentTechnicalStatus=statusResponse.data;
+                const recorded=summarizeTechnicalRegistrations(stored.logs);
+                box.innerHTML=diagnosticCards(currentTechnicalStatus.diagnostics,recorded);
+                if(reportBox){
+                    const report=recorded.report;
+                    const passed=report?.report?.tests?.filter(t=>t.outcome==='PASS').length||0;
+                    reportBox.innerHTML=report
+                        ? '<b>Rapporto già registrato</b><p>ID: <code class="select-all break-all">'+technicalEscape(report.id)+'</code> · Esito: '+technicalEscape(report.result||'—')+' · '+passed+'/12 prove dichiarate superate.</p><p class="mt-1">'+(report.result==='PROVE_DICHIARATE_SUPERATE'?'Le prove risultano dichiarate superate: conservare le evidenze e utilizzare l’ID in Regolarità.':'Rapporto incompleto o con anomalie: non è confermabile senza ulteriori verifiche.')+'</p>'
+                        :'<b>Nessun rapporto generale rilevato.</b> I checkpoint di apertura/chiusura sono registrazioni differenti dalle dodici prove.';
+                }
+            }catch(error){
+                box.innerHTML='<div class="text-red-800 text-xs">'+technicalEscape(error.message||'Errore')+' <button onclick="window.refreshCommissionDiagnostics()" class="underline">Riprova</button></div>';
+                if(reportBox)reportBox.textContent='Impossibile verificare il registro: '+(error.message||'errore');
+            }
         };
-        window.resolveDiagnostic=async(action,button)=>{
+                window.resolveDiagnostic=async(action,button)=>{
             if(action==='privacyArchitecture')return window.openPrivacyReview();
             if(action==='configure'||action==='regularity') {
                 if(currentTechnicalData)return showNotification('Intervento della Commissione','La Commissione deve completare '+(action==='configure'?'calendari, atti e modalità di voto in Configurazione.':'le verifiche documentate in Regolarità.'),'info');
                 return window.switchAdminTab(action==='configure'?'config':'regolarita');
             }
             if(action==='report') {
+                if(!currentTechnicalData)return window.switchAdminTab('regolarita');
                 const registered=(currentTechnicalLogs||[]).find(item=>item.event==='COLLAUDO');
                 if(registered){
                     return showNotification('Rapporto già registrato','Rapporto tecnico ID '+(registered.id||'—')+'. La Commissione deve verificare le prove e richiamarlo in Regolarità; non occorre registrare nuovamente il checkpoint.','info');
@@ -6530,7 +6552,10 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
           const pre=Object.keys(REGULARITY_LABELS).filter(k=>!['finalArchiveSealed','appealWindowClosed'].includes(k));
           const card=k=>`<div class="p-3 rounded-2xl border ${s[k]?'bg-emerald-50 border-emerald-200':'bg-red-50 border-red-200'}"><div class="flex justify-between gap-2"><div><b class="text-[11px]">${s[k]?'✓':'✕'} ${REGULARITY_LABELS[k]}</b><div class="text-[9px] text-slate-500">${escapeRegularityText(s.notes?.[k]||'Nessuna annotazione.')}</div></div><button onclick="window.toggleRegularityControl('${k}',${!s[k]})" class="px-2 py-1 rounded-lg text-[9px] font-black ${s[k]?'bg-slate-200':'bg-emerald-700 text-white'}">${s[k]?'Revoca':'Conferma'}</button></div></div>`;
           const rows=appeals.filter(a=>!selectedPublication||a.electionKey===selectedPublication).map(a=>`<tr class="border-t"><td class="p-2">${escapeRegularityText(a.protocolRef||'—')}<br><small>${escapeRegularityText(LeviElectionPolicy.ELECTIONS[a.electionKey]?.label||'Generale')}</small></td><td class="p-2">${escapeRegularityText(a.subject||'—')}</td><td class="p-2 font-black">${escapeRegularityText(a.status)}</td><td class="p-2">${escapeRegularityText(a.decisionRef||'—')}</td><td class="p-2">${a.status==='OPEN'?`<button onclick="window.resolveRegularityAppeal('${a.id}')" class="px-2 py-1 bg-emerald-700 text-white rounded-lg">Decisione</button>`:'Definito'}</td></tr>`).join('');
-          container.innerHTML=`<div class="w-full space-y-5 font-semibold"><div class="bg-white rounded-3xl shadow border p-6"><div class="flex justify-between gap-4"><div><span class="text-[9px] bg-blue-900 text-white px-2 py-1 rounded font-black">REGOLARITÀ PROCEDIMENTO</span><h3 class="text-xl font-black mt-2">A.S. ${configElezioni.annoScolastico}</h3><p class="text-[10px] text-slate-500">O.M. 215/1991 e s.m.i. · circolare annuale MIM/USR · Nota MIM 3803/2026 · GDPR/CAD/AgID. I controlli tecnici non sostituiscono gli atti formali. La Nota 3803/2026 riguarda le attività collegiali deliberative a distanza: la base giuridica delle elezioni va verificata separatamente. Consultare la <button onclick="window.openPrivateTechnicalDocument('checklist')" class="underline">checklist di verifica e le prove richieste</button>.</p></div><div class="p-3 rounded-2xl ${ready?'bg-emerald-100 text-emerald-900':'bg-red-100 text-red-900'}"><b>${ready?'APERTURA ABILITATA':'APERTURA BLOCCATA'}</b></div></div>${missing.length?`<div class="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-[10px]"><b>Mancano:</b> ${missing.map(k=>REGULARITY_LABELS[k]||LeviLegalReadiness.BLOCKER_LABELS[k]||k).join(' · ')}</div>`:''}<div class="mt-4 flex flex-wrap gap-2"><a href="note-legali.html" target="_blank" rel="noopener noreferrer" class="underline text-xs">Note legali e privacy</a><button onclick="window.openPrivacyReview()" class="px-3 py-2 bg-slate-900 text-white rounded-lg text-xs">Fascicolo DPO / gestione blocchi</button><button onclick="window.downloadLegalReadiness()" class="px-3 py-2 border rounded-lg text-xs">Scarica matrice requisiti ed evidenze</button></div><div class="mt-4 grid md:grid-cols-2 gap-3">${pre.map(card).join('')}</div><input id="regularityNote" placeholder="Indicare: consultazione, fonte/atto, protocollo, verificatore, data, evidenza e rischio residuo. Nessun dato degli elettori." class="mt-4 w-full p-2.5 border rounded-xl text-xs"></div>
+          container.innerHTML=`<div class="w-full space-y-5 font-semibold"><div class="bg-white rounded-3xl shadow border p-6"><div class="flex justify-between gap-4"><div><span class="text-[9px] bg-blue-900 text-white px-2 py-1 rounded font-black">REGOLARITÀ PROCEDIMENTO</span><h3 class="text-xl font-black mt-2">A.S. ${configElezioni.annoScolastico}</h3><p class="text-[10px] text-slate-500">O.M. 215/1991 e s.m.i. · circolare annuale MIM/USR · Nota MIM 3803/2026 · GDPR/CAD/AgID. I controlli tecnici non sostituiscono gli atti formali. La Nota 3803/2026 riguarda le attività collegiali deliberative a distanza: la base giuridica delle elezioni va verificata separatamente. Consultare la <button onclick="window.openPrivateTechnicalDocument('checklist')" class="underline">checklist di verifica e le prove richieste</button>.</p></div><div class="p-3 rounded-2xl ${ready?'bg-emerald-100 text-emerald-900':'bg-red-100 text-red-900'}"><b>${ready?'APERTURA ABILITATA':'APERTURA BLOCCATA'}</b></div></div>${missing.length?`<div class="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-[10px]"><b>Mancano:</b> ${missing.map(k=>REGULARITY_LABELS[k]||LeviLegalReadiness.BLOCKER_LABELS[k]||k).join(' · ')}</div>`:''}<div class="mt-4 flex flex-wrap gap-2"><a href="note-legali.html" target="_blank" rel="noopener noreferrer" class="underline text-xs">Note legali e privacy</a><button onclick="window.openPrivacyReview()" class="px-3 py-2 bg-slate-900 text-white rounded-lg text-xs">Fascicolo DPO / gestione blocchi</button><button onclick="window.downloadLegalReadiness()" class="px-3 py-2 border rounded-lg text-xs">Scarica matrice requisiti ed evidenze</button></div><div class="mt-4 p-3 text-xs border bg-slate-50 rounded-xl text-slate-700">
+              <b>Verifiche documentali confermate: ${pre.filter(k=>s[k]===true).length} / ${pre.length}.</b>
+              <p class="mt-1">Le verifiche già confermate si leggono dallo stato registrato sul server. I controlli non compilati e i blocchi di segretezza/voto reale sono distinti. Prima di premere Conferma inserire consultazione, atto, protocollo, verificatore, data ed evidenza nel campo sottostante. Il software congelato e il backup sono indipendenti dal collaudo tecnico.</p></div>
+              <div class="mt-4 grid md:grid-cols-2 gap-3">${pre.map(card).join('')}</div><input id="regularityNote" placeholder="Indicare: consultazione, fonte/atto, protocollo, verificatore, data, evidenza e rischio residuo. Nessun dato degli elettori." class="mt-4 w-full p-2.5 border rounded-xl text-xs"></div>
           <div class="grid lg:grid-cols-2 gap-5"><div class="bg-white rounded-3xl shadow border p-5 space-y-2"><b>Pubblicazione risultati / termini ricorsi</b><label class="block text-xs">Consultazione (vale anche per il registro ricorsi)<select onchange="window.selectPublication(this.value)" class="w-full p-2 border rounded-xl text-black"><option value="">Generale / storico senza profilo dedicato</option>${Object.entries(LeviElectionPolicy.ELECTIONS).map(([key,e])=>`<option value="${key}" ${selectedPublication===key?'selected':''}>${technicalEscape(e.label)}</option>`).join('')}</select></label><p class="text-xs text-slate-600">La pubblicazione di ottobre non chiude le consultazioni di novembre. Inserire il termine previsto dagli atti applicabili alla consultazione selezionata.</p><input id="regPubProtocol" placeholder="Protocollo/estremi pubblicazione" class="w-full p-2 border rounded-xl text-xs"><input id="regAppealDeadline" type="date" class="w-full p-2 border rounded-xl text-xs"><button onclick="window.recordRegularityPublication()" class="w-full p-2 bg-blue-900 text-white rounded-xl text-xs font-black">Registra pubblicazione</button><div class="text-[10px]">${publication.resultsPublished?'Registrata: '+escapeRegularityText(publication.resultsPublicationProtocol||'')+' · Termine ricorsi: '+escapeRegularityText(publication.appealDeadline||''):'Non registrata per questa consultazione'}</div></div><div class="bg-white rounded-3xl shadow border p-5 space-y-2"><b>Incidente / sospensione</b><input id="regIncidentTitle" placeholder="Titolo" class="w-full p-2 border rounded-xl text-xs"><input id="regIncidentProtocol" placeholder="Protocollo/verbale" class="w-full p-2 border rounded-xl text-xs"><textarea id="regIncidentDetails" placeholder="Descrizione, impatto, decisione" class="w-full p-2 border rounded-xl text-xs"></textarea><label class="text-[10px]"><input id="regIncidentSuspend" type="checkbox"> sospendi nuovi accessi al voto</label><button onclick="window.recordRegularityIncident()" class="w-full p-2 bg-amber-600 text-white rounded-xl text-xs font-black">Registra incidente</button><button onclick="window.resumeRegularityElection()" class="w-full p-2 bg-slate-100 rounded-xl text-xs font-black">Registra ripresa</button><div class="text-[10px] font-black">${s.emergencySuspended?'VOTAZIONE SOSPESA':'Nessuna sospensione attiva'}</div></div></div>
           <div class="bg-white rounded-3xl shadow border p-5"><b>Registro reclami / ricorsi</b><div class="grid md:grid-cols-[1fr_2fr_auto] gap-2 mt-2"><input id="regAppealProtocol" placeholder="Protocollo" class="p-2 border rounded-xl text-xs"><input id="regAppealSubject" placeholder="Oggetto sintetico (senza dati eccedenti)" class="p-2 border rounded-xl text-xs"><button onclick="window.fileRegularityAppeal()" class="px-4 bg-red-700 text-white rounded-xl text-xs font-black">Registra</button></div><div class="overflow-auto mt-3 border rounded-xl"><table class="w-full text-[10px]"><tbody>${rows||'<tr><td class="p-5 text-center">Nessun ricorso registrato.</td></tr>'}</tbody></table></div><div class="mt-2 text-[10px]"><b>Legal hold:</b> ${s.legalHold?'ATTIVO':'non attivo'}</div></div>
           <div class="bg-white rounded-3xl shadow border p-5"><b>Chiusura definitiva e conservazione</b><p class="text-[10px] text-slate-500">Richiede pubblicazione, termine ricorsi chiuso, nessun ricorso aperto e fascicolo sigillato. Revoca automaticamente Dirigente, Vicepreside, DSGA e Segreteria.</p><div class="grid md:grid-cols-2 gap-3 mt-3">${card('appealWindowClosed')}${card('finalArchiveSealed')}</div><div class="flex gap-2 mt-3"><input id="regClosureRef" placeholder="Estremi verbale/provvedimento di chiusura" class="flex-1 p-2 border rounded-xl text-xs"><button onclick="window.closeRegularityProcedure()" class="px-4 bg-slate-900 text-white rounded-xl text-xs font-black" ${s.procedureClosed?'disabled':''}>${s.procedureClosed?'CHIUSO':'Chiudi definitivamente'}</button></div></div></div>`;lucide.createIcons();}catch(e){container.innerHTML=`<div class="bg-white rounded-3xl border p-8 text-red-700 font-bold">Impossibile caricare la regolarità: ${e.message||'errore'}</div>`;}}
@@ -6539,8 +6564,25 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             const label=(typeof REGULARITY_LABELS!=='undefined' && REGULARITY_LABELS[control]) ? REGULARITY_LABELS[control] : control;
             if(value && !typed) return showNotification('Riferimento richiesto','Scrivere nell’annotazione gli estremi del documento o della verifica prima di confermare.','error');
             const note=typed || `Revoca della precedente conferma: ${label}.`;
-            const reportId=control==='technicalTestPassed' && value ? prompt('ID del rapporto di collaudo salvato nell’area tecnica (tutte le prove superate):') : '';
-            if(control==='technicalTestPassed' && value && !reportId) return;
+            let reportId='';
+            if(control==='technicalTestPassed' && value) {
+                let reports=[];
+                try {
+                    const history=await fetchCompleteTechnicalLog();
+                    reports=history.logs.filter(row=>row.event==='COLLAUDO'&&row.report);
+                }catch(error) {
+                    return showNotification('Registro tecnico non leggibile','Impossibile verificare il rapporto: '+(error?.message||'riprovare'),'error');
+                }
+                const passed=reports.find(row=>row.result==='PROVE_DICHIARATE_SUPERATE');
+                if(!passed){
+                    const latest=reports[0];
+                    return showNotification('Collaudo non ancora confermabile',latest
+                        ? 'Ultimo rapporto '+latest.id+': '+latest.result+'. Sono necessarie le dodici prove documentate, senza ripetere i checkpoint.'
+                        : 'Nessun rapporto delle dodici prove trovato. I checkpoint di apertura e chiusura sono documenti separati.','info');
+                }
+                reportId=prompt('ID del rapporto delle 12 prove già registrato:',passed.id)?.trim()||'';
+                if(!reportId)return;
+            }
             try{
                 await SECURE_API.setRegularityControl({annoScolastico:configElezioni.annoScolastico,control,value,note,reportId});
                 const input=document.getElementById('regularityNote'); if(input) input.value='';
