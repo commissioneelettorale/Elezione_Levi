@@ -5817,20 +5817,21 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             const entries=Object.entries(controls||{});
             return entries.map(([key,value])=>{
                 const notMeasured=value===null;
+                const neutralMode=key==='testMode';
                 const ok=technicalControlState(key,value);
                 const detail=key==='regularityMissing'
                     ? (Array.isArray(value)&&value.length?`${value.length} controllo/i documentali da completare a cura della Commissione.`:'Controlli documentali dichiarati completi.')
                     :key==='testMode'
-                        ?(value===true?'Modalità prova globale attiva: verificare in Configurazione.':'Modalità prova globale disattivata.')
+                        ?(value===true?'Modalità prova globale attiva: non è un errore tecnico. Prima del voto reale dovrà essere disattivata.':'Modalità prova globale disattivata.')
                         :notMeasured?'Questo controllo richiede una verifica separata e non è misurato automaticamente. Non equivale a un checkpoint mancante.'
                         :ok?'Verifica tecnica automatica positiva.':'Controllo da verificare.';
-                const kind=notMeasured?'neutral':ok?'ok':'warning';
+                const kind=(notMeasured||neutralMode)?'neutral':ok?'ok':'warning';
                 const color=kind==='neutral'?'bg-slate-50 border-slate-200 text-slate-800':kind==='ok'?'bg-emerald-50 border-emerald-200 text-emerald-950':'bg-amber-50 border-amber-200 text-amber-950';
                 const go=key==='regularityMissing'?'regularity':key==='testMode'?'configure':'recheck';
                 return `<div class="p-3 rounded-2xl border ${color}">
                     <b class="text-xs">${technicalEscape(technicalControlLabel(key))}</b>
                     <p class="text-[10px] mt-1 text-slate-700">${technicalEscape(detail)}</p>
-                    ${!ok&&!notMeasured?`<button onclick="window.resolveDiagnostic('${go}',this)" class="mt-2 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold">${go==='recheck'?'Riesegui verifica':'Vai alla verifica'}</button>`:''}
+                    ${!ok&&!notMeasured&&!neutralMode?`<button onclick="window.resolveDiagnostic('${go}',this)" class="mt-2 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold">${go==='recheck'?'Riesegui verifica':'Vai alla verifica'}</button>`:''}
                 </div>`;
             }).join('');
         }
