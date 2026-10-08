@@ -1045,6 +1045,17 @@
                 </form>
             </div>`;
         }
+        window.openConsultationScheduleEditor=(key='classeStudente')=>{
+            if(!auth.currentUser||!commissionSessionReady)return showPage('adminLogin');
+            const valid=Object.keys(LeviElectionPolicy.ELECTIONS).includes(key)?key:'classeStudente';
+            selectedConsultation=valid;
+            window.switchAdminTab('config');
+            const target=document.getElementById('consultation-settings');
+            if(target) {
+                target.scrollIntoView({behavior:'smooth',block:'start'});
+                target.classList.add('ring-2','ring-indigo-400');
+            }
+        };
         window.selectConsultation=key=>{selectedConsultation=key;const box=document.getElementById('consultation-settings');if(box)box.outerHTML=renderConsultationSettings();};
         window.saveConsultationSettings=async form=>{
             const button=form.querySelector('button[type="submit"]'),status=form.querySelector('[data-schedule-status]'),data=new FormData(form),key=selectedConsultation;
@@ -2526,6 +2537,22 @@
                         <p class="text-sm text-slate-300 mt-2">I controlli obbligatori restano attivi, ma l'apertura si gestisce da questa sola schermata.</p>
                         <div class="mt-4 bg-white text-black rounded-2xl p-4 text-sm"><b>Stato generale:</b> ${w.open?'FASCE DI VOTO APERTE':(w.reason==='before'?'NON ANCORA APERTE':w.reason==='pause'?'IN ATTESA DELLA PROSSIMA FASCIA':w.reason==='unconfigured'?'CALENDARIO DA CONFIGURARE':'CHIUSE')}<div class="text-xs mt-2">${consultationSummaryHTML()}</div></div>
                     </div>
+                    <section class="bg-white border border-indigo-200 rounded-2xl p-5">
+                        <h4 class="font-black text-sm text-blue-950">Modifica orari scolastici e verbali preparatori</h4>
+                        <p class="text-xs text-slate-600 mt-2">Le date e le ore sono modificabili per ciascuna consultazione soltanto prima del congelamento e dell'avvio della fascia. La modifica non ammette automaticamente il voto e, se modifica la configurazione, richiede una nuova revisione della versione.</p>
+                        <div class="flex flex-wrap gap-2 mt-3">
+                          <button onclick="window.openConsultationScheduleEditor('classeStudente')" class="px-3 py-2 rounded-xl text-xs font-bold bg-blue-900 text-white">Modifica orari studenti</button>
+                          <button onclick="window.openConsultationScheduleEditor('classeGenitore')" class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-700 text-white">Modifica orari genitori</button>
+                          <button onclick="window.openConsultationScheduleEditor('istituto')" class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-700 text-white">Modifica orari Istituto</button>
+                          <button onclick="window.openConsultationScheduleEditor('consulta')" class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-700 text-white">Modifica orari Consulta</button>
+                        </div>
+                        <div class="flex flex-wrap gap-2 mt-4">
+                          <button onclick="window.downloadCommissionDossierDocx('collaudo')" class="px-3 py-2 border rounded-xl text-xs font-bold">Verbale complessivo collaudo (Word)</button>
+                          <button onclick="window.downloadCommissionDossierDocx('dpo')" class="px-3 py-2 border rounded-xl text-xs font-bold">Fascicolo verifica DPO (Word)</button>
+                          <button onclick="window.downloadCommissionDossierDocx('apertura')" class="px-3 py-2 border rounded-xl text-xs font-bold">Verbale preparatorio 13 ottobre (Word)</button>
+                        </div>
+                        <p class="text-xs text-amber-950 mt-3">I verbali sono bozze basate sullo stato server, da verificare e firmare. Nessun pulsante trasforma verifiche incomplete in attestazioni positive o apre urne senza autorizzazione.</p>
+                    </section>
                     <div id="opening-status-box"></div>
                     <div class="grid md:grid-cols-3 gap-4">
                         <button onclick="refreshOpeningStatus()" class="p-5 rounded-2xl bg-blue-50 border-2 border-blue-200 hover:bg-blue-100 text-blue-950 text-left"><div class="text-2xl mb-2">①</div><div class="font-black">VERIFICA</div><div class="text-[10px] mt-1">Ti dice solo cosa manca.</div></button>
@@ -6802,6 +6829,92 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
             const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500);
         }
+        // Verbali di predisposizione: nessun flag viene mutato e nessun token reale è letto.
+        // Il fascicolo segnala gli esiti effettivi presenti nei servizi; non autocertifica conformità.
+        window.downloadCommissionDossierDocx=async function(kind='collaudo'){
+            if(!auth.currentUser||!commissionSessionReady)
+                return showNotification('Accesso riservato','Entrare come Commissione Elettorale.','error');
+            if(!['collaudo','dpo','apertura'].includes(kind))return;
+            try{
+                const year=configElezioni.annoScolastico;
+                const [r,t,v,logs,p]=await Promise.all([
+                    SECURE_API.getRegularityState({annoScolastico:year}),
+                    SECURE_API.getTechnicalStatus({annoScolastico:year}),
+                    SECURE_API.getVotingReview({annoScolastico:year}),
+                    fetchCompleteTechnicalLog(),
+                    kind==='dpo'?SECURE_API.getDpoReviewProfile({annoScolastico:year}):Promise.resolve({data:{fields:{}}})
+                ]);
+                const reg=r.data?.state||{},missing=r.data?.missing||[],review=v.data||{},tech=t.data||{};
+                const reportRows=(logs.logs||[]).filter(x=>x.event==='COLLAUDO'&&x.report);
+                const lastReport=reportRows[0]||null;
+                const release=review.release?.commit||tech.release?.commit||'NON ATTESTATO DAL BACKEND';
+                const recorded=review.review?.stage||'NON PRESENTATA';
+                const profiles=configElezioni.consultazioni||{};
+                const enabled=LeviElectionPolicy.enabled(configElezioni);
+                const rows=[
+                    ['Consultazione','Fasce programmate (Europe/Rome)','Stato configurazione'],
+                    ...enabled.map(key=>{
+                        const prof=profiles[key]||{};
+                        return [LeviElectionPolicy.ELECTIONS[key].label,
+                            (prof.windows||[]).map(w=>w.date+' '+w.from+'–'+w.to).join(' / ')||'NESSUNA FASCIA',
+                            prof.frozen===true?'CONGELATA':'MODIFICABILE SE NON INIZIATA'];
+                    })
+                ];
+                const body=[
+                    docxHeading('I.I.S. “PRIMO LEVI” — SEREGNO',1),
+                    docxParagraph('COMMISSIONE ELETTORALE D’ISTITUTO — A.S. '+year,true),
+                    docxHeading(kind==='collaudo'?'RELAZIONE TECNICO-DOCUMENTALE COMPLESSIVA':kind==='dpo'?'FASCICOLO DI VERIFICA PER IL RPD / DPO':'VERBALE PREPARATORIO DELLE VOTAZIONI DEL 13 OTTOBRE 2026',1),
+                    docxParagraph('BOZZA GENERATA DALLA PIATTAFORMA. Non sostituisce verifiche, firme, atti di autorizzazione né collaudi indipendenti.',true),
+                    docxTable([['Parametro','Valore'],['Generato il',new Date().toLocaleString('it-IT',{timeZone:'Europe/Rome'})],['Commit backend rilevato',release],['Fase revisione riservatezza',recorded],['Modalità prova globale',configElezioni.modalitaProva?'ATTIVA — voto reale non ammesso':'DISATTIVATA'],['Modalità credenziali',configElezioni.privacyMode||'NON DEFINITA'],['Verbale già richiamato in regolarità',reg.technicalReportId||'NON REGISTRATO'],['Esito rapporto tecnico',lastReport?.result||'NESSUN RAPPORTO TROVATO'],['ID ultimo rapporto',lastReport?.id||'—']]),
+                    docxHeading('1. Fondamenti e atti applicabili',1),
+                    docxParagraph('D.Lgs. 16 aprile 1994 n. 297; O.M. 15 luglio 1991 n. 215 e s.m.i. per quanto applicabile; Nota MIM AOODGOSV n. 169661 del 30 settembre 2026; D.P.R. 567/1996 per la Consulta, ove pertinente; Regolamento (UE) 2016/679, artt. 5, 6, 25, 28, 32 e 35, ove applicabili. La circolare annuale non costituisce di per sé autorizzazione generale al voto elettronico.'),
+                    docxParagraph('Fascicolo tecnico richiamato: verbale n. 9507/2.1 dell’08/10/2026 (estremi da riscontrare nell’originale sottoscritto).'),
+                    docxHeading('2. Consultazioni e calendario effettivamente configurati',1),
+                    docxTable(rows),
+                    docxHeading('3. Regolarità registrata nel backend',1),
+                    docxTable([['Voce','Stato','Riferimento annotato'],
+                       ...Object.entries(REGULARITY_LABELS).filter(([k])=>!['appealWindowClosed','finalArchiveSealed'].includes(k))
+                       .map(([k,label])=>[label,reg[k]===true?'DICHIARATO CONFERMATO':'DA COMPLETARE',reg.notes?.[k]||'Nessuna evidenza riportata'] )]),
+                    docxParagraph('Requisiti ancora mancanti secondo il backend: '+(missing.length?missing.join(' · '):'nessuno fra i controlli riportati; resta necessaria la verifica degli atti e delle evidenze.'),true),
+                    docxHeading('4. Ultimo collaudo tecnico registrato',1),
+                    docxParagraph(lastReport?'Rapporto '+lastReport.id+'; tecnico: '+(lastReport.technicianName||'—')+'; data: '+(lastReport.at||'—')+'; commit provato: '+(lastReport.report?.softwareVersion||'—')+'.':'Nessun rapporto di collaudo generale rilevato nel registro consultato.'),
+                    docxTable([['Prova','Esito tecnico','Evidenza'],...Object.entries(TECHNICAL_TEST_LABELS).map(([key,label])=>{
+                        const item=lastReport?.report?.tests?.find(t=>t.id===key);
+                        return [label,item?(TECHNICAL_OUTCOME_LABELS[item.outcome]||item.outcome):'NON VERIFICATA',item?.evidence||'Nessuna evidenza'];
+                    })]),
+                ];
+                if(kind==='collaudo'){
+                    body.push(docxHeading('5. Codici per la sola prova locale',1));
+                    const sandbox=LeviElectionSandbox.create();
+                    const trial=[...sandbox.createBatch('STUDENTE','1A',3),...sandbox.createBatch('DOCENTE','',2),...sandbox.createBatch('GENITORE_CLASSE','1A',2)];
+                    body.push(docxParagraph('Codici PROVA generati dal modello locale, non rilasciati dal server: non sono token elettorali reali e non provano che una sessione di collaudo sia stata effettuata. Si utilizzano esclusivamente nel simulatore con dati fittizi.'));
+                    body.push(docxTable([['Codice solo PROVA','Componente','Classe'],...trial.map(x=>[x.token,x.tipo,x.classe||'—'])]));
+                    body.push(docxParagraph('Checklist di collaudo operativo: apertura scheda fittizia; un voto simulato; rifiuto del doppio deposito; orari simulati; ruoli; recupero rete; riconteggio indipendente; prova backup/ripristino; accessibilità; metadati e regole cloud. Registrare per ciascuna prova esito e evidenza: il presente verbale non le esegue.'));
+                }else if(kind==='dpo'){
+                    const privacy=tech.privacyAssessment||{};
+                    body.push(docxHeading('5. Valutazione architetturale effettiva',1));
+                    body.push(docxTable([['Garanzia','Risultato del backend'],['Separazione strutturale identità–voto',privacy.structuralAnonymityVerified===true?'RILEVATA: NECESSARIA EVIDENZA INDIPENDENTE':'NON VERIFICATA'],['Cifratura sul dispositivo',privacy.clientSideBallotEncryption===true?'DICHIARATA':'NON IMPLEMENTATA / NON RILEVATA'],['Custodi indipendenti delle chiavi',privacy.independentDecryptionTrustees===true?'DICHIARATI':'NON IMPLEMENTATI / NON RILEVATI'],['Rischio correlazione attraverso transazioni',privacy.databaseTransactionCorrelationPossible===true?'POSSIBILE':'DA VALUTARE'],['Modalità credenziali',privacy.credentialMode||'NON ATTESTATA']]));
+                    body.push(docxParagraph(privacy.limitation||'Valutazione indipendente di anonimato e metadati da acquisire.'));
+                    body.push(docxHeading('6. Documentazione dichiarata dalla scuola',1));
+                    const profile=p.data?.fields||{};
+                    body.push(...Object.entries(profile).map(([key,val])=>docxParagraph(key+': '+(val||'NON DOCUMENTATO'))));
+                    body.push(docxParagraph('RPD/DPO indicato dall’Istituto: Vargiu Scuola S.r.l. — acquisire agli atti designazione e riscontro specifico. Non è attribuita automaticamente approvazione al DPO.'));
+                }else{
+                    const planned13=enabled.filter(key=>(profiles[key]?.windows||[]).some(w=>w.date==='2026-10-13'));
+                    body.push(docxHeading('5. Predisposizione delle consultazioni del 13 ottobre 2026',1));
+                    body.push(docxParagraph('Data prevista: martedì 13 ottobre 2026. Consultazioni con una fascia effettivamente configurata per tale data: '+(planned13.length?planned13.map(k=>LeviElectionPolicy.ELECTIONS[k].label).join(' · '):'NESSUNA RILEVATA NELLA CONFIGURAZIONE LETTA IN QUESTA SESSIONE.'),true));
+                    body.push(docxParagraph('L’apertura avviene esclusivamente nella fascia salvata per ciascuna consultazione, e soltanto se il backend restituisce le autorizzazioni e i controlli previsti. Non avviene alcuna apertura per effetto della generazione di questo verbale.'));
+                    body.push(docxParagraph('Da compilare al seggio il giorno 13 ottobre: ora reale di costituzione __________; operatori presenti __________; controllo elenchi __________; verifica credenziali __________; checklist iniziale __________; checkpoint apertura __________; stato autorizzazione backend __________; decisione della Commissione __________.'));
+                    body.push(docxParagraph('In caso di errori, segnalare alla Commissione presso il Laboratorio CAD-1, registrare l’evento e applicare l’eventuale sospensione. Nessun operatore deve alterare codici, voti o regole senza autorizzazione.'));
+                }
+                body.push(docxHeading('6. Sottoscrizioni, acquisizione e limiti del documento',1));
+                body.push(docxParagraph('Le conferme amministrative devono essere sostenute da atti originali. L’assenza di evidenza comporta esito da verificare; l’esportazione Word non approva il trattamento dei dati né ammette l’apertura delle consultazioni.'));
+                body.push(docxTable([['Ruolo','Nominativo','Firma'],...((configElezioni.commissione||[]).map(m=>[m.ruolo||'Componente',m.nome||'____________','________________'])),['Assistente tecnico',configElezioni.assistenteTecnico?.nome||'____________','________________'],['Dirigente scolastico','________________','________________']]));
+                await generateDocxFile(body.join(''),'Verbale_'+kind+'_'+year.replace('/','_')+'.docx');
+                showNotification('Verbale Word preparato','Contiene i dati registrati e le verifiche ancora pendenti. Non è un’attestazione automatica.','success');
+            }catch(error){console.error(error);showNotification('Verbale non disponibile',error?.message||'Impossibile acquisire lo stato completo dal backend. Nessun dato è stato attestato.','error');}
+        };
+
         // Verbale analitico del metodo dei quozienti (O.M. 215/1991, art. 44).
         // Nessuna proclamazione automatica in caso di parità che richiede sorteggio.
         window.downloadDhondtMinutesDocx=async function(section='istituto',component=''){
