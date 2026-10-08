@@ -1401,11 +1401,20 @@ exports.setStaffAccountActive = async (request) => {
 exports.getRegularityState = async (request) => {
   await requireAuth(request,['COMMISSIONE','DIRIGENTE','VICEPRESIDE','DSGA','SEGRETERIA']);
   const year=request.data?.annoScolastico, state=await loadRegularityState(year);
-  const snap=await regularityAppeals(year).orderBy('filedAt','desc').limit(100).get();
-  const appeals=snap.docs.map(d=>{const x=d.data()||{};return{id:d.id,electionKey:x.electionKey||'',protocolRef:x.protocolRef||'',subject:x.subject||'',status:x.status||'OPEN',decisionRef:x.decisionRef||'',filedAt:timestampIso(x.filedAt),decidedAt:timestampIso(x.decidedAt)}});
+  // I ricorsi sono accessori alla schermata di consultazione: se la loro
+  // query fallisce, non impedire la lettura dei controlli di regolarità.
+  // Non inventare ricorsi né attestare la loro assenza in caso di errore.
+  let appeals=[], appealsAvailable=true;
+  try {
+    const snap=await regularityAppeals(year).orderBy('filedAt','desc').limit(100).get();
+    appeals=snap.docs.map(d=>{const x=d.data()||{};return{id:d.id,electionKey:x.electionKey||'',protocolRef:x.protocolRef||'',subject:x.subject||'',status:x.status||'OPEN',decisionRef:x.decisionRef||'',filedAt:timestampIso(x.filedAt),decidedAt:timestampIso(x.decidedAt)}});
+  } catch (error) {
+    appealsAvailable=false;
+    console.warn('[regularity] appeals read failed', String(error?.code||'unknown'));
+  }
   const config=await loadElectionConfig(year);
   const missing=regularityMissing(state,config);
-  return{state:serializeRegularityState(state),appeals,missing,legalAssessment:legalAssessment(config,state),readyForVoting:missing.length===0&&!state.emergencySuspended&&!state.procedureClosed};
+  return{state:serializeRegularityState(state),appeals,appealsAvailable,missing,legalAssessment:legalAssessment(config,state),readyForVoting:appealsAvailable&&missing.length===0&&!state.emergencySuspended&&!state.procedureClosed};
 };
 
 // Anonymous credentials are created independently of individuals. No code/name export exists.
