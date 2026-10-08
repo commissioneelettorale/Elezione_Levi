@@ -12,7 +12,7 @@ assert.match(core,/databaseTransactionCorrelationPossible:true/,'Do not hide tra
 assert.match(ui,/MODALITÀ PREVISTA NEL BACKEND/);
 assert.match(ui,/NON DIMOSTRATA/);
 assert.match(ui,/NON VERIFICATA — non modificabile/);
-assert.match(html,/Verifica indipendente della segretezza strutturale/);
+assert.match(html,/Valutazione indipendente della segretezza strutturale/);
 const admission=fs.readFileSync('lib/voting-admission.js','utf8');
 assert.match(admission,/structuralBlockers/);
 assert.match(admission,/stage!=='AUTHORIZED'/);
