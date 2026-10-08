@@ -103,11 +103,11 @@ function sendJson(res, status, payload) {
 }
 
 function normalizeFirebaseCode(error) {
-  const raw = String(error?.code || error?.status || 'internal');
-  return raw
-    .replace(/^functions\//i, '')
-    .toLowerCase()
-    .replace(/_/g, '-');
+  // Support both string Firebase errors and numeric gRPC status codes.
+  const grpcCodes = { '4':'deadline-exceeded', '7':'permission-denied',
+    '8':'resource-exhausted', '14':'unavailable', '16':'unauthenticated' };
+  const raw = String(error?.code ?? error?.status ?? 'internal');
+  return grpcCodes[raw] || raw.replace(/^functions\//i, '').toLowerCase().replace(/_/g, '-');
 }
 
 function statusForCode(code) {
@@ -241,9 +241,11 @@ module.exports = async function handler(req, res) {
       'deadline-exceeded',
       'unavailable'
     ]);
-    const message = clientVisibleCodes.has(code)
-      ? String(error?.message || 'Operazione non completata.')
-      : 'Backend Vercel temporaneamente non disponibile.';
+    const message = code === 'resource-exhausted'
+      ? 'Quota o risorse Firebase temporaneamente esaurite: verificare quote e fatturazione Firestore. Non ripetere continuamente il login.'
+      : clientVisibleCodes.has(code)
+        ? String(error?.message || 'Operazione non completata.')
+        : 'Backend Vercel temporaneamente non disponibile.';
 
     return sendJson(res, statusForCode(code), {
       error: { code, message }
