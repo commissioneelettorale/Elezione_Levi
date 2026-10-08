@@ -195,7 +195,7 @@ async function checkSchoolRights(){
  await deposit(third.sessionId,{consiglio:{isBianca:true}});
  assert.equal((await api.getVoterSessionStatus({data:{annoScolastico:year,sessionId:third.sessionId}})).status,'COMMITTED');
  await assert.rejects(deposit(third.sessionId,{consiglio:{isBianca:true}}));
- const repeat=await login(council);await assert.rejects(deposit(repeat.sessionId,{consiglio:{isBianca:true}}));
+ await assert.rejects(login(council),e=>e.code==='failed-precondition','Consumed credential cannot open a second session');
  assert.equal((await new Ref(path('voti_consiglio')).get()).size,1);
  assert.equal((await new Ref(path('voti_classe_genitori')).get()).size,2);
  const participation=await api.getAnonymousParticipation(commission());assert.equal(participation.totalEligible,3);assert.equal(participation.totalParticipated,3);
