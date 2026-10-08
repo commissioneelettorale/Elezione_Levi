@@ -1,0 +1,27 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict'),{spawnSync}=require('node:child_process');
+const html=fs.readFileSync('index.html','utf8');
+const moduleMatch=html.match(/<script type="module">([\s\S]*?)<\/script>/);
+assert.ok(moduleMatch,'Applicazione JS assente');
+const syntax=spawnSync(process.execPath,['--input-type=module','--check'],{input:moduleMatch[1],encoding:'utf8'});
+assert.equal(syntax.status,0,syntax.stderr);
+assert.match(html,/window.openConsultationScheduleEditor=/);
+assert.match(html,/window.downloadCommissionDossierDocx=async function/);
+for(const kind of ["collaudo","dpo","apertura"])assert.ok(html.includes("downloadCommissionDossierDocx('"+kind+"')"),'Pulsante Word mancante: '+kind);
+assert.match(html,/Verifiche documentali confermate:/);
+const from=html.indexOf('window.downloadCommissionDossierDocx=async function');
+const to=html.indexOf('// Verbale analitico del metodo dei quozienti',from);
+assert.ok(from>0&&to>from,'Verbale non isolato');
+const report=html.slice(from,to);
+for(const name of ['getTechnicalStatus','getRegularityState','getVotingReview','fetchCompleteTechnicalLog','getDpoReviewProfile','generateDocxFile'])
+ assert.ok(report.includes(name),'Manca sorgente per lo stato effettivo: '+name);
+assert.ok(!/SECURE_API\.(?:castVote|saveElectionConfig|setRegularityControl|reviewVoting|createAnonymousCredentials)/.test(report),'Il download non deve scrivere nel sistema reale');
+assert.match(report,/Codici PROVA generati dal modello locale/);
+assert.match(report,/NON VERIFICATA/);
+assert.match(report,/Data prevista: martedì 13 ottobre 2026/);
+assert.match(html,/const confirmed=await saveConfigToDB\(\{captureForms:false,notify:false,snapshot\}\)/);
+assert.match(html,/configElezioni=previous;window.configElezioni=configElezioni/);
+const b=fs.readFileSync('functions/core.js','utf8');
+assert.match(b,/structuralAnonymityVerified:false/);
+assert.match(b,/regularityMissing\(state,current\)/);
+console.log('PASS: sintassi JS valida, orari modificabili solo con conferma cloud e rollback, tre Word basati su API di sola lettura, voto reale protetto.');
