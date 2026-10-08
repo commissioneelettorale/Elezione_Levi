@@ -2124,7 +2124,11 @@
                 const res = await SECURE_API.commissionLogin({ username, password, annoScolastico: configElezioni.annoScolastico });
                 await signInWithCustomToken(auth, res.data.customToken);
                 if(!(await syncConfigFromDB())){
-                    showNotification('Configurazione non disponibile','Accesso riuscito, ma il database non ha restituito la configurazione annuale. Non modificare i dati finché non è disponibile.','error');
+                    // L'identità è valida, ma l'area Commissione non deve operare su dati
+                    // di fallback. Esporre un errore distinto e una via di recupero.
+                    commissionSessionReady=false;
+                    showNotification('Accesso riconosciuto, configurazione non caricata',
+                        'Credenziali Commissione accettate. Lettura della configurazione annuale non riuscita: controllare connessione e permessi Firestore e riprovare. Non modificare registri o urne.','error');
                     return;
                 }
                 resetIdleTimer();
@@ -2138,7 +2142,11 @@
                 showPage('adminPanel');
                 await resumeDpoDownload();
             } catch (e) {
-                const authCode=String(e?.code||''); const authMsg=String(e?.message||''); const serviceUnavailable=/unavailable|internal|network-request-failed/i.test(authCode)||/failed to fetch|network|cors|temporaneamente non disponibile/i.test(authMsg); showNotification(serviceUnavailable?'Servizio Commissione non disponibile':'Accesso negato',serviceUnavailable?'Il servizio di autenticazione non è raggiungibile in questo momento.':'Username o password non validi.','error');
+                const authCode=String(e?.code||''); const authMsg=String(e?.message||'');
+                const badCredentials=/unauthenticated|invalid-credential|wrong-password|invalid-login-credentials/i.test(authCode)||/credenziali non valide|username o password|password errata/i.test(authMsg);
+                const serviceUnavailable=/unavailable|internal|network-request-failed/i.test(authCode)||/failed to fetch|network|cors|temporaneamente non disponibile/i.test(authMsg);
+                const explanation=badCredentials?'Controlla username e password personali.':serviceUnavailable?'Servizio di autenticazione temporaneamente non raggiungibile. Riprova dopo avere verificato la rete.':('Autenticazione non completata: '+(authMsg||authCode||'errore sconosciuto')+'.');
+                showNotification(badCredentials?'Credenziali non riconosciute':serviceUnavailable?'Servizio Commissione non disponibile':'Errore di accesso Commissione',explanation,'error');
             }
         };
 
