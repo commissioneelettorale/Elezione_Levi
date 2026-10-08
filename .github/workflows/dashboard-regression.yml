@@ -1,0 +1,21 @@
+name: Dashboard regression checks
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'lib/management-aggregate.js'
+      - 'scripts/check-management-aggregate.cjs'
+      - '.github/workflows/dashboard-regression.yml'
+  workflow_dispatch:
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate dashboard aggregator
+        run: node scripts/check-management-aggregate.cjs
+      - name: Verify sandbox model
+        run: node scripts/check-sandbox.cjs
