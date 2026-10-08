@@ -5834,8 +5834,21 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                 </div>`;
             }).join('');
         }
-        function diagnosticCards(diagnostics) {
-            return (diagnostics||[]).map(d=>`<div class="p-4 rounded-xl border ${d.ok?'bg-emerald-50 border-emerald-200':'bg-red-50 border-red-200'}"><div class="flex gap-2 items-start"><span class="inline-block w-3 h-3 shrink-0 rounded-full mt-1 ${d.ok?'bg-emerald-600':'bg-red-600'}" role="img" aria-label="${d.ok?'Verificato':'Intervento richiesto'}"></span><div><b class="text-xs text-black">${technicalEscape(d.label)}</b><p class="text-xs mt-2 text-slate-700">${technicalEscape(d.detail)}</p>${d.ok?'':`<button onclick="window.resolveDiagnostic('${technicalEscape(d.action)}',this)" class="mt-3 px-3 py-2 rounded-lg bg-red-700 text-white text-xs font-bold">Risolvi</button>`}</div></div></div>`).join('');
+        function diagnosticCards(diagnostics, recorded=null) {
+            return (diagnostics||[]).map(d=>{
+                const alreadyRecorded=d.id==='evidence' && recorded?.report;
+                const visibleOk=d.ok===true;
+                const cls=visibleOk?'bg-emerald-50 border-emerald-200':alreadyRecorded?'bg-amber-50 border-amber-200':'bg-slate-50 border-slate-200';
+                const text=alreadyRecorded&&!visibleOk
+                    ?'Rapporto tecnico già registrato: ID '+recorded.report.id+'. Occorre la verifica del contenuto e la conferma della Commissione; non ripetere la registrazione.'
+                    :d.detail;
+                const label=alreadyRecorded?'Apri la verifica Commissione':d.action==='recheck'?'Riesegui il controllo':d.action==='report'?'Apri verbale tecnico':'Vai alla verifica';
+                return `<div class="p-4 rounded-xl border ${cls}">
+                    <b class="text-xs text-slate-900">${technicalEscape(d.label)}</b>
+                    <p class="text-xs mt-2 text-slate-700">${technicalEscape(text)}</p>
+                    ${visibleOk?'':`<button onclick="window.resolveDiagnostic('${technicalEscape(d.action)}',this)" class="mt-3 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold">${label}</button>`}
+                </div>`;
+            }).join('');
         }
         window.refreshCommissionDiagnostics=async()=>{
             const box=document.getElementById('commission-diagnostics');if(!box)return;
@@ -6019,7 +6032,7 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                 const records=summarizeTechnicalRegistrations(allLogs);
                 const checkpoints=document.getElementById('technical-recorded-checkpoints');
                 if(checkpoints)checkpoints.innerHTML=renderTechnicalRegistrations(records,complete);
-                summary.innerHTML = `<div class="flex flex-col lg:flex-row justify-between gap-4 items-start lg:items-center mb-4"><div><span class="text-[9px] uppercase tracking-wider text-amber-700 font-black">STATO SISTEMA</span><h3 class="text-xl font-black text-slate-900 mt-1">${technicalEscape(currentTechnicalStatus.phase || '—')}</h3><p class="text-[10px] text-slate-500">Backend e registri verificati per l’A.S. ${technicalEscape(currentTechnicalStatus.year || configElezioni.annoScolastico)}</p></div><div class="px-3 py-2 rounded-xl bg-emerald-100 text-emerald-900 text-[10px] font-black">${controls.backendReachable===true && controls.firebaseReachable===true && controls.serverSideAuth===true ? 'COLLEGAMENTO TECNICO VERIFICATO' : 'COLLEGAMENTO DA VERIFICARE'}</div></div><div class="grid md:grid-cols-2 lg:grid-cols-4 gap-3">${technicalStatusCards(controls)}</div><h4 class="font-bold mt-5 mb-3 text-black">Controlli e rimedi</h4><div class="grid md:grid-cols-2 gap-3">${diagnosticCards(currentTechnicalStatus.diagnostics)}</div>`;
+                summary.innerHTML = `<div class="flex flex-col lg:flex-row justify-between gap-4 items-start lg:items-center mb-4"><div><span class="text-[9px] uppercase tracking-wider text-amber-700 font-black">STATO SISTEMA</span><h3 class="text-xl font-black text-slate-900 mt-1">${technicalEscape(currentTechnicalStatus.phase || '—')}</h3><p class="text-[10px] text-slate-500">Backend e registri verificati per l’A.S. ${technicalEscape(currentTechnicalStatus.year || configElezioni.annoScolastico)}</p></div><div class="px-3 py-2 rounded-xl bg-emerald-100 text-emerald-900 text-[10px] font-black">${controls.backendReachable===true && controls.firebaseReachable===true && controls.serverSideAuth===true ? 'COLLEGAMENTO TECNICO VERIFICATO' : 'COLLEGAMENTO DA VERIFICARE'}</div></div><div class="grid md:grid-cols-2 lg:grid-cols-4 gap-3">${technicalStatusCards(controls)}</div><h4 class="font-bold mt-5 mb-3 text-black">Controlli e rimedi</h4><div class="grid md:grid-cols-2 gap-3">${diagnosticCards(currentTechnicalStatus.diagnostics, records)}</div>`;
                 if (body) body.innerHTML = technicalLogRows(currentTechnicalLogs);
                 const stamp = document.getElementById('technicalLastUpdate');
                 if (stamp) stamp.textContent = 'LIVE • ' + new Date().toLocaleTimeString('it-IT');
