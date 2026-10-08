@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'index.html'
+      - 'lib/privacy-review-ui.js'
+      - 'scripts/check-privacy-architecture-label.cjs'
       - 'scripts/build-public-site.cjs'
       - 'scripts/check-management-ui.cjs'
       - 'scripts/check-collaudo-layout.cjs'
@@ -35,5 +37,7 @@ jobs:
         run: node scripts/check-cabin-checkpoints.cjs
       - name: Verify independent collaudo controls and real voting gates
         run: node scripts/check-collaudo-gates.cjs
+      - name: Verify architectural privacy status cannot be self-certified
+        run: node scripts/check-privacy-architecture-label.cjs
       - name: Run public build smoke tests
         run: node scripts/build-public-site.cjs
