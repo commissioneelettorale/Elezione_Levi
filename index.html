@@ -6255,6 +6255,21 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             }catch(e){ if(err){err.textContent=e.message||'Credenziali non valide.';err.classList.remove('hidden');} }
         };
 
+        // Fascicolo informativo gestionale: documenti pubblici, senza lettura dell'urna.
+        function renderManagementDocumentsSection() {
+            const role=normalizeRole(currentManagementData?.role||'');
+            return `<section class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm" aria-label="Fascicolo documentale">
+                <h3 class="text-sm font-black text-slate-900">Fascicolo documentale e riferimenti</h3>
+                <p class="text-xs text-slate-600 mt-2">Consultazione dei documenti informativi. I verbali con risultati sono prodotti soltanto dopo le operazioni di scrutinio, verifica e convalida; questa pagina non pubblica automaticamente alcun esito.</p>
+                <div class="flex flex-wrap gap-2 mt-4">
+                    <a href="note-legali.html" target="_blank" rel="noopener noreferrer" class="bg-slate-100 border rounded-lg px-3 py-2 text-xs font-bold">Note legali</a>
+                    <a href="anonimato.html" target="_blank" rel="noopener noreferrer" class="bg-slate-100 border rounded-lg px-3 py-2 text-xs font-bold">Protezione del voto</a>
+                    <a href="fascicolo-dpo.html" target="_blank" rel="noopener noreferrer" class="bg-slate-100 border rounded-lg px-3 py-2 text-xs font-bold">Fascicolo DPO (informazioni)</a>
+                </div>
+                <p class="mt-3 text-xs text-slate-600">Profilo: ${technicalEscape(role)}. Accesso agli atti e prospetti dettagliati secondo le autorizzazioni della Commissione e la normativa applicabile.</p>
+            </section>`;
+        }
+
         function renderManagementDashboardView(container, data) {
             if (!currentManagementData) return;
             const role = normalizeRole(currentManagementData.role);
