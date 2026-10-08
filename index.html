@@ -2547,6 +2547,40 @@
             </div>${r.ok?'<div class="mt-3 p-4 rounded-xl bg-emerald-600 text-white font-black">✓ SISTEMA PRONTO — PUOI PREMERE “APRI ORA”</div>':'<div class="mt-3 p-3 rounded-xl bg-slate-50 border text-[10px] text-slate-600"><b>Nota:</b> le voci di Regolarità e MIM non sono errori informatici. Sono attestazioni che devono essere confermate solo quando gli atti e le verifiche corrispondenti esistono realmente.</div>'}`;
         }
 
+        window.prepareElectionReadiness = async function() {
+            const output=document.getElementById('election-preparation-result');
+            const button=document.getElementById('election-preparation-button');
+            if(!output||!auth.currentUser||!commissionSessionReady) {
+                showNotification('Sessione Commissione richiesta','Accedere con il proprio account Commissione.','error');
+                return;
+            }
+            if(button)button.disabled=true;
+            output.textContent='Controllo dello stato effettivo del backend e delle verifiche registrate…';
+            try {
+                const result=await verifyProductionReadiness();
+                const lines=[];
+                lines.push(result.details.technical.ok
+                    ? '✓ API e autenticazione tecnica raggiungibili'
+                    : '✗ Servizio tecnico: '+result.details.technical.message);
+                const remaining=result.details.regularity.missing||[];
+                lines.push(result.details.regularity.ok
+                    ? '✓ Regolarità registrata e confermata dal server'
+                    : '✗ Regolarità: '+(remaining.length?remaining.join(', '):'verifica non completata o non raggiungibile'));
+                lines.push(result.details.mim.ok
+                    ? '✓ Checklist MIM registrata'
+                    : '✗ Checklist MIM: '+result.details.mim.missing.length+' elementi da confermare');
+                if(configElezioni.modalitaProva===true)lines.push('! Modalità prova attiva: deve essere disattivata prima del voto reale');
+                if(result.ok)lines.push('Controlli preliminari superati. Per autorizzare e aprire, usare la procedura ordinaria della Commissione; gli orari restano vincolanti.');
+                else lines.push('Le urne reali rimangono protette. Apri Regolarità o Collaudo per le verifiche mancanti.');
+                output.textContent=lines.join('\n');
+                output.className='mt-3 rounded-xl border p-4 text-sm whitespace-pre-wrap '+(result.ok?'bg-emerald-50 border-emerald-200 text-emerald-950':'bg-amber-50 border-amber-200 text-amber-950');
+                await refreshOpeningStatus();
+            }catch(error){
+                output.textContent='Controllo non riuscito: '+(error?.message||'errore sconosciuto')+'. Nessuna autorizzazione è stata modificata.';
+                output.className='mt-3 rounded-xl border p-4 text-sm bg-red-50 border-red-200 text-red-950';
+            }finally{if(button)button.disabled=false;}
+        };
+
         function renderOpeningTab(container) {
             const w=votingWindowStatus();
             container.innerHTML=`
@@ -2572,6 +2606,12 @@
                           <button onclick="window.downloadCommissionDossierDocx('apertura')" class="px-3 py-2 border rounded-xl text-xs font-bold">Verbale preparatorio 13 ottobre (Word)</button>
                         </div>
                         <p class="text-xs text-amber-950 mt-3">I verbali sono bozze basate sullo stato server, da verificare e firmare. Nessun pulsante trasforma verifiche incomplete in attestazioni positive o apre urne senza autorizzazione.</p>
+                    </section>
+                    <section class="bg-white border-2 border-blue-300 rounded-2xl p-5">
+                        <h4 class="font-black text-blue-950 text-lg">Preparazione guidata delle votazioni</h4>
+                        <p class="text-xs text-slate-600 mt-2">Un unico controllo legge lo stato reale del server, senza modificare urne, codici o autorizzazioni.</p>
+                        <button id="election-preparation-button" onclick="window.prepareElectionReadiness()" class="mt-3 bg-blue-900 text-white px-5 py-3 rounded-xl font-black hover:bg-blue-800 disabled:opacity-50">PREPARA LE VOTAZIONI — CONTROLLA TUTTO</button>
+                        <div id="election-preparation-result" role="status" aria-live="polite"></div>
                     </section>
                     <div id="opening-status-box"></div>
                     <div class="grid md:grid-cols-3 gap-4">
