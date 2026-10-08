@@ -243,7 +243,7 @@ module.exports = async function handler(req, res) {
       'unavailable'
     ]);
     const message = code === 'resource-exhausted'
-      ? 'Quota o risorse Firebase temporaneamente esaurite: verificare quote e fatturazione Firestore. Non ripetere continuamente il login.'
+      ? 'Firebase ha segnalato risorse esaurite. Verificare quale servizio ha raggiunto un limite (Firestore o Authentication) e controllare l’uso delle quote. Non ripetere automaticamente l’operazione.'
       : clientVisibleCodes.has(code)
         ? String(error?.message || 'Operazione non completata.')
         : 'Backend Vercel temporaneamente non disponibile.';
