@@ -6140,8 +6140,9 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                     for(const test of log.report.tests) write(`${TECHNICAL_TEST_LABELS[test.id]||test.id}: ${TECHNICAL_OUTCOME_LABELS[test.outcome]||test.outcome}. ${test.evidence||'Nessuna evidenza registrata.'}`,8,false,3);
                 }
                 if(log.privacyAssessment) {
-                    write('Valutazione architetturale registrata dal backend: '+(log.privacyAssessment.structuralAnonymityVerified?'vedere evidenze di verifica':'separazione strutturale identità-voto NON VERIFICATA'),8,true,3);
+                    write('Valutazione indipendente della segretezza strutturale: '+(log.privacyAssessment.structuralAnonymityVerified?'ESITO DA VERIFICARE CON EVIDENZE':'NON VERIFICATA — non è un errore dei checkpoint o del collaudo automatico'),8,true,3);
                     write(log.privacyAssessment.limitation||'Consultare il rapporto tecnico.',8,false,3);
+                    write('Distinguere la separazione logica dei registri dalla segretezza rispetto a gestori server, metadati e chiavi. Riferimento: Fascicolo DPO → valutazione indipendente.',8,false,3);
                 }
             });
             write('Esito e sottoscrizione', 11, true, 4);
