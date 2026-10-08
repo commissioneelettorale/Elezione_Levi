@@ -410,13 +410,19 @@
             if(!ui?.configure||!ui?.show){showNotification('Fascicolo non disponibile','Ricarica la pagina per riprovare. Gli altri accessi restano disponibili.','error');return;}
             ui.configure({api:SECURE_API,config:()=>configElezioni,logs:()=>fetchCompleteTechnicalLog(),notify:(...args)=>window.showNotification(...args),
                 saveMode:async()=>{
-                    collectConfigFormFields();
-                    const oldMode=configElezioni.privacyMode;
-                    configElezioni={...configElezioni,privacyMode:'PRESENTIAL_UNLINKED_V1'};
-                    window.configElezioni=configElezioni;
-                    if(!(await saveConfigToDB({captureForms:false,notify:false}))){
-                        configElezioni.privacyMode=oldMode;
-                        throw new Error(window.lastConfigSaveError||'Modalità credenziali non verificata nel cloud.');
+                    // Cambiare la modalità privacy non deve salvare accidentalmente
+                    // campi incompleti o modifiche non confermate del modulo generale.
+                    if(configElezioni.privacyMode==='PRESENTIAL_UNLINKED_V1')return;
+                    const original=configElezioni;
+                    const proposed={...original,privacyMode:'PRESENTIAL_UNLINKED_V1'};
+                    configElezioni=proposed;
+                    window.configElezioni=proposed;
+                    const saved=await saveConfigToDB({captureForms:false,notify:false,snapshot:proposed});
+                    if(!saved){
+                        configElezioni=original;
+                        window.configElezioni=original;
+                        const reason=window.lastConfigSaveError||'Configurazione non confermata dal cloud.';
+                        throw new Error(reason+' Nessun cambio di modalità è stato confermato: non emettere credenziali reali.');
                     }
                 }
             });
