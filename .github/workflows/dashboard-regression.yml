@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - 'index.html'
+      - 'lib/election-sandbox-ui.js'
+      - 'lib/election-sandbox.js'
+      - 'scripts/check-sandbox.cjs'
+      - 'scripts/check-sandbox-flow.cjs'
       - 'scripts/build-public-site.cjs'
       - 'scripts/check-management-ui.cjs'
       - 'scripts/check-collaudo-layout.cjs'
@@ -27,6 +31,8 @@ jobs:
         run: npm install --no-save --ignore-scripts jsdom@26
       - name: Verify sandbox model
         run: node scripts/check-sandbox.cjs
+      - name: Verify end-to-end trial ballot navigation in isolated DOM
+        run: node scripts/check-sandbox-flow.cjs
       - name: Check management UI and document exports
         run: node scripts/check-management-ui.cjs
       - name: Validate collaudo and scrutiny layout
