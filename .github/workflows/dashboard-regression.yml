@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'index.html'
+      - 'scripts/build-public-site.cjs'
+      - 'scripts/check-management-ui.cjs'
       - 'lib/management-aggregate.js'
       - 'scripts/check-management-aggregate.cjs'
       - '.github/workflows/dashboard-regression.yml'
@@ -17,5 +19,11 @@ jobs:
           node-version: '22'
       - name: Validate dashboard aggregator
         run: node scripts/check-management-aggregate.cjs
+      - name: Install isolated jsdom test dependency
+        run: npm install --no-save --ignore-scripts jsdom@26
       - name: Verify sandbox model
         run: node scripts/check-sandbox.cjs
+      - name: Check management UI and document exports
+        run: node scripts/check-management-ui.cjs
+      - name: Run public build smoke tests
+        run: node scripts/build-public-site.cjs
