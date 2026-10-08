@@ -35,7 +35,7 @@ const db={collection:p=>new Ref(p),runTransaction:async fn=>{
 class HttpsError extends Error{constructor(code,message){super(message);this.code=code;}}
 // The crypto module is injected with the same synthetic environment used by this test.
 const testVault={...vault,keyMaterial:()=>vault.keyMaterial(env),seal:(...a)=>vault.seal(...a,env),open:(...a)=>vault.open(...a,env)};
-const context={exports:{},require:n=>n==='../lib/legal-readiness'?legal:n==='../lib/voting-admission'?require('../lib/voting-admission'):n==='../lib/election-policy'?policy:n==='../lib/ballot-vault'?testVault:n==='../lib/voter-token-code'?require('../lib/voter-token-code'):n==='crypto'?crypto:n==='firebase-functions/v2/https'?{HttpsError}:n==='firebase-admin/app'?{getApps:()=>[{}]}:n==='firebase-admin/firestore'?{getFirestore:()=>db,FieldValue:{serverTimestamp:()=>new TestDate(),delete:()=>null,increment:x=>x},Timestamp:{fromMillis:ms=>({toMillis:()=>ms}),fromDate:d=>({toMillis:()=>+d})}}:{getAuth:()=>({})},console,Date:TestDate,Buffer,Intl,URL,Set,Map,process:{env}};
+const context={exports:{},require:n=>n==='../lib/legal-readiness'?legal:n==='../lib/voting-admission'?require('../lib/voting-admission'):n==='../lib/election-policy'?policy:n==='../lib/no-lists'?require('../lib/no-lists'):n==='../lib/voter-register'?require('../lib/voter-register'):n==='../lib/ballot-vault'?testVault:n==='../lib/voter-token-code'?require('../lib/voter-token-code'):n==='crypto'?crypto:n==='firebase-functions/v2/https'?{HttpsError}:n==='firebase-admin/app'?{getApps:()=>[{}]}:n==='firebase-admin/firestore'?{getFirestore:()=>db,FieldValue:{serverTimestamp:()=>new TestDate(),delete:()=>null,increment:x=>x},Timestamp:{fromMillis:ms=>({toMillis:()=>ms}),fromDate:d=>({toMillis:()=>+d})}}:{getAuth:()=>({})},console,Date:TestDate,Buffer,Intl,URL,Set,Map,process:{env}};
 vm.createContext(context);vm.runInContext(fs.readFileSync('functions/core.js','utf8')+'\nexports._test={sanitizeStoredBallot,assertAllPublicationDeadlines,makeAggregateProjection,privacyArchitectureAssessment,configurationHash,validateListBallot,validateClassBallot};',context);
 const api=context.exports,path=(name,id)=>root+'/'+name+'_'+year.replace('/','_')+(id?'/'+id:'');
 const configPath=root+'/config/yearly_settings_2026_2027',statePath=path('regolarita','state');
@@ -195,7 +195,7 @@ async function checkSchoolRights(){
  await deposit(third.sessionId,{consiglio:{isBianca:true}});
  assert.equal((await api.getVoterSessionStatus({data:{annoScolastico:year,sessionId:third.sessionId}})).status,'COMMITTED');
  await assert.rejects(deposit(third.sessionId,{consiglio:{isBianca:true}}));
- const repeat=await login(council);await assert.rejects(deposit(repeat.sessionId,{consiglio:{isBianca:true}}));
+ await assert.rejects(login(council),e=>e.code==='failed-precondition','Consumed credential cannot open a second session');
  assert.equal((await new Ref(path('voti_consiglio')).get()).size,1);
  assert.equal((await new Ref(path('voti_classe_genitori')).get()).size,2);
  const participation=await api.getAnonymousParticipation(commission());assert.equal(participation.totalEligible,3);assert.equal(participation.totalParticipated,3);

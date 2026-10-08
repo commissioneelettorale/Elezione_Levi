@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'index.html'
+      - 'scripts/check-commission-minutes.cjs'
       - 'lib/privacy-review-ui.js'
       - 'scripts/check-privacy-architecture-label.cjs'
       - 'scripts/build-public-site.cjs'
@@ -39,5 +40,9 @@ jobs:
         run: node scripts/check-collaudo-gates.cjs
       - name: Verify architectural privacy status cannot be self-certified
         run: node scripts/check-privacy-architecture-label.cjs
+      - name: Validate election-opening and DPO Word generators
+        run: node scripts/check-commission-minutes.cjs
+      - name: Exercise synthetic backend elections and voting admission
+        run: node scripts/check-consultations.cjs
       - name: Run public build smoke tests
         run: node scripts/build-public-site.cjs
