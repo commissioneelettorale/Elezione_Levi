@@ -2504,6 +2504,19 @@
                         </div>
                     </div>
 
+                    <section class="bg-white border-2 border-blue-200 rounded-2xl p-5">
+                        <h4 class="text-sm font-black text-blue-950">Modelli di verbale — collaudo e attribuzione dei seggi</h4>
+                        <p class="text-xs text-slate-600 mt-2">I modelli di attribuzione Word sono riservati alla Commissione e richiedono la chiusura della consultazione; non utilizzano dati fittizi del collaudo per attestare risultati reali. L’area prova conserva i propri report sintetici separati.</p>
+                        <div class="flex flex-wrap gap-2 mt-3">
+                            <button onclick="window.downloadDhondtMinutesDocx('istituto')" class="bg-blue-900 text-white rounded-lg px-3 py-2 text-xs font-bold">Verbale Word D'Hondt — studenti Istituto</button>
+                            <button onclick="window.downloadDhondtMinutesDocx('consulta')" class="bg-blue-900 text-white rounded-lg px-3 py-2 text-xs font-bold">Verbale Word quozienti — Consulta (verificare disciplina)</button>
+                            <button onclick="window.downloadDhondtMinutesDocx('consiglio','GENITORE')" class="bg-slate-800 text-white rounded-lg px-3 py-2 text-xs font-bold">Verbale Word — Genitori</button>
+                            <button onclick="window.downloadDhondtMinutesDocx('consiglio','DOCENTE')" class="bg-slate-800 text-white rounded-lg px-3 py-2 text-xs font-bold">Verbale Word — Docenti</button>
+                            <button onclick="window.downloadDhondtMinutesDocx('consiglio','ATA')" class="bg-slate-800 text-white rounded-lg px-3 py-2 text-xs font-bold">Verbale Word — ATA</button>
+                            <button onclick="window.downloadTechnicalMinutes()" class="bg-slate-100 border rounded-lg px-3 py-2 text-xs font-bold">Verbale tecnico PDF esistente</button>
+                        </div>
+                    </section>
+
                     <div class="grid md:grid-cols-2 gap-4">
                         <div class="bg-white rounded-2xl border p-5">
                             <div id="school-test-users"></div>
@@ -6820,6 +6833,80 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
             const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500);
         }
+        // Verbale analitico del metodo dei quozienti (O.M. 215/1991, art. 44).
+        // Nessuna proclamazione automatica in caso di parità che richiede sorteggio.
+        window.downloadDhondtMinutesDocx=async function(section='istituto',component=''){
+          try {
+            if (!auth.currentUser || !commissionSessionReady) throw Error('Accesso Commissione richiesto.');
+            if (!['istituto','consulta','consiglio'].includes(section)) throw Error('Selezionare una consultazione a liste.');
+            const descriptor=electionDescriptor(section,component);
+            const response=await SECURE_API.getAnonymousBallots({collection:descriptor.col,annoScolastico:configElezioni.annoScolastico});
+            if(!['CLOSED','RELEASED'].includes(response.data?.phase)) throw Error('La consultazione deve essere chiusa prima del verbale di attribuzione.');
+            const raw=response.data?.ballots||[];
+            if(raw.some(r=>r._turnoutOnly===true))throw Error('Disponibili soltanto dati di affluenza: non procedere al conteggio.');
+            const ballots=section==='consiglio'?raw.filter(r=>r.tipo===component):raw;
+            const lists=section==='consiglio'?(configElezioni.listeConsiglio?.[component]||{}):section==='consulta'?(configElezioni.listeConsulta||{}):(configElezioni.listeIstituto||{});
+            const seats=section==='consiglio'?Number(localVotiScrutinio.seggiDisponibili['consiglio_'+component]||0):Number(localVotiScrutinio.seggiDisponibili[section]||0);
+            if(!Number.isInteger(seats)||seats<1||seats>50)throw Error('Numero seggi non configurato o non plausibile. Verificare nella sezione Scrutinio.');
+            if(!Object.keys(lists).length)throw Error('Non risultano liste configurate.');
+            const counts=Object.fromEntries(Object.keys(lists).map(k=>[k,0]));
+            const preferences={};
+            for(const b of ballots) {
+              if(!b.isBianca && b.lista && Object.hasOwn(counts,b.lista))counts[b.lista]++;
+              if(!b.isBianca && b.lista && Object.hasOwn(counts,b.lista)){
+                for(let i=1;i<=10;i++){const v=String(b['p'+i]||'').trim();if(!v)continue;const n=v.includes(':')?v.split(':').slice(1).join(':'):v;const key=b.lista+'|'+n;preferences[key]=(preferences[key]||0)+1;}
+              }
+            }
+            const quotients=[];
+            for(const [id,votes] of Object.entries(counts))for(let divisor=1;divisor<=seats;divisor++)
+              quotients.push({id,lista:lists[id]?.nome||id,votes,divisor,num:votes/ divisor});
+            // Parità di quoziente: prevale la cifra elettorale più alta; a parità ulteriore, intervento della Commissione.
+            quotients.sort((a,b)=>b.num-a.num||b.votes-a.votes||a.id.localeCompare(b.id));
+            const allocated=Object.fromEntries(Object.keys(counts).map(k=>[k,0]));
+            const winning=[];const contingencies=[];
+            for(let i=0;i<quotients.length && winning.length<seats;i++){
+              const q=quotients[i];
+              if(q.votes===0||allocated[q.id]>=(lists[q.id]?.candidati||[]).length)continue;
+              const tied=quotients.filter(z=>z!==q && z.num===q.num && z.votes===q.votes && z.id!==q.id);
+              if(tied.length)contingencies.push('Quoziente '+q.num.toFixed(6)+' tra '+[q.lista,...tied.map(z=>z.lista)].join(', ')+': eventuale sorteggio da verbalizzare.');
+              q.assigned=true;q.number=winning.length+1;winning.push(q);allocated[q.id]++;
+            }
+            const body=[docxHeading('I.I.S. PRIMO LEVI — COMMISSIONE ELETTORALE',1),
+              docxHeading('VERBALE ANALITICO DI ATTRIBUZIONE DEI SEGGI (METODO DEI QUOZIENTI)',1),
+              docxParagraph('DOCUMENTO PROVVISORIO DA VERIFICARE, COMPLETARE E SOTTOSCRIVERE. Non è una proclamazione automatica.',true),
+              docxParagraph('Anno scolastico: '+configElezioni.annoScolastico+' — Consultazione: '+descriptor.title+' — Seggi: '+seats),
+              docxParagraph('Data generazione: '+new Date().toLocaleString('it-IT',{timeZone:'Europe/Rome'})+' — Riferimento verbale seggio: ____________________'),
+              docxHeading('1. Fondamento normativo',1),
+              docxParagraph('O.M. 15 luglio 1991 n. 215, art. 44, commi 4-7: cifra elettorale della lista, divisione successiva per 1, 2, 3... fino al numero dei seggi, graduatoria dei quozienti più alti, redistribuzione per insufficienza dei candidati, assegnazione ai candidati in base alle preferenze. A parità di quoziente prevale la maggiore cifra elettorale; in caso di ulteriore parità è necessario sorteggio verbalizzato. A parità di preferenze vale l’ordine di collocazione nella lista. Applicabilità della disposizione da confermare per la singola consultazione.'),
+              docxHeading('2. Riscontro delle schede e delle cifre elettorali',1),
+              docxTable([['Indicatore','Totale'],['Schede aggregate',String(ballots.length)],['Schede bianche',String(ballots.filter(b=>b.isBianca).length)],['Schede non bianche',String(ballots.filter(b=>!b.isBianca).length)],['Seggi disponibili',String(seats)]]),
+              docxTable([['Lista','Cifra elettorale (voti di lista)'],...Object.keys(lists).map(k=>[lists[k].nome||k,String(counts[k])])]),
+              docxHeading('3. Tutti i quozienti verificabili e graduatoria',1),
+              docxParagraph('Calcolo: cifra elettorale della lista / divisore. L’indicazione SEG GIO è proposta tecnica, soggetta ai controlli e agli eventuali sorteggi.'),
+              docxTable([['Pos.','Lista','Calcolo','Quoziente','Seggio'],...quotients.map((q,i)=>[String(i+1),q.lista,q.votes+' / '+q.divisor,q.num.toLocaleString('it-IT',{maximumFractionDigits:6}),q.assigned?'PROPOSTO N. '+q.number:'—'])]),
+              docxHeading('4. Numero di seggi assegnati per lista',1),
+              docxTable([['Lista','Seggi proposti','Motivazione'],...Object.keys(lists).map(k=>[lists[k].nome||k,String(allocated[k]),allocated[k]+' quozienti selezionati nella graduatoria, nel limite dei candidati'])]),
+              docxHeading('5. Candidati: preferenze, ordine e motivazione',1)];
+            for(const [k,list] of Object.entries(lists)){
+              const rank=(list.candidati||[]).map((name,i)=>({name,i,votes:preferences[k+'|'+name]||0})).sort((a,b)=>b.votes-a.votes||a.i-b.i);
+              body.push(docxParagraph('Lista '+(list.nome||k)+' — seggi proposti: '+allocated[k],true));
+              body.push(docxTable([['Pos.','Candidato','Preferenze','Valutazione'],...rank.map((c,i)=>[String(i+1),c.name,String(c.votes),i<allocated[k]?'PROPOSTO ELETTO — preferenze e ordine di lista':'NON ASSEGNATARIO'])]));
+              body.push(docxParagraph('In caso di parità di preferenze, si applica l’ordine di collocazione nella lista (art. 44, comma 7).'));
+            }
+            body.push(docxHeading('6. Parità, anomalie e decisioni della Commissione',1));
+            body.push(...(contingencies.length?contingencies.map(t=>docxParagraph('DA VERIFICARE: '+t)): [docxParagraph('Nessuna parità di quoziente con identica cifra elettorale segnalata dal prospetto.')]));
+            if(contingencies.length)body.push(docxParagraph('ATTENZIONE: assegnazione NON DEFINITIVA in presenza di quozienti pari e identica cifra elettorale. Registrare sorteggio effettivo e rieseguire la verifica prima della proclamazione.',true));
+            body.push(docxParagraph('Dati di eventuale sorteggio (data, luogo, presenti, modalità, esito): _________________________________________________________'));
+            body.push(docxParagraph('Contestazioni / schede contestate / riconciliazione dei totali: _________________________________________________________'));
+            body.push(docxParagraph('Verifica indipendente dell’esito: _________________________'));
+            body.push(docxHeading('7. Sottoscrizioni e allegati',1));
+            body.push(docxParagraph('Allegare prospetto di scrutinio, documentazione delle liste, eventuali sorteggi e prospetto di proclamazione convalidato. La copia generata automaticamente non equivale ad atto firmato.'));
+            body.push(docxTable([['Qualifica','Nominativo','Firma'],...((configElezioni.commissione||[]).map(m=>[m.ruolo||'',m.nome||'','____________________']))]));
+            await generateDocxFile(body.join(''),'Verbale_DHondt_'+section+(component?'_'+component:'')+'_'+configElezioni.annoScolastico.replace('/','_')+'.docx');
+            showNotification('Verbale Word predisposto','Prospetto analitico scaricato: verificare assegnazioni, eventuali parità e firme.','success');
+          }catch(e){console.error(e);showNotification('Verbale non generato',e.message||'Controllo non completato.','error');}
+        };
+
         window.generateElectionMinutesDocx=async function(section,subComponent=''){
             try { const body=await buildElectionMinutesDocx(section,subComponent); const d=electionDescriptor(section,subComponent); const year=(configElezioni.annoScolastico||'AS').replace('/','_'); await generateDocxFile(body,`Verbale_${section}${subComponent?'_'+subComponent:''}_${year}.docx`); showNotification('Verbale Word generato',`Scaricato il verbale modificabile: ${d.title}.`,'success'); } catch(e){ console.error(e); showNotification('Errore Word','Impossibile generare il verbale: '+e.message,'error'); }
         };
