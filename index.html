@@ -1029,7 +1029,7 @@
             const slots=Array.from({length:6},(_,i)=>p.windows?.[i]||{});
             const acts=Array.from({length:6},(_,i)=>p.acts?.[i]||{});
             return `<div id="consultation-settings" class="bg-white border border-indigo-200 rounded-2xl p-5 mt-4 text-black">
-                <h4 class="font-black text-sm">Consultazioni: calendari e atti distinti</h4>
+                <h4 class="font-black text-sm">Consultazioni: calendari e atti distinti</h4><p class="text-xs mt-2 p-2 bg-blue-50 border border-blue-100 rounded-lg">Modifica qui le fasce scolastiche della consultazione selezionata. Per il 13 ottobre inserisci la data e gli orari deliberati; non è previsto un orario preimpostato. Dopo il salvataggio il backend verifica e applica i vincoli di avvio/congelamento. Nessun dato reale viene modificato durante la compilazione.</p>
                 <label class="block text-xs mt-3">Filtra per elezione<select onchange="window.selectConsultation(this.value)" class="w-full border rounded-xl p-3 mt-1 text-black">${Object.entries(LeviElectionPolicy.ELECTIONS).map(([id,e])=>`<option value="${id}" ${id===key?'selected':''}>${technicalEscape(e.label)}</option>`).join('')}</select></label>
                 <p class="text-xs mt-2 text-slate-600">Ogni consultazione conserva i propri riferimenti MIM, USR/UST e d’Istituto. Sono riportati nei verbali della relativa elezione. Inserire date e protocolli effettivamente adottati, senza usare quelli di un’altra consultazione.</p>
                 ${key==='consulta'?'<p class="text-xs p-3 bg-amber-50 rounded-xl mt-2">La Consulta segue il mandato biennale. Verificare se nell’anno siano previste elezioni di rinnovo, suppletive o surroghe; il mese non determina da solo la procedura.</p>':''}
@@ -1068,13 +1068,17 @@
                 status.textContent='Salvataggio e verifica cloud...';
                 // Persist form edits with the same serialized path as all other tabs.
                 collectConfigFormFields();
-                configElezioni={...configElezioni,consultazioni:{...(configElezioni.consultazioni||{}),[key]:profile}};
-                window.configElezioni=configElezioni;
-                const confirmed=await saveConfigToDB({captureForms:false,notify:false});
-                if(!confirmed)throw new Error(window.lastConfigSaveError||'Salvataggio non verificato.');
-                status.textContent='Calendario e atti salvati e verificati nel cloud.';
+                const previous=JSON.parse(JSON.stringify(configElezioni));
+                const snapshot={...configElezioni,consultazioni:{...(configElezioni.consultazioni||{}),[key]:profile}};
+                const confirmed=await saveConfigToDB({captureForms:false,notify:false,snapshot});
+                if(!confirmed){
+                    configElezioni=previous;window.configElezioni=configElezioni;
+                    throw new Error(window.lastConfigSaveError||'Salvataggio non verificato.');
+                }
+                configElezioni=snapshot;window.configElezioni=configElezioni;
+                status.textContent='Calendario e atti salvati e verificati nel cloud. Le eventuali revisioni precedenti vanno rivalutate.';
             }catch(error){
-                status.textContent=error.message||'Salvataggio non riuscito: verificare i dati.';
+                status.textContent='NON SALVATO: '+(error.message||'verificare i dati. I campi compilati restano visibili per la correzione.');
             }finally{button.disabled=false;}
         };
 
