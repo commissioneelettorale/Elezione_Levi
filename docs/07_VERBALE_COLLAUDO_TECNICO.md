@@ -71,3 +71,9 @@ ____________________________________________________________________
 Prescrizioni: ______________________________________________________
 
 Firme: _____________________________________________________________
+
+## Richiamo agli atti degli organi collegiali (integrazione 08/10/2026)
+
+Secondo i riferimenti comunicati dal referente scolastico, il Collegio dei Docenti si è riunito il **22/09/2026** e il Consiglio d'Istituto il **23/09/2026**, con deliberazioni relative al procedimento. **Numeri e dispositivi:** da verificare e riportare dagli atti originali. Riferimento Commissione n. **9507/2.1 dell'08/10/2026**, da riscontrare nel fascicolo. Il referente comunica altresì una verifica svolta con il DPO: estremi del parere, perimetro e prescrizioni da allegare. Vedi `docs/23_INTEGRAZIONE_ATTI_COLLEGIALI_2026.md`.
+
+Questi richiami non compilano automaticamente la tabella degli esiti, non costituiscono prova dell'anonimato e non trasformano la bozza in un collaudo sottoscritto.
