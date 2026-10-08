@@ -387,7 +387,7 @@
                 catch (_) { throw new Error('Risposta del servizio non valida. Nessun invio automatico ad altri server.'); }
                 if (!response.ok || payload.error || !Object.prototype.hasOwnProperty.call(payload,'data')) {
                     const err = new Error(payload?.error?.message || 'Operazione non completata.');
-                    err.code = payload?.error?.code || 'internal'; throw err;
+                    err.code = payload?.error?.code || 'internal'; err.httpStatus = response.status; err.retryAfterSeconds = Number(payload?.error?.retryAfterSeconds || response.headers?.get?.('Retry-After') || 0)||0; throw err;
                 }
                 return { data: payload.data };
             }
@@ -2116,7 +2116,17 @@
             lucide.createIcons();
         }
 
+        let commissionLoginInProgress=false;
+        let commissionLoginCooldownUntil=0;
         window.checkAdminLogin = async function() {
+            if(commissionLoginInProgress)return;
+            const waitSeconds=Math.max(0,Math.ceil((commissionLoginCooldownUntil-Date.now())/1000));
+            if(waitSeconds)return showNotification('Accesso temporaneamente limitato','Attendere '+waitSeconds+' secondi prima di un altro tentativo; il servizio non è stato richiamato.','info');
+            commissionLoginInProgress=true;
+            try{return await runCommissionLoginOnce();}
+            finally{commissionLoginInProgress=false;}
+        };
+        async function runCommissionLoginOnce() {
             const username = document.getElementById('adminUsername')?.value.trim().toLowerCase() || '';
             const password = document.getElementById('adminPwd')?.value || '';
             if (!username || !password) return showNotification('Dati mancanti','Inserire username e password personali della Commissione.','error');
@@ -2145,10 +2155,16 @@
                 const authCode=String(e?.code||''); const authMsg=String(e?.message||'');
                 const badCredentials=/unauthenticated|invalid-credential|wrong-password|invalid-login-credentials/i.test(authCode)||/credenziali non valide|username o password|password errata/i.test(authMsg);
                 const serviceUnavailable=/unavailable|internal|network-request-failed/i.test(authCode)||/failed to fetch|network|cors|temporaneamente non disponibile/i.test(authMsg);
+                if(authCode==='too-many-requests'){
+                    const seconds=Math.max(60,Number(e?.retryAfterSeconds)||300);
+                    commissionLoginCooldownUntil=Date.now()+seconds*1000;
+                    return showNotification('Limite antitentativi attivo','Accessi limitati per '+seconds+' secondi: non è necessariamente la quota Firebase. Attendere senza ripetere il login.','error');
+                }
+                if(authCode==='resource-exhausted')return showNotification('Quota o risorse Firebase','Il backend segnala RESOURCE_EXHAUSTED. Controllare l’uso e la fatturazione del progetto Firestore; non ripetere il login finché non è stato verificato il servizio.','error');
                 const explanation=badCredentials?'Controlla username e password personali.':serviceUnavailable?'Servizio di autenticazione temporaneamente non raggiungibile. Riprova dopo avere verificato la rete.':('Autenticazione non completata: '+(authMsg||authCode||'errore sconosciuto')+'.');
                 showNotification(badCredentials?'Credenziali non riconosciute':serviceUnavailable?'Servizio Commissione non disponibile':'Errore di accesso Commissione',explanation,'error');
             }
-        };
+        }
 
 
         function renderCommissionPasswordChange(container) {
