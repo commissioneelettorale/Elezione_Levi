@@ -8,6 +8,7 @@ on:
       - 'scripts/check-sandbox.cjs'
       - 'scripts/check-commission-minutes.cjs'
       - 'lib/privacy-review-ui.js'
+      - 'scripts/check-credential-pdf.cjs'
       - 'scripts/check-privacy-architecture-label.cjs'
       - 'scripts/build-public-site.cjs'
       - 'scripts/check-management-ui.cjs'
@@ -47,5 +48,7 @@ jobs:
         run: node scripts/check-commission-minutes.cjs
       - name: Exercise synthetic backend elections and voting admission
         run: node scripts/check-consultations.cjs
+      - name: Verify one-time credentials PDF and manual re-download
+        run: node scripts/check-credential-pdf.cjs
       - name: Run public build smoke tests
         run: node scripts/build-public-site.cjs
