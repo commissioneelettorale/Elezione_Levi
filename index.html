@@ -654,6 +654,8 @@
 
         let activeTokensList = [];
         let unsubscribeTokens = null;
+        let tokensListenerReady = false;
+        let tokensListenerError = '';
 
         function normalizeName(name) {
             if (!name) return "";
@@ -780,20 +782,47 @@
             }
         }
 
+        // Il registro completo non deve essere scaricato ad ogni login della Commissione.
+        // Si ascolta solo nelle pagine che lo utilizzano (Registri / Grafici).
         function startTokensListener() {
-            if (unsubscribeTokens) unsubscribeTokens();
+            if (unsubscribeTokens || !auth.currentUser || !commissionSessionReady) return;
+            tokensListenerReady = false;
+            tokensListenerError = '';
             const q = query(getCollectionRef('tokens'));
-            unsubscribeTokens = onSnapshot(q, (snapshot) => {
+            unsubscribeTokens = onSnapshot(q, snapshot => {
                 activeTokensList = [];
                 snapshot.forEach(doc => {
                     activeTokensList.push({ id: doc.id, ...doc.data() });
                 });
-                if (!registerImportBusy && auth.currentUser && activeAdminTab && (activeAdminTab.startsWith('cred_') || activeAdminTab === 'workflow_digitale')) {
+                tokensListenerReady = true;
+                tokensListenerError = '';
+                if (!registerImportBusy && auth.currentUser && commissionSessionReady
+                    && (activeAdminTab?.startsWith('cred_') || activeAdminTab === 'grafici')) {
                     renderActiveAdminTab();
                 }
-            }, (error) => {
-                console.error("Errore sincronizzazione token:", error);
+            }, error => {
+                console.error('Registro elettorale non leggibile:', error?.code || 'error');
+                tokensListenerError = 'Il registro non è disponibile: '+(error?.code || 'errore di lettura')+'. Controllare le quote Firestore e riprovare successivamente.';
+                const unsub=unsubscribeTokens;
+                unsubscribeTokens=null;
+                if (unsub) unsub();
+                if (auth.currentUser && commissionSessionReady
+                    && (activeAdminTab?.startsWith('cred_') || activeAdminTab === 'grafici')) {
+                    const box = document.getElementById('admin-tab-content');
+                    if (box) box.innerHTML='<div class="p-5 rounded-xl border bg-amber-50 text-amber-950 text-sm"><b>Registro temporaneamente non disponibile.</b><p class="mt-2">'
+                        +technicalEscape(tokensListenerError)+'</p><p class="mt-2">Nessun dato elettorale è stato modificato. Evitare ricaricamenti ripetuti.</p></div>';
+                }
             });
+        }
+        function stopTokensListener() {
+            if (unsubscribeTokens) {
+                const unsub=unsubscribeTokens;
+                unsubscribeTokens=null;
+                unsub();
+            }
+            tokensListenerReady=false;
+            tokensListenerError='';
+            activeTokensList=[];
         }
 
         function collectConfigFormFields() {
@@ -2148,7 +2177,7 @@
                 }
                 commissionSessionReady=true;
                 activeAdminTab = 'config';
-                startTokensListener();
+                // Il registro dei token viene caricato solo aprendo Registro/Grafici.
                 showPage('adminPanel');
                 await resumeDpoDownload();
             } catch (e) {
@@ -2216,7 +2245,7 @@
                 await signInWithCustomToken(auth, res.data.customToken);
                 commissionSessionReady=true;
                 activeAdminTab = 'config';
-                startTokensListener();
+                // Il registro dei token viene caricato solo aprendo Registro/Grafici.
                 resetIdleTimer();
                 showNotification('Password aggiornata','La password temporanea è stata revocata. Conserva la nuova password in modo sicuro.','success');
                 showPage('adminPanel');
@@ -2293,6 +2322,7 @@
 
         window.logoutAdmin = function() { 
             if (typeof clearCommissionLiveListeners === 'function') clearCommissionLiveListeners();
+            stopTokensListener();
             signOut(auth).then(() => {
                 currentUserData = null;
                 currentClassMasterData = null;
@@ -2689,6 +2719,17 @@
         function renderActiveAdminTab() {
             const content = document.getElementById('admin-tab-content');
             if (!content) return;
+            const needsTokenRegister = activeAdminTab?.startsWith('cred_') || activeAdminTab === 'grafici';
+            if (!needsTokenRegister) stopTokensListener();
+            else {
+                if (!unsubscribeTokens && !tokensListenerError) startTokensListener();
+                if (!tokensListenerReady) {
+                    content.innerHTML = '<div class="rounded-xl bg-white border p-5 text-sm">'
+                        +(tokensListenerError ? technicalEscape(tokensListenerError)
+                        : 'Caricamento del registro autorizzato. L’operazione viene effettuata solo quando necessario, non a ogni accesso.')+'</div>';
+                    return;
+                }
+            }
             content.innerHTML = '';
             
             if(activeAdminTab === 'apertura') renderOpeningTab(content);
