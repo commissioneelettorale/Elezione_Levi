@@ -120,6 +120,7 @@ function statusForCode(code) {
     'failed-precondition': 412,
     'aborted': 409,
     'resource-exhausted': 429,
+    'too-many-requests': 429,
     'deadline-exceeded': 504,
     'unavailable': 503
   };
@@ -203,7 +204,7 @@ module.exports = async function handler(req, res) {
   if (retryAfter) {
     res.setHeader('Retry-After', String(retryAfter));
     return sendJson(res, 429, {
-      error: { code: 'resource-exhausted', message: 'Troppi tentativi di accesso. Riprovare tra alcuni minuti.' }
+      error: { code: 'too-many-requests', message: 'Limite di sicurezza: troppi tentativi di accesso da questa rete. Non è una conferma di quota Firebase esaurita.', retryAfterSeconds: retryAfter }
     });
   }
 
