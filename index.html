@@ -5805,7 +5805,7 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                     const log=status[key];
                     return `<div class="p-3 rounded-xl border ${log?'bg-emerald-50 border-emerald-200':'bg-slate-50 border-slate-200'}">
                         <b class="text-xs ${log?'text-emerald-900':'text-slate-800'}">${technicalEscape(label)}</b>
-                        <p class="text-xs mt-2">${log?'REGISTRATO':'${complete?'Non risulta nel registro consultato':'Verifica del registro da completare'}'}</p>
+                        <p class="text-xs mt-2">${log?'REGISTRATO':(complete?'Non risulta nel registro consultato':'Verifica del registro da completare')}</p>
                         ${log?`<div class="mt-1 text-[10px] text-slate-700">Data: ${technicalEscape(log.at?new Date(log.at).toLocaleString('it-IT',{timeZone:'Europe/Rome'}):'—')}<br>Tecnico: ${technicalEscape(log.technicianName||'—')}<br>Esito registrato: ${technicalEscape(log.result||'—')}<br>ID: <code class="break-all select-all">${technicalEscape(log.id||'—')}</code></div>`:''}
                     </div>`;
                 }).join('')}</div>
