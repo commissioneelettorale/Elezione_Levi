@@ -1,0 +1,15 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs');
+const html=fs.readFileSync('index.html','utf8');
+const between=(a,b)=>html.slice(html.indexOf(a),html.indexOf(b,html.indexOf(a)));
+const collaudo=between('function renderCollaudoTab(container)', 'window.setElectionTestMode =');
+const tecnico=between('function renderTechnicalDashboard(container)', 'window.refreshTechnicalDashboard =');
+const scrutinio=between('async function renderScrutinioTab(container)', 'window.setClassNoElected=');
+assert.ok(!collaudo.includes("downloadDhondtMinutesDocx"),'Quotient minutes must not be in collaudo');
+assert.ok(!collaudo.includes("renderTechnicalEvidenceForm()"),'No duplicate report in Commission area');
+assert.ok(collaudo.includes('school-test-users'),'Commission simulation retained');
+assert.ok(tecnico.includes("renderTechnicalEvidenceForm()"),'Technical report must be under technical login');
+assert.ok(scrutinio.includes("downloadDhondtMinutesDocx"),'Quotient minutes must be in scrutiny');
+assert.ok(scrutinio.includes("generateElectionMinutesDocx"),'Results minutes must be in scrutiny');
+assert.ok(html.includes("Unico verbale generale del tecnico"),'Missing simplified report heading');
+console.log('PASS: unique technical report, Commission simulation and election minutes in scrutiny');
