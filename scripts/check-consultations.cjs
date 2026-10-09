@@ -73,7 +73,7 @@ async function check(){
  assert.deepEqual(legal.structuralBlockers(),['structuralSecrecy']);
  const publicStatus=await api.getPublicServiceStatus();assert.equal(publicStatus.secretVotingEnabled,false);
  await assert.rejects(api.validateVoterToken({data:{annoScolastico:year,token:'TEST-NEVER-ACTUAL'}}),e=>e.code==='failed-precondition');
- await assert.rejects(api.castVote({data:{annoScolastico:year,sessionId:'INVALID-NEVER-ACTUAL',ballots:{consulta:{lista:'A'}}}}),e=>e.code==='failed-precondition');
+ await assert.rejects(api.castVote({data:{annoScolastico:year,sessionId:'INVALID-NEVER-ACTUAL',ballots:{consulta:{lista:'A'}}}}),e=>e.code==='unauthenticated','An unknown session must fail without querying redundant pre-admission state');
  assert.equal(stores.size,preGateStores,'admission must not create a session or ballot');
  const readiness=await api.getRegularityState(commission());assert.equal(readiness.readyForVoting,false);assert.ok(readiness.missing.includes('structuralSecrecy'));
  await assert.rejects(api.setRegularityControl(commission({control:'technicalTestPassed',value:true,note:'TEST',reportId:'TEST'})),e=>e.code==='failed-precondition');
