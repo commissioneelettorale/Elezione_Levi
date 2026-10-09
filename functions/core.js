@@ -690,10 +690,12 @@ exports.validateVoterToken = async (request) => {
     assertVotingOpen(current);
     if (!snap.exists) throw new HttpsError('not-found', 'Token non valido.');
     voterData = snap.data() || {};
-    assertCredentialStillUsable(current,voterData);
+    const entitledKeys=assertCredentialStillUsable(current,voterData);
     if(anonymous&&!VotingAdmission.anonymousRecord(voterData))throw new HttpsError('failed-precondition','Archivio credenziali non valido.');
     admittedConfig=current;
-    if(!activeVoterKeys(current,normalize(voterData.tipo),voterData).some(k=>electionPhase(current,k)==='OPEN')) throw new HttpsError('failed-precondition','Nessuna scheda della tua componente è aperta in questa fascia oraria.');
+    // Non avviare una seconda sessione vuota su una consultazione già votata:
+    // evita di bloccare temporaneamente l'accesso alla successiva fascia elettorale.
+    if(!entitledKeys.some(k=>voterData[VOTED_FLAGS[k]]!==true&&electionPhase(current,k)==='OPEN')) throw new HttpsError('failed-precondition','Nessuna nuova scheda da votare è aperta in questa fascia: conserva lo stesso codice per la prossima consultazione.');
     const expires = voterData.sessionExpiresAt?.toMillis?.() || 0;
     if (voterData.activeSessionHash && expires > Date.now()) {
       throw new HttpsError('already-exists', 'Esiste già una sessione di voto attiva per questa credenziale. Attendere la scadenza o completare la sessione aperta.');
@@ -706,7 +708,7 @@ exports.validateVoterToken = async (request) => {
 
   return {
     sessionId,
-    openElections: activeVoterKeys(admittedConfig,normalize(voterData.tipo),voterData).filter(k=>electionPhase(admittedConfig,k)==='OPEN'),
+    openElections: activeVoterKeys(admittedConfig,normalize(voterData.tipo),voterData).filter(k=>voterData[VOTED_FLAGS[k]]!==true&&electionPhase(admittedConfig,k)==='OPEN'),
     tipo: voterData.tipo,
     electionKey: voterData.electionKey || null,
     classe: voterData.classe || null,
