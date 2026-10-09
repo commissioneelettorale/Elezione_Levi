@@ -6086,10 +6086,24 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             if(action==='protectDatabase'&&currentTechnicalStatus?.role!=='COMMISSIONE')return showNotification('Intervento della Commissione','La cifratura delle schede pregresse si avvia dalla Commissione, nella scheda Collaudo.','info');
             if(button){button.disabled=true;button.textContent='Risoluzione in corso...';}
             try {
-                let total=0,more=false;
-                do {const r=await SECURE_API.resolveTechnicalIssue({annoScolastico:configElezioni.annoScolastico,action});total+=r.data?.processed||0;more=r.data?.more===true;if(button)button.textContent=total?'Schede protette: '+total:'Controllo in corso...';}while(more);
-                if(currentTechnicalData)await window.refreshTechnicalDashboard();else await window.refreshCommissionDiagnostics();
-                showNotification('Controllo completato',action==='protectDatabase'?total+' schede pregresse cifrate e verificate. Le copie storiche esterne richiedono gestione separata.':'Controlli aggiornati: vedere gli esiti effettivi.','success');
+                let total=0,more=false,details=null;
+                do {
+                    const response=await SECURE_API.resolveTechnicalIssue({annoScolastico:configElezioni.annoScolastico,action});
+                    details=response.data;
+                    total+=details?.processed||0;
+                    more=details?.more===true;
+                    if(button)button.textContent=total?'Schede protette: '+total:'Controllo in corso...';
+                }while(more);
+                if(currentTechnicalData)await window.refreshTechnicalDashboard();
+                else if(action!=='recheck')await window.refreshCommissionDiagnostics();
+                if(action==='recheck'&&Array.isArray(details?.diagnostics)){
+                    const target=document.getElementById(currentTechnicalData?'technical-diagnostic-cards':'commission-diagnostics');
+                    if(target)target.innerHTML=diagnosticCards(details.diagnostics);
+                }
+                showNotification(action==='recheck'?'Controllo limitato completato':'Intervento completato',
+                    action==='recheck'?'È stata esaminata una porzione limitata delle urne: se vi sono più di 100 schede per raccolta non è una verifica completa. Nessuna attestazione modificata.'
+                    :action==='protectDatabase'?total+' schede pregresse cifrate e verificate. Le copie storiche esterne richiedono gestione separata.':'Controlli aggiornati: vedere gli esiti effettivi.',
+                    'success');
             }catch(e){showNotification('Intervento non completato',e.message||'Riprovare il controllo.','error');}
             finally {if(button){button.disabled=false;button.textContent='Risolvi';}}
         };
@@ -6243,7 +6257,7 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                 const records=summarizeTechnicalRegistrations(allLogs);
                 const checkpoints=document.getElementById('technical-recorded-checkpoints');
                 if(checkpoints)checkpoints.innerHTML=renderTechnicalRegistrations(records,complete);
-                summary.innerHTML = `<div class="flex flex-col lg:flex-row justify-between gap-4 items-start lg:items-center mb-4"><div><span class="text-[9px] uppercase tracking-wider text-amber-700 font-black">STATO SISTEMA</span><h3 class="text-xl font-black text-slate-900 mt-1">${technicalEscape(currentTechnicalStatus.phase || '—')}</h3><p class="text-[10px] text-slate-500">Backend e registri verificati per l’A.S. ${technicalEscape(currentTechnicalStatus.year || configElezioni.annoScolastico)}</p></div><div class="px-3 py-2 rounded-xl bg-emerald-100 text-emerald-900 text-[10px] font-black">${controls.backendReachable===true && controls.firebaseReachable===true && controls.serverSideAuth===true ? 'COLLEGAMENTO TECNICO VERIFICATO' : 'COLLEGAMENTO DA VERIFICARE'}</div></div><div class="grid md:grid-cols-2 lg:grid-cols-4 gap-3">${technicalStatusCards(controls)}</div><h4 class="font-bold mt-5 mb-3 text-black">Controlli e rimedi</h4><div class="grid md:grid-cols-2 gap-3">${diagnosticCards(currentTechnicalStatus.diagnostics, records)}</div>`;
+                summary.innerHTML = `<div class="flex flex-col lg:flex-row justify-between gap-4 items-start lg:items-center mb-4"><div><span class="text-[9px] uppercase tracking-wider text-amber-700 font-black">STATO SISTEMA</span><h3 class="text-xl font-black text-slate-900 mt-1">${technicalEscape(currentTechnicalStatus.phase || '—')}</h3><p class="text-[10px] text-slate-500">Backend e registri verificati per l’A.S. ${technicalEscape(currentTechnicalStatus.year || configElezioni.annoScolastico)}</p></div><div class="px-3 py-2 rounded-xl bg-emerald-100 text-emerald-900 text-[10px] font-black">${controls.backendReachable===true && controls.firebaseReachable===true && controls.serverSideAuth===true ? 'COLLEGAMENTO TECNICO VERIFICATO' : 'COLLEGAMENTO DA VERIFICARE'}</div></div><div class="grid md:grid-cols-2 lg:grid-cols-4 gap-3">${technicalStatusCards(controls)}</div><h4 class="font-bold mt-5 mb-3 text-black">Controlli e rimedi</h4><div id="technical-diagnostic-cards" class="grid md:grid-cols-2 gap-3">${diagnosticCards(currentTechnicalStatus.diagnostics, records)}</div>;
                 if (body) body.innerHTML = technicalLogRows(currentTechnicalLogs);
                 const stamp = document.getElementById('technicalLastUpdate');
                 if (stamp) stamp.textContent = 'LIVE • ' + new Date().toLocaleTimeString('it-IT');
