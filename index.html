@@ -6195,11 +6195,12 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             box.textContent='Verifica in corso...';
             if(reportBox)reportBox.textContent='Lettura del rapporto tecnico già registrato...';
             try {
-                const [statusResponse,stored]=await Promise.all([
+                const [statusResponse,historyResponse]=await Promise.all([
                     SECURE_API.getTechnicalStatus({annoScolastico:configElezioni.annoScolastico,includeRecentEvents:false}),
-                    fetchCompleteTechnicalLog()
+                    SECURE_API.getTechnicalLogs({annoScolastico:configElezioni.annoScolastico})
                 ]);
                 currentTechnicalStatus=statusResponse.data;
+                const stored=historyResponse.data||{};
                 const recorded=summarizeTechnicalRegistrations(stored.logs);
                 box.innerHTML=diagnosticCards(currentTechnicalStatus.diagnostics,recorded);
                 if(reportBox){
@@ -6207,14 +6208,28 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                     const passed=report?.report?.tests?.filter(t=>t.outcome==='PASS').length||0;
                     reportBox.innerHTML=report
                         ? '<b>Rapporto già registrato</b><p>ID: <code class="select-all break-all">'+technicalEscape(report.id)+'</code> · Esito: '+technicalEscape(report.result||'—')+' · '+passed+'/12 prove dichiarate superate.</p><p class="mt-1">'+(report.result==='PROVE_DICHIARATE_SUPERATE'?'Le prove risultano dichiarate superate: conservare le evidenze e utilizzare l’ID in Regolarità.':'Rapporto incompleto o con anomalie: non è confermabile senza ulteriori verifiche.')+'</p>'
-                        :'<b>Nessun rapporto generale rilevato.</b> I checkpoint di apertura/chiusura sono registrazioni differenti dalle dodici prove.';
+                        :('<b>Nessun rapporto generale nella pagina recente.</b> I checkpoint di apertura/chiusura sono differenti dalle dodici prove.'+(stored.nextCursor?'<p class="mt-2">Sono presenti registrazioni più vecchie.</p><button onclick="window.findOlderCommissionTechnicalReport()" class="border rounded-lg px-3 py-2 mt-2 text-xs font-bold">Cerca il rapporto nello storico completo</button>':''));
                 }
             }catch(error){
                 box.innerHTML='<div class="text-red-800 text-xs">'+technicalEscape(error.message||'Errore')+' <button onclick="window.refreshCommissionDiagnostics()" class="underline">Riprova</button></div>';
                 if(reportBox)reportBox.textContent='Impossibile verificare il registro: '+(error.message||'errore');
             }
         };
-                window.resolveDiagnostic=async(action,button)=>{
+                window.findOlderCommissionTechnicalReport=async()=>{
+            const box=document.getElementById('commission-collaudo-report');
+            if(!box)return;
+            box.textContent='Ricerca manuale del rapporto nell’intero registro…';
+            try{
+                const full=await fetchCompleteTechnicalLog();
+                const report=summarizeTechnicalRegistrations(full.logs).report;
+                box.innerHTML=report
+                    ?'<b>Rapporto trovato</b><p>ID: <code class="select-all break-all">'+technicalEscape(report.id)+'</code> · Esito: '+technicalEscape(report.result||'—')+'. Riutilizzare questo ID in Regolarità solo se tutte le dodici prove sono effettivamente documentate e superate.</p>'
+                    :'<b>Nessun rapporto COLLAUDO nello storico esaminato.</b> I checkpoint di apertura e chiusura non sostituiscono il rapporto delle dodici prove.';
+            }catch(error){
+                box.textContent='Ricerca non completata: '+(error?.message||'errore di rete')+'. Nessun dato registrato è stato modificato.';
+            }
+        };
+        window.resolveDiagnostic=async(action,button)=>{
             if(action==='privacyArchitecture')return window.openPrivacyReview();
             if(action==='configure'||action==='regularity') {
                 if(currentTechnicalData)return showNotification('Intervento della Commissione','La Commissione deve completare '+(action==='configure'?'calendari, atti e modalità di voto in Configurazione.':'le verifiche documentate in Regolarità.'),'info');
