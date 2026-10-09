@@ -1,0 +1,23 @@
+name: Vercel Hobby / Firebase Blaze performance regression
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'functions/core.js'
+      - 'scripts/check-hobby-blaze-perf.cjs'
+      - '.github/workflows/hobby-blaze-perf.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  perf-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: No-production regression for bounded Firestore reads and deduplicated login
+        run: node scripts/check-hobby-blaze-perf.cjs
+      - name: Build smoke test
+        run: node scripts/build-public-site.cjs

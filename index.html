@@ -468,9 +468,9 @@
             let interval;
             dialog.addEventListener('close',()=>{clearInterval(interval);dialog.remove();},{once:true});
             if(kind==='status'){
-                dialog.querySelector('[data-content]').innerHTML='<div id="public-voting-status" role="status" class="rounded-xl border p-4 font-bold">Verifica in corso…</div><p data-checked-at class="text-xs text-slate-600 mt-2"></p><div data-calendar class="text-sm mt-4"></div><p class="text-xs text-slate-600 mt-4">Aggiornamento automatico ogni 15 secondi mentre questa finestra è aperta. Orari delle consultazioni: Europe/Rome.</p><button data-refresh class="mt-3 border rounded-lg px-4 py-2 text-sm font-bold">Aggiorna adesso</button>';
+                dialog.querySelector('[data-content]').innerHTML='<div id="public-voting-status" role="status" class="rounded-xl border p-4 font-bold">Verifica in corso…</div><p data-checked-at class="text-xs text-slate-600 mt-2"></p><div data-calendar class="text-sm mt-4"></div><p class="text-xs text-slate-600 mt-4">Aggiornamento automatico ogni 60 secondi mentre questa finestra è aperta. Orari delle consultazioni: Europe/Rome.</p><button data-refresh class="mt-3 border rounded-lg px-4 py-2 text-sm font-bold">Aggiorna adesso</button>';
                 const refresh=()=>refreshPublicVotingStatus(dialog);dialog.querySelector('[data-refresh]').onclick=refresh;void refresh();
-                interval=setInterval(()=>{if(dialog.open&&!document.hidden)void refresh();},15000);
+                interval=setInterval(()=>{if(dialog.open&&!document.hidden)void refresh();},60000);
             }else{
                 void publicInfoRequest(readPublicLoginInformation()).then(config=>{
                     if(!dialog.open)return;
@@ -1160,13 +1160,15 @@
             return mobile && !ipadDesktopMode;
         }
 
+        let voterLoginPending = false;
         window.handleStudentLogin = async function() {
+            if(voterLoginPending)return; // nessun doppio accesso in volo sul medesimo browser
             const token = document.getElementById('tokenInput').value.trim().toUpperCase();
             const errEl = document.getElementById('loginError');
             errEl.classList.add('hidden');
             if (!token) { errEl.textContent='Inserisci il Token.'; errEl.classList.remove('hidden'); return; }
             if (!configElezioni.modalitaProva && configElezioni.bloccaSmartphoneReali !== false && isLikelyPersonalSmartphone()) { errEl.textContent='Per la votazione reale è richiesta una postazione autorizzata dell’Istituto. Il voto da smartphone personale è bloccato.'; errEl.classList.remove('hidden'); return; }
-            const btn=document.getElementById('loginBtn'); btn.innerHTML=`<div class="spinner mr-2"></div> Convalida in corso...`;
+            const btn=document.getElementById('loginBtn'); voterLoginPending=true; btn.disabled=true; btn.innerHTML=`<div class="spinner mr-2"></div> Convalida in corso...`;
             try {
                 if(!configElezioni.modalitaProva) {
                     const ws=votingWindowStatus();
@@ -1187,6 +1189,7 @@
                 cartVotes={consiglio:null,istituto:null,consulta:null,classeStudente:null,classeGenitore:null};
                 resetIdleTimer(); showPage('dashboard');
             } catch(e){ errEl.textContent=e.message||'Token non valido.'; errEl.classList.remove('hidden'); btn.innerHTML=`<i data-lucide="key" class="w-4 h-4"></i> <span>Accedi alla Votazione</span>`; lucide.createIcons(); }
+            finally {voterLoginPending=false;btn.disabled=false;}
         };
 
         function renderDashboard(container) {
@@ -6192,11 +6195,12 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             box.textContent='Verifica in corso...';
             if(reportBox)reportBox.textContent='Lettura del rapporto tecnico già registrato...';
             try {
-                const [statusResponse,stored]=await Promise.all([
-                    SECURE_API.getTechnicalStatus({annoScolastico:configElezioni.annoScolastico}),
-                    fetchCompleteTechnicalLog()
+                const [statusResponse,historyResponse]=await Promise.all([
+                    SECURE_API.getTechnicalStatus({annoScolastico:configElezioni.annoScolastico,includeRecentEvents:false}),
+                    SECURE_API.getTechnicalLogs({annoScolastico:configElezioni.annoScolastico,pageSize:20})
                 ]);
                 currentTechnicalStatus=statusResponse.data;
+                const stored=historyResponse.data||{};
                 const recorded=summarizeTechnicalRegistrations(stored.logs);
                 box.innerHTML=diagnosticCards(currentTechnicalStatus.diagnostics,recorded);
                 if(reportBox){
@@ -6204,14 +6208,28 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                     const passed=report?.report?.tests?.filter(t=>t.outcome==='PASS').length||0;
                     reportBox.innerHTML=report
                         ? '<b>Rapporto già registrato</b><p>ID: <code class="select-all break-all">'+technicalEscape(report.id)+'</code> · Esito: '+technicalEscape(report.result||'—')+' · '+passed+'/12 prove dichiarate superate.</p><p class="mt-1">'+(report.result==='PROVE_DICHIARATE_SUPERATE'?'Le prove risultano dichiarate superate: conservare le evidenze e utilizzare l’ID in Regolarità.':'Rapporto incompleto o con anomalie: non è confermabile senza ulteriori verifiche.')+'</p>'
-                        :'<b>Nessun rapporto generale rilevato.</b> I checkpoint di apertura/chiusura sono registrazioni differenti dalle dodici prove.';
+                        :('<b>Nessun rapporto generale nella pagina recente.</b> I checkpoint di apertura/chiusura sono differenti dalle dodici prove.'+(stored.nextCursor?'<p class="mt-2">Sono presenti registrazioni più vecchie.</p><button onclick="window.findOlderCommissionTechnicalReport()" class="border rounded-lg px-3 py-2 mt-2 text-xs font-bold">Cerca il rapporto nello storico completo</button>':''));
                 }
             }catch(error){
                 box.innerHTML='<div class="text-red-800 text-xs">'+technicalEscape(error.message||'Errore')+' <button onclick="window.refreshCommissionDiagnostics()" class="underline">Riprova</button></div>';
                 if(reportBox)reportBox.textContent='Impossibile verificare il registro: '+(error.message||'errore');
             }
         };
-                window.resolveDiagnostic=async(action,button)=>{
+                window.findOlderCommissionTechnicalReport=async()=>{
+            const box=document.getElementById('commission-collaudo-report');
+            if(!box)return;
+            box.textContent='Ricerca manuale del rapporto nell’intero registro…';
+            try{
+                const full=await fetchCompleteTechnicalLog();
+                const report=summarizeTechnicalRegistrations(full.logs).report;
+                box.innerHTML=report
+                    ?'<b>Rapporto trovato</b><p>ID: <code class="select-all break-all">'+technicalEscape(report.id)+'</code> · Esito: '+technicalEscape(report.result||'—')+'. Riutilizzare questo ID in Regolarità solo se tutte le dodici prove sono effettivamente documentate e superate.</p>'
+                    :'<b>Nessun rapporto COLLAUDO nello storico esaminato.</b> I checkpoint di apertura e chiusura non sostituiscono il rapporto delle dodici prove.';
+            }catch(error){
+                box.textContent='Ricerca non completata: '+(error?.message||'errore di rete')+'. Nessun dato registrato è stato modificato.';
+            }
+        };
+        window.resolveDiagnostic=async(action,button)=>{
             if(action==='privacyArchitecture')return window.openPrivacyReview();
             if(action==='configure'||action==='regularity') {
                 if(currentTechnicalData)return showNotification('Intervento della Commissione','La Commissione deve completare '+(action==='configure'?'calendari, atti e modalità di voto in Configurazione.':'le verifiche documentate in Regolarità.'),'info');
@@ -6365,6 +6383,7 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                     <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-[10px] text-amber-950"><b>Postazione designata:</b> ${technicalEscape(assistant.postazione || 'Postazione PC laboratoriale designata dall’Istituto')}<br><span class="text-slate-600">Il nominativo e la postazione devono risultare nell’atto/verbale dell’Istituto. Il registro tecnico documenta i controlli, non sostituisce la nomina o il collaudo formale.</span></div>
                     <div class="bg-white p-4 rounded-2xl border"><b class="text-sm">Un solo rapporto di collaudo</b><p class="text-xs mt-1">Compilare esclusivamente qui le 12 prove, registrare gli esiti osservati e poi scaricare il verbale PDF. Le prove non svolte restano Non verificate.</p><div class="mt-3">${renderTechnicalEvidenceForm()}</div></div>
                     <div id="technical-recorded-checkpoints" aria-live="polite" class="bg-white rounded-xl p-4 border text-xs text-slate-700">Verifica dei checkpoint registrati...</div>
+                    <button onclick="window.loadCompleteTechnicalCheckpointHistory()" class="border border-slate-300 bg-white text-blue-950 rounded-xl px-4 py-2 text-xs font-bold">Cerca checkpoint più vecchi (lettura integrale su richiesta)</button>
                     <div id="technical-status-error" class="hidden"></div>
                     <div id="technical-status-summary" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><div class="spinner border-amber-700 border-t-transparent mx-auto"></div></div>
                     <div class="grid md:grid-cols-2 gap-4">
@@ -6387,19 +6406,17 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             error?.classList.add('hidden');
             try {
                 const [statusResponse, logsResponse] = await Promise.all([
-                    SECURE_API.getTechnicalStatus({ annoScolastico: configElezioni.annoScolastico }),
-                    SECURE_API.getTechnicalLogs({ annoScolastico: configElezioni.annoScolastico })
+                    SECURE_API.getTechnicalStatus({ annoScolastico: configElezioni.annoScolastico, includeRecentEvents:false }),
+                    SECURE_API.getTechnicalLogs({ annoScolastico: configElezioni.annoScolastico, pageSize:20 })
                 ]);
                 currentTechnicalStatus = statusResponse.data || {};
                 currentTechnicalLogs = logsResponse.data?.logs || currentTechnicalStatus.recentEvents || [];
                 const controls = currentTechnicalStatus.controls || {};
+                // Ogni aggiornamento legge solo la prima pagina: il recupero dell'intero
+                // storico resta un'azione manuale esplicita, non una lettura ripetuta.
                 const firstPage=logsResponse.data?.logs||[];
-                let allLogs=firstPage, complete=true;
-                if(logsResponse.data?.nextCursor){
-                    try{const full=await fetchCompleteTechnicalLog();allLogs=full.logs;}
-                    catch(err){complete=false;console.warn('Registro checkpoint parziale',err);}
-                }
-                const records=summarizeTechnicalRegistrations(allLogs);
+                const complete=!logsResponse.data?.nextCursor;
+                const records=summarizeTechnicalRegistrations(firstPage);
                 const checkpoints=document.getElementById('technical-recorded-checkpoints');
                 if(checkpoints)checkpoints.innerHTML=renderTechnicalRegistrations(records,complete);
                 summary.innerHTML = `<div class="flex flex-col lg:flex-row justify-between gap-4 items-start lg:items-center mb-4"><div><span class="text-[9px] uppercase tracking-wider text-amber-700 font-black">STATO SISTEMA</span><h3 class="text-xl font-black text-slate-900 mt-1">${technicalEscape(currentTechnicalStatus.phase || '—')}</h3><p class="text-[10px] text-slate-500">Backend e registri verificati per l’A.S. ${technicalEscape(currentTechnicalStatus.year || configElezioni.annoScolastico)}</p></div><div class="px-3 py-2 rounded-xl bg-emerald-100 text-emerald-900 text-[10px] font-black">${controls.backendReachable===true && controls.firebaseReachable===true && controls.serverSideAuth===true ? 'COLLEGAMENTO TECNICO VERIFICATO' : 'COLLEGAMENTO DA VERIFICARE'}</div></div><div class="grid md:grid-cols-2 lg:grid-cols-4 gap-3">${technicalStatusCards(controls)}</div><h4 class="font-bold mt-5 mb-3 text-black">Controlli e rimedi</h4><div id="technical-diagnostic-cards" class="grid md:grid-cols-2 gap-3">${diagnosticCards(currentTechnicalStatus.diagnostics, records)}</div>`;
@@ -6412,6 +6429,18 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                 if (error) { error.textContent = e?.message || 'Errore di collegamento.'; error.classList.remove('hidden'); }
                 const stamp = document.getElementById('technicalLastUpdate');
                 if (stamp) stamp.textContent = 'ERRORE • ' + new Date().toLocaleTimeString('it-IT');
+            }
+        };
+
+        window.loadCompleteTechnicalCheckpointHistory=async function(){
+            const box=document.getElementById('technical-recorded-checkpoints');
+            if(!box||!currentTechnicalData)return;
+            box.textContent='Recupero manuale dello storico tecnico in corso…';
+            try{
+                const full=await fetchCompleteTechnicalLog();
+                box.innerHTML=renderTechnicalRegistrations(summarizeTechnicalRegistrations(full.logs),true);
+            }catch(error){
+                box.textContent='Storico completo non disponibile: '+(error?.message||'controllare la connessione')+'. Nessuna registrazione è stata modificata.';
             }
         };
 
