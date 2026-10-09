@@ -1008,7 +1008,13 @@ exports.getTechnicalStatus = async (request) => {
   enforceTechnicalYear(actor, year);
   const config = await loadElectionConfig(year);
   const state = await loadRegularityState(year);
-  const eventsSnap = await yearlyCollection('audit_tecnico', year).orderBy('at', 'desc').limit(20).get();
+  // La dashboard carica già il registro con getTechnicalLogs: non leggere
+  // una seconda volta 20 documenti Firestore per il medesimo aggiornamento.
+  // Le chiamate esistenti senza parametro mantengono il comportamento storico.
+  const includeRecentEvents = request.data?.includeRecentEvents !== false;
+  const eventsSnap = includeRecentEvents
+    ? await yearlyCollection('audit_tecnico', year).orderBy('at', 'desc').limit(20).get()
+    : null;
   return {
     ok: true,
     role: actor.role,
@@ -1020,7 +1026,7 @@ exports.getTechnicalStatus = async (request) => {
     privacyAssessment: {...privacyArchitectureAssessment(config),assessedAt:new Date().toISOString()},
     legalAssessment:legalAssessment(config,state),
     diagnostics: await technicalDiagnostics(config,state,year),
-    recentEvents: eventsSnap.docs.map(d => ({
+    recentEvents: (eventsSnap?.docs || []).map(d => ({
       id: d.id,
       event: d.data()?.event || '',
       technicianName: d.data()?.technicianName || '',
