@@ -26,6 +26,9 @@ on:
       - 'scripts/check-cabin-checkpoints.cjs'
       - 'scripts/check-collaudo-gates.cjs'
       - 'functions/core.js'
+      - 'lib/voting-admission.js'
+      - 'lib/legal-readiness.js'
+      - 'scripts/check-tally-integrity.cjs'
       - 'scripts/check-voter-read-efficiency.cjs'
       - 'scripts/check-two-session-voting.cjs'
       - 'lib/management-aggregate.js'
@@ -66,6 +69,8 @@ jobs:
         run: node scripts/check-privacy-architecture-label.cjs
       - name: Validate election-opening and DPO Word generators
         run: node scripts/check-commission-minutes.cjs
+      - name: Check actual ballot counting and anonymous authorization
+        run: node scripts/check-tally-integrity.cjs
       - name: Exercise synthetic backend elections and voting admission
         run: node scripts/check-consultations.cjs
       - name: Verify one-time credentials PDF and manual re-download

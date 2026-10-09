@@ -4801,7 +4801,11 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             }
             officialVotiScrutinio.classDetail[colName] = {};
             
-            officialVotiScrutinio.totali = { votanti: votiDb.length, bianche: 0, validi: 0 };
+            // Consiglio: contabilizza solo la componente selezionata, anche nel totale votanti.
+            const votiDaContare = currentScrutinioSection === 'consiglio'
+                ? votiDb.filter(v => v.tipo === currentScrutinioSubComponent)
+                : votiDb;
+            officialVotiScrutinio.totali = { votanti: votiDaContare.length, bianche: 0, validi: 0 };
 
             let subListe = {};
             if (currentScrutinioSection === 'consiglio') {
@@ -4819,8 +4823,7 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                 });
             });
 
-            votiDb.forEach(v => {
-                if (currentScrutinioSection === 'consiglio' && v.tipo !== currentScrutinioSubComponent) return;
+            votiDaContare.forEach(v => {
 
                 if (v.isBianca) {
                     officialVotiScrutinio.totali.bianche++;
