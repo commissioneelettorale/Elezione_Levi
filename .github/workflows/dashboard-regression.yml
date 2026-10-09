@@ -21,6 +21,7 @@ on:
       - 'scripts/check-cabin-checkpoints.cjs'
       - 'scripts/check-collaudo-gates.cjs'
       - 'functions/core.js'
+      - 'scripts/check-voter-read-efficiency.cjs'
       - 'lib/management-aggregate.js'
       - 'scripts/check-management-aggregate.cjs'
       - '.github/workflows/dashboard-regression.yml'
@@ -63,5 +64,9 @@ jobs:
         run: node scripts/check-credential-pdf.cjs
       - name: Check login quota error classification
         run: node scripts/check-login-quota-errors.cjs
+      - name: Verify Firestore login/vote read efficiency
+        run: node scripts/check-voter-read-efficiency.cjs
+      - name: Test 3000 parallel synthetic voting flows
+        run: node scripts/check-concurrent-votes.cjs
       - name: Run public build smoke tests
         run: node scripts/build-public-site.cjs
