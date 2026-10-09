@@ -2138,6 +2138,12 @@
                         <input type="text" id="adminUsername" autocomplete="username" placeholder="Username Commissione" class="w-full p-4 border rounded-xl text-center text-sm outline-none focus:ring-4 focus:ring-red-100 focus:border-red-600 font-bold">
                         <input type="password" id="adminPwd" autocomplete="current-password" placeholder="Password personale" class="w-full p-4 border rounded-xl text-center text-lg outline-none focus:ring-4 focus:ring-red-100 focus:border-red-600 font-bold">
                         <button onclick="checkAdminLogin()" class="w-full bg-red-700 hover:bg-red-800 text-white font-extrabold py-3.5 rounded-xl shadow transition-all text-xs">Sblocca Cruscotto</button>
+                        <div id="commission-config-recovery" class="${commissionConfigRecoveryPending&&auth.currentUser?'':'hidden'} rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+                            <b>Credenziali già accettate dal server.</b>
+                            <p class="mt-1 text-xs">Non ripetere username e password. Il problema riguarda il caricamento della configurazione Firestore: verificare le quote, quindi utilizzare questo pulsante.</p>
+                            <button type="button" id="commission-config-retry" onclick="window.retryCommissionConfigAfterLogin()" class="mt-2 bg-amber-800 text-white px-3 py-2 rounded-lg text-xs font-bold">Riprova caricamento senza nuovo login</button>
+                            <button type="button" onclick="window.cancelCommissionConfigRecovery()" class="ml-2 text-xs underline">Annulla sessione</button>
+                        </div>
                         <button onclick="showPage('studentLogin')" class="w-full text-xs text-slate-500 hover:underline text-center block font-extrabold">Torna alla cabina</button>
                     </div>
                 </div>
@@ -2145,9 +2151,44 @@
             lucide.createIcons();
         }
 
+        let commissionConfigRecoveryPending=null;
+        let commissionConfigRetryInProgress=false;
+        window.retryCommissionConfigAfterLogin=async function(){
+            if(!commissionConfigRecoveryPending || commissionConfigRetryInProgress || !auth.currentUser)return;
+            commissionConfigRetryInProgress=true;
+            const retry=document.getElementById('commission-config-retry');
+            if(retry){retry.disabled=true;retry.textContent='Verifica configurazione in corso…';}
+            try{
+                const claims=(await auth.currentUser.getIdTokenResult()).claims||{};
+                if(claims.role!=='COMMISSIONE' || claims.staffYear!==configElezioni.annoScolastico)
+                    throw Error('La sessione autenticata non corrisponde alla Commissione di questa annualità.');
+                if(!(await syncConfigFromDB()))
+                    throw Error('La lettura Firestore non è ancora riuscita. Verificare la quota e riprovare solo quando il servizio è disponibile.');
+                const mustChange=commissionConfigRecoveryPending.mustChangePassword===true;
+                commissionConfigRecoveryPending=null;
+                resetIdleTimer();
+                if(mustChange){showPage('commissionPasswordChange');return;}
+                commissionSessionReady=true;
+                activeAdminTab='config';
+                showPage('adminPanel');
+                await resumeDpoDownload();
+            }catch(error){
+                showNotification('Configurazione non disponibile',error?.message||'Ripristino non riuscito.','error');
+            }finally{
+                commissionConfigRetryInProgress=false;
+                if(retry?.isConnected){retry.disabled=false;retry.textContent='Riprova caricamento senza nuovo login';}
+            }
+        };
+        window.cancelCommissionConfigRecovery=async function(){
+            commissionConfigRecoveryPending=null;
+            commissionSessionReady=false;
+            try{await signOut(auth);}catch(_){}
+            showPage('adminLogin');
+        };
         let commissionLoginInProgress=false;
         let commissionLoginCooldownUntil=0;
         window.checkAdminLogin = async function() {
+            if(commissionConfigRecoveryPending&&auth.currentUser)return window.retryCommissionConfigAfterLogin();
             if(commissionLoginInProgress)return;
             const waitSeconds=Math.max(0,Math.ceil((commissionLoginCooldownUntil-Date.now())/1000));
             if(waitSeconds)return showNotification('Accesso temporaneamente limitato','Attendere '+waitSeconds+' secondi prima di un altro tentativo; il servizio non è stato richiamato.','info');
@@ -2162,14 +2203,17 @@
             try {
                 const res = await SECURE_API.commissionLogin({ username, password, annoScolastico: configElezioni.annoScolastico });
                 await signInWithCustomToken(auth, res.data.customToken);
+                commissionConfigRecoveryPending={mustChangePassword:res.data?.profile?.mustChangePassword===true};
                 if(!(await syncConfigFromDB())){
                     // L'identità è valida, ma l'area Commissione non deve operare su dati
                     // di fallback. Esporre un errore distinto e una via di recupero.
                     commissionSessionReady=false;
-                    showNotification('Accesso riconosciuto, configurazione non caricata',
-                        'Credenziali Commissione accettate. Lettura della configurazione annuale non riuscita: controllare connessione e permessi Firestore e riprovare. Non modificare registri o urne.','error');
+                    showPage('adminLogin');
+                    showNotification('Identità verificata: Firestore non disponibile',
+                        'Le credenziali sono state accettate. Non reinserirle: verificare quote o connettività e poi premere «Riprova caricamento senza nuovo login».','error');
                     return;
                 }
+                commissionConfigRecoveryPending=null;
                 resetIdleTimer();
                 if (res.data?.profile?.mustChangePassword === true) {
                     showPage('commissionPasswordChange');
@@ -5983,11 +6027,12 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             return (diagnostics||[]).map(d=>{
                 const alreadyRecorded=d.id==='evidence' && recorded?.report;
                 const visibleOk=d.ok===true;
-                const cls=visibleOk?'bg-emerald-50 border-emerald-200':alreadyRecorded?'bg-amber-50 border-amber-200':'bg-slate-50 border-slate-200';
+                const notScanned=d.ok===null;
+                const cls=visibleOk?'bg-emerald-50 border-emerald-200':notScanned?'bg-slate-50 border-slate-200':alreadyRecorded?'bg-amber-50 border-amber-200':'bg-slate-50 border-slate-200';
                 const text=alreadyRecorded&&!visibleOk
                     ?'Rapporto tecnico già registrato: ID '+recorded.report.id+'. Occorre la verifica del contenuto e la conferma della Commissione; non ripetere la registrazione.'
                     :d.detail;
-                const label=alreadyRecorded?'Vai a Regolarità':d.action==='recheck'?'Riesegui il controllo':d.action==='report'?'Apri verbale tecnico':'Vai alla verifica';
+                const label=alreadyRecorded?'Vai a Regolarità':d.action==='recheck'?'Verifica limitata su richiesta':d.action==='report'?'Apri verbale tecnico':'Vai alla verifica';
                 return `<div class="p-4 rounded-xl border ${cls}">
                     <b class="text-xs text-slate-900">${technicalEscape(d.label)}</b>
                     <p class="text-xs mt-2 text-slate-700">${technicalEscape(text)}</p>
