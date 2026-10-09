@@ -45,7 +45,7 @@ assert.match(main,/window\.saveElectionScheduleAndMessage = async function\(\)[\
 console.log('PASS: full page module parses and all configuration writing paths share one queue.');
 
 (async()=>{
- const alerts=[],calls=[],state={stored:readback(),error:null,corrupt:false,block:null,connection:true};
+ const alerts=[],calls=[],state={stored:readback(),error:null,corrupt:false,block:null,connection:true,frozen:false};
  const ctx={
   window:{},configElezioni:JSON.parse(JSON.stringify(config)),
   collectConfigFormFields:()=>{},auth:{currentUser:{getIdTokenResult:async()=>({claims:{staffYear:'2026/2027'}})}},
@@ -56,6 +56,7 @@ console.log('PASS: full page module parses and all configuration writing paths s
   }),
   SECURE_API:{saveElectionConfig:async({config:sent})=>{
     calls.push(JSON.parse(JSON.stringify(sent)));
+    if(state.frozen&&['maxPrefConsiglio','divietoVotoDisgiunto','listeConsiglio'].some(k=>JSON.stringify(sent[k])!==JSON.stringify(state.stored[k])))throw Error('Schede e liste congelate');
     if(state.error)throw Error(state.error);
     if(state.block)await state.block;
     state.stored={...serverOrder(sent),votingStartsAtMs:1791874800000};
@@ -84,6 +85,24 @@ console.log('PASS: full page module parses and all configuration writing paths s
  release();state.block=null;
  assert.deepEqual(await Promise.all([first,second]),[true,true]);
  assert.equal(state.stored.commissionMessage,'Seconda modifica sintetica');
+ // Reproduce the real mode-button failure: loaded UI includes defaults that
+ // do not exist in the frozen cloud record. A mode edit must not send them.
+ state.stored={annoScolastico:'2026/2027',privacyMode:'LEGACY_NAMED',modalitaProva:true,listeConsiglio:{},commissionMessage:'Modifica di un altro operatore'};
+ state.frozen=true;
+ ctx.configElezioni={...config,privacyMode:'PRESENTIAL_UNLINKED_V1',maxPrefConsiglio:2,divietoVotoDisgiunto:true,listeConsiglio:{},commissionMessage:'Valore locale vecchio'};
+ assert.equal(await ctx.window.saveConfigToDB({captureForms:false,notify:false}),false,'Fixture reproduces a frozen-field rejection');
+ assert.equal(await ctx.window.saveConfigToDB({captureForms:false,notify:false,modeFields:['privacyMode']}),true);
+ assert.equal(state.stored.privacyMode,'PRESENTIAL_UNLINKED_V1');
+ assert.equal(state.stored.commissionMessage,'Modifica di un altro operatore','Do not overwrite unrelated current cloud values');
+ assert.equal(Object.hasOwn(state.stored,'maxPrefConsiglio'),false,'Absent frozen fields must stay absent');
+ assert.equal(Object.hasOwn(state.stored,'divietoVotoDisgiunto'),false);
+ ctx.configElezioni.modalitaProva=false;ctx.configElezioni.modalitaProvaUpdatedAt='2026-10-09T00:00:00Z';
+ assert.equal(await ctx.window.saveConfigToDB({captureForms:false,notify:false,modeFields:['modalitaProva','modalitaProvaUpdatedAt']}),true);
+ assert.equal(state.stored.modalitaProva,false);assert.equal(state.stored.privacyMode,'PRESENTIAL_UNLINKED_V1');
+ const unchanged=JSON.stringify(state.stored),priorCalls=calls.length;
+ assert.equal(await ctx.window.saveConfigToDB({captureForms:false,notify:false,modeFields:['listeConsiglio']}),false);
+ assert.equal(calls.length,priorCalls);assert.equal(JSON.stringify(state.stored),unchanged);
+ console.log('PASS: privacy/test mode edits preserve frozen cloud fields and concurrent unrelated changes; invalid field lists are rejected.');
  ctx.firebaseStateConnected=false;
  const n=calls.length;
  assert.equal(await ctx.window.saveConfigToDB({notify:false}),false);
