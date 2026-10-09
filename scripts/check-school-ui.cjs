@@ -46,7 +46,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
  assert.equal(form.elements.electionKey.disabled,false);assert.equal(form.elements.eligibleCount.required,true);assert.equal(form.elements.classe.required,true);
  form.elements.electionKey.value='consiglio';form.elements.electionKey.dispatchEvent(new w.Event('change'));assert.equal(form.elements.classe.disabled,true);
  assert.ok(!new w.FormData(form).has('classe'));assert.equal(new w.FormData(form).get('electionKey'),'consiglio');
- assert.match(d.querySelector('#privacy-review-dialog').textContent,/PDF preliminare è disponibile/);assert.ok(d.querySelector('[data-pdf]'));
+ assert.match(d.querySelector('#privacy-review-dialog').textContent,/Configurazione b{8}/);assert.ok(d.querySelector('[data-pdf]'));
  assert.match(d.querySelector('[data-registered-history]').textContent,/Atto di nomina sintetico/);
  assert.equal(historyReads,0,'Open dialog must not read historic events or log archives');
  d.querySelector('[data-load-history]').click();await tick();await tick();
