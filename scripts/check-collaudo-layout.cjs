@@ -12,6 +12,13 @@ assert.ok(tecnico.includes("renderTechnicalEvidenceForm()"),'Technical report mu
 assert.ok(scrutinio.includes("downloadDhondtMinutesDocx"),'Quotient minutes must be in scrutiny');
 assert.ok(scrutinio.includes("generateElectionMinutesDocx"),'Results minutes must be in scrutiny');
 assert.ok(html.includes("Unico verbale generale del tecnico"),'Missing simplified report heading');
+assert.ok(collaudo.includes("Apri verifica ed evidenze DPO"),'Guided privacy action must appear in Collaudo');
+assert.ok(collaudo.includes("Scarica bozza per il verbale"),'Local draft minute action must appear in Collaudo');
+assert.ok(html.includes("window.downloadPendingPrivacyChecksMemo = function()"),'Draft generator missing');
+assert.ok(html.includes("return window.openPrivacyReview({focus:'anonymity'})"),'DPO button must focus evidence review');
+assert.ok(!collaudo.includes("setRegularityControl({"),'Collaudo display must not bypass admission');
+assert.ok(html.includes("non autorizza l’apertura delle votazioni"),'Pending verification must not be described as authorized');
+
 assert.match(collaudo,/openMimPrivacyCheck\(&quot;\$\{k\}&quot;\)/,'Sensitive privacy checks must have actionable buttons');
 assert.ok(!collaudo.includes('disabled title="Verifica nel fascicolo DPO"'),'Sensitive checkboxes must not be inert');
 assert.match(html,/Verifica indipendente non attestata automaticamente/,'Do not present privacy checks as passed');
