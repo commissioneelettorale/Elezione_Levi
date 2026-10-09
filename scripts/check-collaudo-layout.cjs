@@ -12,4 +12,10 @@ assert.ok(tecnico.includes("renderTechnicalEvidenceForm()"),'Technical report mu
 assert.ok(scrutinio.includes("downloadDhondtMinutesDocx"),'Quotient minutes must be in scrutiny');
 assert.ok(scrutinio.includes("generateElectionMinutesDocx"),'Results minutes must be in scrutiny');
 assert.ok(html.includes("Unico verbale generale del tecnico"),'Missing simplified report heading');
+assert.match(collaudo,/openMimPrivacyCheck\(&quot;\$\{k\}&quot;\)/,'Sensitive privacy checks must have actionable buttons');
+assert.ok(!collaudo.includes('disabled title="Verifica nel fascicolo DPO"'),'Sensitive checkboxes must not be inert');
+assert.match(html,/Verifica indipendente non attestata automaticamente/,'Do not present privacy checks as passed');
+assert.match(html,/return window\.openPrivacyReview\(\)/,'Clicking privacy checks must open actual DPO review');
+assert.match(html,/if\(\['metadataUnlinkabilityReviewed','structuralSeparationReviewed'\]\.includes\(control\)\)return window\.openPrivacyReview\(\)/,'Existing sensitive settings must not be self-attested');
+
 console.log('PASS: unique technical report, Commission simulation and election minutes in scrutiny');

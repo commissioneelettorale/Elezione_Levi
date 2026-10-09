@@ -2445,6 +2445,11 @@
             return Object.keys(MIM_PRODUCTION_CONTROLS).filter(k => !['metadataUnlinkabilityReviewed','structuralSeparationReviewed'].includes(k) && state[k] !== true);
         }
 
+        window.openMimPrivacyCheck = function(control) {
+            if (!['metadataUnlinkabilityReviewed','structuralSeparationReviewed'].includes(control)) return;
+            // Conserva la revisione indipendente nel Fascicolo DPO senza auto-certificare garanzie non provate.
+            return window.openPrivacyReview();
+        };
         window.updateMimComplianceControl = async function(control, value) {
             if(['metadataUnlinkabilityReviewed','structuralSeparationReviewed'].includes(control))return window.openPrivacyReview();
             if (!Object.prototype.hasOwnProperty.call(MIM_PRODUCTION_CONTROLS, control)) return;
@@ -2540,7 +2545,21 @@
                         <div class="mt-3 text-xs text-slate-700">Prove completate in questa sessione: <b>${log.length}</b>${last ? ` — ultima: ${new Date(last.at).toLocaleString('it-IT')}` : ''}</div>
                     </div>
 
-                    <details class="bg-white rounded-2xl border p-4"><summary class="cursor-pointer font-bold text-sm">Documenti e controlli supplementari (avanzati)</summary><p class="text-xs mt-2">Questi requisiti sono separati dal verbale di collaudo. Confermare solo verifiche documentate.</p><div class="grid md:grid-cols-2 gap-2 mt-3">${Object.entries(MIM_PRODUCTION_CONTROLS).map(([k,label])=>`<label class="flex gap-2 items-start border p-2 rounded-lg text-xs"><input type="checkbox" ${['metadataUnlinkabilityReviewed','structuralSeparationReviewed'].includes(k)?'disabled':mimComplianceState()[k]===true?'checked':''} onchange="updateMimComplianceControl('${k}',this.checked)">${label}</label>`).join('')}</div></details>
+                    <details class="bg-white rounded-2xl border p-4">
+                        <summary class="cursor-pointer font-bold text-sm">Documenti e controlli supplementari (avanzati)</summary>
+                        <p class="text-xs mt-2">Questi requisiti sono separati dal verbale di collaudo. Confermare solo verifiche documentate.</p>
+                        <div class="grid md:grid-cols-2 gap-2 mt-3">
+                            ${Object.entries(MIM_PRODUCTION_CONTROLS).map(([k,label])=>
+                                ['metadataUnlinkabilityReviewed','structuralSeparationReviewed'].includes(k)
+                                    ? `<div class="flex flex-col gap-2 border border-amber-300 bg-amber-50 p-3 rounded-lg">
+                                        <b class="text-xs text-amber-950">${technicalEscape(label)}</b>
+                                        <p class="text-[11px] text-amber-950">Verifica indipendente non attestata automaticamente. Apri il Fascicolo DPO per documentare le prove e seguire la revisione prevista; non equivale a un controllo già superato.</p>
+                                        <button type="button" onclick="window.openMimPrivacyCheck(&quot;${k}&quot;)" class="border border-amber-800 bg-white text-amber-950 rounded-lg px-3 py-2 text-xs font-black">Apri la verifica e le evidenze</button>
+                                      </div>`
+                                    : `<label class="flex gap-2 items-start border p-2 rounded-lg text-xs"><input type="checkbox" ${mimComplianceState()[k]===true?"checked":""} onchange="updateMimComplianceControl(&quot;${k}&quot;,this.checked)">${technicalEscape(label)}</label>`
+                            ).join('')}
+                        </div>
+                    </details>
                     <div class="bg-slate-900 text-white rounded-2xl p-5">
                         <h4 class="font-black text-sm mb-3">Checklist prima dell'attivazione reale</h4>
                         <div class="grid md:grid-cols-2 gap-x-6 gap-y-2 text-xs">
