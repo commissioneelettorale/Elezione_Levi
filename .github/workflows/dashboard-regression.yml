@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'index.html'
+      - 'lib/privacy-review-ui.js'
       - 'scripts/check-simple-real-opening.cjs'
       - 'scripts/check-token-listener-lazy.cjs'
       - 'api/call.js'
