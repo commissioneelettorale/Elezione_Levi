@@ -911,16 +911,20 @@ function privacyArchitectureAssessment(config={}) {
   };
 }
 
+// Evita scansioni integrali delle urne in ciascun aggiornamento tecnico.
+ // Un campione limitato NON prova la conformità dell'intera raccolta.
 async function databasePrivacyStatus(year) {
-  let total=0,legacy=0,unavailableKey=0,keyId='';
+  const limit=101;
+  let inspected=0, legacy=0, unavailableKey=0, complete=true, keyId='';
   try {keyId=BallotVault.keyMaterial().keyId;} catch (_) {}
   for(const name of BALLOT_COLLECTIONS) {
-    const snapshot=await yearlyCollection(name,year).select('schema','keyId').get();
-    total+=snapshot.size;
+    const snapshot=await yearlyCollection(name,year).select('schema','keyId').limit(limit).get();
+    inspected+=snapshot.size;
+    if(snapshot.size===limit)complete=false;
     legacy+=snapshot.docs.filter(d=>d.data()?.schema!=='LEVI_SEALED_V1').length;
     unavailableKey+=snapshot.docs.filter(d=>d.data()?.schema==='LEVI_SEALED_V1'&&d.data()?.keyId!==keyId).length;
   }
-  return {total,legacy,unavailableKey};
+  return {inspected,legacy,unavailableKey,complete};
 }
 function vaultSelfTest(year) {
   try {
@@ -929,16 +933,22 @@ function vaultSelfTest(year) {
     return JSON.stringify(BallotVault.open(encrypted,year,'self_test'))===JSON.stringify(sample);
   } catch (_) {return false;}
 }
-async function technicalDiagnostics(config,state,year) {
-  const privacy=await databasePrivacyStatus(year);
+async function technicalDiagnostics(config,state,year,{inspectVault=false}={}) {
+  // La lettura delle urne è esclusa dal refresh ordinario. Solo una richiesta
+  // esplicita esamina fino a 101 schede per raccolta; risultati parziali non
+  // equivalgono mai a un collaudo superato.
+  const privacy=inspectVault?await databasePrivacyStatus(year):null;
+  const privacyComplete=privacy?.complete===true;
+  const legacyFound=!!privacy&&privacy.legacy>0;
+  const missingKeyFound=!!privacy&&privacy.unavailableKey>0;
   const scheduleOk=ElectionPolicy.enabled(config).length>0 && ElectionPolicy.enabled(config).every(k=>{
     try {if(ElectionPolicy.profile(config,k).dedicated!==true)return false;ElectionPolicy.validateProfile(ElectionPolicy.profile(config,k));return ElectionPolicy.windows(config,k).length>0;}catch(_){return false;}
   });
   return [
     {id:'connectivity',ok:true,label:'Collegamento autenticato ai servizi',action:'recheck',detail:'Risposta ricevuta dal backend e dal database.'},
     {id:'vault',ok:vaultSelfTest(year),label:'Cifratura delle nuove schede',action:'recheck',detail:'Prova di cifratura e lettura su dati fittizi; nessuna scheda reale modificata.'},
-    {id:'databasePrivacy',ok:privacy.legacy===0,label:'Contenuti delle schede protetti nel database',action:privacy.legacy?'protectDatabase':'recheck',detail:privacy.legacy?privacy.legacy+' schede pregresse da cifrare. Operazione riservata alla Commissione a votazioni non in corso.':'Nessuna scheda in chiaro rilevata. Non certifica l’anonimato irreversibile.'},
-    {id:'historicalKeys',ok:privacy.unavailableKey===0,label:'Chiavi delle schede archiviate',action:'review',detail:privacy.unavailableKey?privacy.unavailableKey+' schede richiedono la chiave storica: ripristinare la configurazione protetta. Non rigenerare le urne.':'Nessuna versione di chiave mancante rilevata. Custodire la chiave prima di ruotare le credenziali server.'},
+    {id:'databasePrivacy',ok:legacyFound?false:privacyComplete?true:null,label:'Contenuti delle schede protetti nel database',action:legacyFound?'protectDatabase':'recheck',detail:legacyFound?privacy.legacy+' schede non cifrate rilevate nella verifica limitata. Intervento riservato alla Commissione fuori dalle votazioni.':privacyComplete?'Tutti i documenti presenti nelle raccolte controllate risultano cifrati. Non certifica l’anonimato.':privacy?'Campione limitato: '+privacy.inspected+' schede esaminate; la verifica completa richiede evidenza separata.':'Lettura delle urne non eseguita nel refresh ordinario per preservare la quota Firestore. Premere Riesegui verifica per un controllo limitato.'},
+    {id:'historicalKeys',ok:missingKeyFound?false:privacyComplete?true:null,label:'Chiavi delle schede archiviate',action:missingKeyFound?'review':'recheck',detail:missingKeyFound?privacy.unavailableKey+' schede del campione richiedono la chiave storica. Non rigenerare le urne.':privacyComplete?'Chiavi delle schede presenti verificate; custodirle prima di modificare la configurazione.':privacy?'Campione parziale: non si certificano le chiavi di tutte le schede.':'Non letto nel refresh ordinario; controllo limitato disponibile su richiesta.'},
     {id:'schedule',ok:scheduleOk,label:'Fasce orarie delle consultazioni',action:'configure',detail:'Date, orari e atti devono essere compilati per ciascuna consultazione.'},
     {id:'evidence',ok:!!state.technicalReportId&&state.technicalTestPassed===true,label:'Rapporto di collaudo richiamato dalla Commissione',action:'report',detail:'Richiede prove documentate; non può essere confermato automaticamente.'},
     {id:'aggregateAccess',ok:true,label:'Risultati aggregati anche per la Commissione',action:'recheck',detail:'Le API non restituiscono le schede originali o gli abbinamenti reali tra preferenze; restituiscono proiezioni dei conteggi.'},
@@ -950,7 +960,7 @@ exports.resolveTechnicalIssue = async (request) => {
   const year=actor.claims.staffYear,action=String(request.data?.action||'');
   if(action==='recheck') {
     const config=await loadElectionConfig(year),state=await loadRegularityState(year);
-    return {ok:true,diagnostics:await technicalDiagnostics(config,state,year),message:'Controlli rieseguiti: nessuna attestazione modificata.'};
+    return {ok:true,diagnostics:await technicalDiagnostics(config,state,year,{inspectVault:true}),message:'Controllo limitato delle urne eseguito su richiesta; nessuna attestazione modificata.'};
   }
   if(action!=='protectDatabase') throw new HttpsError('invalid-argument','La correzione richiede un intervento documentale o una verifica della scuola.');
   if(actor.role!=='COMMISSIONE') throw new HttpsError('permission-denied','La cifratura delle schede pregresse deve essere avviata dalla Commissione.');
