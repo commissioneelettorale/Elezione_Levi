@@ -1,11 +1,11 @@
 'use strict';
 const fs=require('node:fs'),assert=require('node:assert/strict'),vm=require('node:vm'),{spawnSync}=require('node:child_process');
 const html=fs.readFileSync('index.html','utf8');
-const module=html.match(/<script type="module">([\s\S]*?)<\/script>/);
-assert.ok(module,'Missing main application module');
-const syntax=spawnSync(process.execPath,['--input-type=module','--check'],{input:module[1],encoding:'utf8'});
+const appModule=html.match(/<script type="module">([\s\S]*?)<\/script>/);
+assert.ok(appModule,'Missing main application module');
+const syntax=spawnSync(process.execPath,['--input-type=module','--check'],{input:appModule[1],encoding:'utf8'});
 assert.equal(syntax.status,0,syntax.stderr);
-const source=module[1];
+const source=appModule[1];
 const a=source.indexOf('window.checkRealVotingOpening = async function()');
 const b=source.indexOf('function renderOpeningTab(container)',a);
 assert.ok(a>=0&&b>a,'Missing server-confirmed one-button status');
