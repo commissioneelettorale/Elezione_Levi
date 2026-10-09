@@ -417,7 +417,7 @@
                     const proposed={...original,privacyMode:'PRESENTIAL_UNLINKED_V1'};
                     configElezioni=proposed;
                     window.configElezioni=proposed;
-                    const saved=await saveConfigToDB({captureForms:false,notify:false,snapshot:proposed});
+                    const saved=await saveConfigToDB({captureForms:false,notify:false,snapshot:proposed,modeFields:['privacyMode']});
                     if(!saved){
                         configElezioni=original;
                         window.configElezioni=original;
@@ -851,7 +851,8 @@
         window.lastConfigSaveError='';
         window.saveConfigToDB=function(options={}) {
             if(options.captureForms!==false)collectConfigFormFields();
-            const snapshot=JSON.parse(JSON.stringify(options.snapshot||configElezioni));
+            let snapshot=JSON.parse(JSON.stringify(options.snapshot||configElezioni));
+            const modeFields=options.modeFields?[...options.modeFields]:null;
             const operation=configSaveQueue.catch(()=>{}).then(async()=>{
                 if(!auth.currentUser||!commissionSessionReady)throw new Error('Autenticazione Commissione richiesta.');
                 const claims=(await auth.currentUser.getIdTokenResult()).claims;
@@ -862,6 +863,15 @@
                 if(!firebaseStateConnected){
                     const initialRead=await getDocFromServer(ref);
                     if(initialRead.exists())throw new Error('La configurazione cloud esiste ma non è stata caricata. Ricaricare la pagina e accedere nuovamente prima di modificarla.');
+                }
+                if(modeFields){
+                    if(!modeFields.length||modeFields.some(key=>!['privacyMode','modalitaProva','modalitaProvaUpdatedAt'].includes(key)))throw new Error('Campi modalità non validi.');
+                    // UI defaults are not stored configuration: preserve frozen fields
+                    // exactly, including absent values, when changing only a mode.
+                    const current=await getDocFromServer(ref);
+                    if(!current.exists())throw new Error('Salvare prima la configurazione annuale.');
+                    const changes=Object.fromEntries(modeFields.map(key=>[key,snapshot[key]]));
+                    snapshot={...current.data(),...changes,annoScolastico:snapshot.annoScolastico};
                 }
                 const response=await SECURE_API.saveElectionConfig({config:snapshot,annoScolastico:snapshot.annoScolastico});
                 if(response.data?.ok!==true)throw new Error('Il servizio non ha confermato il salvataggio.');
@@ -2559,7 +2569,7 @@
             const previousUpdatedAt=configElezioni.modalitaProvaUpdatedAt;
             configElezioni.modalitaProvaUpdatedAt = new Date().toISOString();
             try {
-                if(!(await saveConfigToDB({captureForms:false,notify:false})))throw new Error(window.lastConfigSaveError||'Modalità prova non salvata.');
+                if(!(await saveConfigToDB({captureForms:false,notify:false,modeFields:['modalitaProva','modalitaProvaUpdatedAt']})))throw new Error(window.lastConfigSaveError||'Modalità prova non salvata.');
                 window.configElezioni = configElezioni;
                 updateTestModeBanner();
                 showNotification(
