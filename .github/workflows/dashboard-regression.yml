@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'index.html'
+      - 'scripts/check-simple-real-opening.cjs'
       - 'scripts/check-token-listener-lazy.cjs'
       - 'api/call.js'
       - 'scripts/check-login-quota-errors.cjs'
@@ -74,5 +75,7 @@ jobs:
         run: node scripts/check-two-session-voting.cjs
       - name: Test 3000 parallel synthetic voting flows
         run: node scripts/check-concurrent-votes.cjs
+      - name: Validate one-button real voting opening is server-authoritative
+        run: node scripts/check-simple-real-opening.cjs
       - name: Run public build smoke tests
         run: node scripts/build-public-site.cjs
