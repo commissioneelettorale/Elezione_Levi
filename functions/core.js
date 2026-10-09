@@ -237,6 +237,15 @@ async function auditAdmin(actor, action, details = {}) {
 }
 
 
+// Firestore SDKs can return map keys in different orders. Frozen values must
+// compare by content, while candidate arrays and scalar types stay significant.
+function sameConfigValue(a,b) {
+  if(a===b)return true;
+  if(a===null||b===null||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
+  if(Array.isArray(a)&&a.length!==b.length)return false;
+  const keys=Object.keys(a);
+  return keys.length===Object.keys(b).length&&keys.every(key=>Object.hasOwn(b,key)&&sameConfigValue(a[key],b[key]));
+}
 function assertSafeConfigValue(value, path = 'config', depth = 0) {
   if (depth > 12) throw new HttpsError('invalid-argument', 'Configurazione troppo annidata.');
   if (value == null || typeof value === 'boolean' || typeof value === 'number') return;
@@ -1805,11 +1814,11 @@ exports.saveElectionConfig = async (request) => {
       const started=ranges.length && Date.now()>=+ranges[0].start;
       const frozen=p.dedicated===true ? p.frozen===true||started : state.softwareFrozen===true||started;
       if(frozen) {
-        for(const field of [...protectedByKey[key],'divietoVotoDisgiunto']) if(JSON.stringify(old[field])!==JSON.stringify(config[field])) throw new HttpsError('failed-precondition','Schede e liste congelate per '+ElectionPolicy.ELECTIONS[key].label+'.');
+        for(const field of [...protectedByKey[key],'divietoVotoDisgiunto']) if(!sameConfigValue(old[field],config[field])) throw new HttpsError('failed-precondition','Schede e liste congelate per '+ElectionPolicy.ELECTIONS[key].label+'.');
       }
       if(started || p.frozen===true) {
         const immutable=profile=>({dedicated:profile.dedicated===true,windows:profile.windows||[],acts:profile.acts||[],kind:profile.kind||'',period:profile.period||''});
-        if(JSON.stringify(immutable(p))!==JSON.stringify(immutable(next))) throw new HttpsError('failed-precondition','Calendario e atti della consultazione iniziata o congelata non sono modificabili.');
+        if(!sameConfigValue(immutable(p),immutable(next))) throw new HttpsError('failed-precondition','Calendario e atti della consultazione iniziata o congelata non sono modificabili.');
       }
       if(p.frozen===true&&next.frozen!==true) throw new HttpsError('failed-precondition','Il congelamento della consultazione è definitivo per questa procedura.');
       if(next.finalized===true && !['CLOSED','RELEASED'].includes(ElectionPolicy.phase(config,key))) throw new HttpsError('failed-precondition','Lo scrutinio può essere convalidato solo dopo l’ultima fascia di voto.');

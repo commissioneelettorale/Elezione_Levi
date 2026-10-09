@@ -158,6 +158,16 @@ async function check(){
  const changed=structuredClone(config);changed.consultazioni.consulta.acts[0].protocol='MODIFICATO';await assert.rejects(api.saveElectionConfig(commission({config:changed})),e=>e.code==='failed-precondition');
  const freezeBefore=structuredClone(config);freezeBefore.consultazioni.istituto.frozen=true;stores.set(configPath,freezeBefore);
  const unfreeze=structuredClone(freezeBefore);unfreeze.consultazioni.istituto.frozen=false;await assert.rejects(api.saveElectionConfig(commission({config:unfreeze})),e=>e.code==='failed-precondition');
+ const reorder=value=>Array.isArray(value)?value.map(reorder):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).reverse().map(key=>[key,reorder(value[key])])):value;
+ freezeBefore.listeIstituto.B.candidati.push('SECONDO FITTIZIO');stores.set(configPath,freezeBefore);
+ await api.saveElectionConfig(commission({config:reorder(freezeBefore)}));
+ const alteredCandidates=structuredClone(freezeBefore);alteredCandidates.listeIstituto.B.candidati.reverse();
+ await assert.rejects(api.saveElectionConfig(commission({config:alteredCandidates})),e=>e.code==='failed-precondition');
+ const alteredLimit=structuredClone(freezeBefore);alteredLimit.maxPrefIstituto=2;
+ await assert.rejects(api.saveElectionConfig(commission({config:alteredLimit})),e=>e.code==='failed-precondition');
+ const alteredAct=reorder(freezeBefore);alteredAct.consultazioni.istituto.acts[0].protocol='CAMBIATO';
+ await assert.rejects(api.saveElectionConfig(commission({config:alteredAct})),e=>e.code==='failed-precondition');
+ console.log('PASS: frozen maps tolerate SDK key reordering; changed candidate order, preference limits and act contents remain blocked.');
  stores.set(configPath,config);clock=+new Date('2026-11-20T10:00:00Z');
  await new Ref(path('voti_consulta','LEGACY')).set({...clear,token:'OLD_IDENTIFIER',timestamp:123});
  const migration=await api.resolveTechnicalIssue(commission({action:'protectDatabase'}));assert.equal(migration.processed,1);assert.equal(migration.more,false);
