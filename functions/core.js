@@ -671,10 +671,11 @@ exports.validateVoterToken = async (request) => {
   const token = normalize(request.data?.token);
   const year = request.data?.annoScolastico;
   if (!token || token.length > 80 || /^PROVA-/.test(token)) throw new HttpsError('invalid-argument', 'Token non valido.');
+  // Una sola lettura preliminare determina l'archivio delle credenziali.
+  // Autorizzazione, calendario, sospensione e blocchi sono SEMPRE rivalidati
+  // in modo atomico nella transazione con lo stato e il token aggiornati.
+  // Evita la lettura ridondante del documento di regolarità ad ogni login.
   const config = await loadElectionConfig(year);
-  await assertElectionReadyForVoting(year,config);
-  assertVotingOpen(config);
-
   const anonymous=config.privacyMode===LegalReadiness.ANONYMOUS_MODE;
   const tokenRef = yearlyCollection(anonymous?'credenziali_anonime':'tokens', year).doc(anonymous?sha256(year+':'+token.replace(/[ -]/g,'')):token);
   const sessionId = crypto.randomBytes(32).toString('base64url');
@@ -723,9 +724,9 @@ exports.castVote = async (request) => {
   const year = request.data?.annoScolastico;
   const submitted = request.data?.ballots || {};
   if (!sessionId || sessionId.length > 200 || /^(PROVA-|TEST-)/.test(sessionId)) throw new HttpsError('unauthenticated', 'Sessione di voto non valida.');
+  // Lo stato di ammissione e gli orari vengono ricontrollati nella stessa
+  // transazione che deposita le schede; lettura preliminare duplicata rimossa.
   const config = await loadElectionConfig(year);
-  await assertElectionReadyForVoting(year,config);
-  assertVotingOpen(config);
   const sessionHash = sha256(sessionId);
 
   const q = await yearlyCollection(config.privacyMode===LegalReadiness.ANONYMOUS_MODE?'credenziali_anonime':'tokens', year).where('activeSessionHash', '==', sessionHash).limit(1).get();
