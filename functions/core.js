@@ -1127,6 +1127,9 @@ exports.getTechnicalLogs = async (request) => {
   const untilText = request.data?.snapshotUntil;
   const until = untilText ? new Date(untilText) : new Date();
   if (!Number.isFinite(until.getTime()) || until.getTime() > Date.now() + 1000) throw new HttpsError('invalid-argument','Intervallo dei log non valido.');
+  // Dashboard: prima pagina leggera; esportazioni complete: 100 come prima.
+  const requestedPageSize=Number(request.data?.pageSize);
+  const pageSize=Number.isInteger(requestedPageSize)&&requestedPageSize>=1&&requestedPageSize<=100?requestedPageSize:100;
   const collection = yearlyCollection('audit_tecnico', year);
   let query = collection.where('at','<=',Timestamp.fromDate(until)).orderBy('at','desc');
   const cursor = String(request.data?.cursor || '');
@@ -1136,12 +1139,12 @@ exports.getTechnicalLogs = async (request) => {
     if (!previous.exists) throw new HttpsError('invalid-argument','Il punto di continuazione non è più disponibile. Ripetere l’esportazione.');
     query = query.startAfter(previous);
   }
-  const snap = await query.limit(101).get();
-  const page = snap.docs.slice(0,100);
+  const snap = await query.limit(pageSize+1).get();
+  const page = snap.docs.slice(0,pageSize);
   return {
     ok:true, technicianName:technicalActorName(actor), year:String(year),
     snapshotUntil:until.toISOString(),
-    nextCursor:snap.docs.length > 100 ? page[page.length-1].id : null,
+    nextCursor:snap.docs.length > pageSize ? page[page.length-1].id : null,
     logs:page.map(d => {
       const v=d.data()||{};
       const report=v.event==='COLLAUDO' && v.report ? {
