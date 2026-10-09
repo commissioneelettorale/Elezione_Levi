@@ -9,7 +9,7 @@ w.lucide={createIcons(){}};w.scrollTo=()=>{};
 w.fetch=async(url,request)=>{assert.equal(url,'https://elezione-levi.vercel.app/api/call');const payload=JSON.parse(request.body);calls.push(payload.name);assert.equal(payload.name,'commissionLogin');return{ok:true,json:async()=>({data:{customToken:'SYNTHETIC-CUSTOM-TOKEN',profile:{role:'COMMISSIONE',mustChangePassword:false}}})};};
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 (async()=>{
- for(const file of ['election-policy','legal-readiness','election-sandbox','election-sandbox-ui'])w.eval(fs.readFileSync('lib/'+file+'.js','utf8'));
+ for(const file of ['election-policy','legal-readiness','no-lists','election-sandbox','election-sandbox-ui'])w.eval(fs.readFileSync('lib/'+file+'.js','utf8'));
  const main=html.match(/<script type="module">([\s\S]*?)<\/script>/)[1].replace(/^\s*import .*;\s*$/gm,'');
  // Solo il test emula documenti pubblici annuali esistenti: nessuna rete reale.
  w.eval(Object.values(context.fixture).join('\n').replace(/\bexport /g,'')+
@@ -25,6 +25,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
  assert.match(d.querySelector('[data-token]').value,/^PROVA-DOCENTE-/);
  assert.equal(d.querySelector('[data-ignore]').checked,true);
  d.querySelector('[data-start]').click();
+ if(!d.getElementById('app-container').textContent.trim())console.error('Sandbox UI error:',form.closest('#school-test-users')?.querySelector('[data-message]')?.textContent||'none',errors);
  assert.ok(d.getElementById('sandbox-return'));assert.match(d.getElementById('app-container').textContent,/DOCENTE/);
  w.showPage('votoConsiglio');d.querySelector('input[value="__BIANCA__"]').checked=true;w.selectBlankBallot('consiglio');w.saveVotoConsiglio();w.showPage('riepilogo');await w.submitFinalVotes();
  assert.ok(d.getElementById('sandbox-return'));assert.match(d.getElementById('app-container').textContent,/Prova completata/);assert.equal(w.configElezioni.modalitaProva,false);assert.deepEqual(calls,['commissionLogin']);
