@@ -4,6 +4,8 @@ on:
     paths:
       - 'index.html'
       - 'lib/privacy-review-ui.js'
+      - 'scripts/check-school-ui.cjs'
+      - 'lib/privacy-review-ui.js'
       - 'scripts/check-simple-real-opening.cjs'
       - 'scripts/check-token-listener-lazy.cjs'
       - 'api/call.js'
@@ -44,6 +46,8 @@ jobs:
         run: node scripts/check-management-aggregate.cjs
       - name: Install isolated jsdom test dependency
         run: npm install --no-save --ignore-scripts jsdom@26
+      - name: Verify privacy review history and existing references
+        run: node scripts/check-school-ui.cjs
       - name: Verify sandbox model
         run: node scripts/check-sandbox.cjs
       - name: Verify Commission simulation start-to-finish with synthetic login
