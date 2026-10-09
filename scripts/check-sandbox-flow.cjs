@@ -12,8 +12,8 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
  for(const file of ['election-policy','legal-readiness','election-sandbox','election-sandbox-ui'])w.eval(fs.readFileSync('lib/'+file+'.js','utf8'));
  const main=html.match(/<script type="module">([\s\S]*?)<\/script>/)[1].replace(/^\s*import .*;\s*$/gm,'');
  // Solo il test emula documenti pubblici annuali esistenti: nessuna rete reale.
- w.eval(Object.values(context.fixture).join('\\n').replace(/\\bexport /g,'')+
-   '\\nconst getDocFromServer=async()=>({exists:()=>true,metadata:{fromCache:false},data:()=>({annoScolastico:"2026/2027"})});\\n'+main);
+ w.eval(Object.values(context.fixture).join('\n').replace(/\bexport /g,'')+
+   '\nconst getDocFromServer=async()=>({exists:()=>true,metadata:{fromCache:false},data:()=>({annoScolastico:"2026/2027"})});\n'+main);
  const boot=w.onload;w.onload=null;await boot();await tick();
  assert.ok(d.getElementById('adminUsername'));assert.ok(![...d.querySelectorAll('button')].some(b=>b.textContent==='Scarica PDF DPO'));
  d.getElementById('adminUsername').value='synthetic-commission';d.getElementById('adminPwd').value='TEST-ONLY-NOT-A-REAL-PASSWORD';await w.checkAdminLogin();await tick();
