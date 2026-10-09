@@ -2447,8 +2447,45 @@
 
         window.openMimPrivacyCheck = function(control) {
             if (!['metadataUnlinkabilityReviewed','structuralSeparationReviewed'].includes(control)) return;
-            // Conserva la revisione indipendente nel Fascicolo DPO senza auto-certificare garanzie non provate.
-            return window.openPrivacyReview();
+            // Apre direttamente la guida sulle evidenze, senza modificare l'ammissione.
+            return window.openPrivacyReview({focus:'anonymity'});
+        };
+        // Bozza LOCALE per verbalizzare le verifiche ancora pendenti: non produce
+        // attestazioni, registrazioni server né autorizzazioni all'apertura.
+        window.downloadPendingPrivacyChecksMemo = function() {
+            if (!auth.currentUser || !commissionSessionReady) {
+                showNotification('Accesso Commissione richiesto','Accedere prima nell’area riservata.','error');
+                return;
+            }
+            if (typeof window.jspdf?.jsPDF !== 'function') {
+                showNotification('PDF non disponibile','Ricaricare la pagina: nessuna attestazione è stata registrata.','error');
+                return;
+            }
+            const pdf=new window.jspdf.jsPDF({format:'a4',unit:'mm'});
+            const margin=18,width=174;
+            let y=23;
+            const write=(value,size=10,bold=false,space=6)=>{
+                pdf.setFont('helvetica',bold?'bold':'normal');
+                pdf.setFontSize(size);
+                const lines=pdf.splitTextToSize(value,width);
+                pdf.text(lines,margin,y);
+                y+=lines.length*(size/2.5)+space;
+            };
+            write('I.I.S. PRIMO LEVI - SEREGNO',13,true,6);
+            write('BOZZA PER VERBALE - VERIFICHE DI SEGRETEZZA PENDENTI',12,true,7);
+            write('Anno scolastico: '+(configElezioni.annoScolastico||'da indicare'),10,false,1);
+            write('Preparata il: '+new Date().toLocaleString('it-IT',{timeZone:'Europe/Rome'}),9,false,8);
+            write('La Commissione prende atto che le verifiche sotto indicate richiedono evidenze indipendenti. Questo prospetto e una bozza da completare e sottoscrivere; non conferma l\u0027esecuzione delle prove e non abilita le votazioni.',10,false,7);
+            write('1. Non correlabilita tra identita e preferenza tramite log e metadati.',10,true,3);
+            write('Acquisire un rapporto che esamini tempi di accesso e deposito, identificatori di sessione, dati dei fornitori, accessi ai log, gruppi di piccole dimensioni e rischio residuo. Indicare verificatore indipendente, data, protocollo e riferimenti delle evidenze.',9,false,7);
+            write('2. Separazione strutturale fra autenticazione e urna.',10,true,3);
+            write('Documentare la distribuzione non nominativa dei codici e verificare che archivi, transazioni, chiavi, log e privilegi infrastrutturali non permettano collegamenti fra elettore e scelta. Allegare relazione e risultato della verifica indipendente.',9,false,7);
+            write('Esiti alla data del presente prospetto: NON ATTESTATI nel presente documento. Eventuali prove gia eseguite vanno richiamate con evidenza prima della conferma da parte della Commissione.',9,false,7);
+            write('Responsabile e riferimenti: _______________________________',9,false,5);
+            write('Protocollo e data delle prove: ___________________________',9,false,5);
+            write('Firma dei soggetti competenti: __________________________',9,false,7);
+            write('NOTA: questa bozza non modifica regolarita, urne, autorizzazioni, token o risultati.',9,true,0);
+            pdf.save('Bozza_Verifiche_Segretezza_Pendenti.pdf');
         };
         window.updateMimComplianceControl = async function(control, value) {
             if(['metadataUnlinkabilityReviewed','structuralSeparationReviewed'].includes(control))return window.openPrivacyReview();
@@ -2516,6 +2553,16 @@
                             </div>
                         </div>
                     </div>
+
+                    <section class="bg-white border-2 border-amber-300 rounded-2xl p-5" aria-label="Verifiche indipendenti della segretezza">
+                        <h4 class="font-black text-amber-950 text-sm">Segretezza del voto — due verifiche da documentare</h4>
+                        <p class="text-xs text-slate-800 mt-2">Esamina in un solo passaggio la non correlabilità tra identità e preferenza (log/metadati) e la separazione strutturale tra autenticazione e urna. I risultati devono essere verificati da una persona indipendente e riportati con protocollo ed evidenze. Una riserva nel verbale non rende superati questi controlli.</p>
+                        <div class="flex flex-wrap gap-2 mt-3">
+                            <button type="button" onclick="window.openMimPrivacyCheck('metadataUnlinkabilityReviewed')" class="bg-blue-900 text-white px-4 py-3 rounded-xl text-xs font-black">Apri verifica ed evidenze DPO</button>
+                            <button type="button" onclick="window.downloadPendingPrivacyChecksMemo()" class="border border-slate-400 bg-white text-slate-900 px-4 py-3 rounded-xl text-xs font-black">Scarica bozza per il verbale</button>
+                        </div>
+                        <p class="text-[11px] mt-2 text-amber-950">La bozza PDF non viene salvata nel database e non autorizza l’apertura delle votazioni: per il voto reale rimangono necessari gli accertamenti indipendenti e le approvazioni previste.</p>
+                    </section>
 
                     <section class="bg-white rounded-2xl border border-blue-200 p-5"><h4 class="font-black text-blue-950">Collaudo generale — procedura unica</h4><p class="text-xs mt-2">1. La Commissione prova le schede con utenti fittizi. 2. Il tecnico compila e registra UN SOLO rapporto delle 12 prove nella propria area e scarica il verbale tecnico PDF. 3. La Commissione verifica i risultati del rapporto in Regolarità. I verbali sui seggi e sugli eletti si trovano esclusivamente nella sezione Scrutinio e Proclamazione.</p><div class="flex gap-2 flex-wrap mt-3"><button onclick="window.showPage('technicalLogin')" class="bg-amber-700 rounded-lg text-white p-2 text-xs font-bold">Area del tecnico</button><button onclick="window.switchAdminTab('regolarita')" class="bg-blue-900 text-white rounded-lg p-2 text-xs font-bold">Regolarità della Commissione</button></div></section>
 
