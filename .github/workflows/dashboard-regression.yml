@@ -25,6 +25,7 @@ on:
       - 'scripts/check-collaudo-layout.cjs'
       - 'scripts/check-cabin-checkpoints.cjs'
       - 'scripts/check-collaudo-gates.cjs'
+      - 'scripts/check-hobby-blaze-perf.cjs'
       - 'functions/core.js'
       - 'scripts/check-voter-read-efficiency.cjs'
       - 'scripts/check-two-session-voting.cjs'
@@ -82,5 +83,7 @@ jobs:
         run: node scripts/check-concurrent-votes.cjs
       - name: Validate one-button real voting opening is server-authoritative
         run: node scripts/check-simple-real-opening.cjs
+      - name: Test Firestore read optimizations and voter login dedup
+        run: node scripts/check-hobby-blaze-perf.cjs
       - name: Run public build smoke tests
         run: node scripts/build-public-site.cjs
