@@ -6264,7 +6264,7 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                 lucide.createIcons();
             } catch (e) {
                 summary.innerHTML = '<div class="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs font-black">Servizio tecnico non raggiungibile. Aggiornare o informare la Commissione.</div>';
-                if (error) { error.innerHTML = `<div class="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-[10px] font-bold">${technicalEscape(e?.message || 'Errore di collegamento.')}</div>`; error.classList.remove('hidden'); }
+                if (error) { error.textContent = e?.message || 'Errore di collegamento.'; error.classList.remove('hidden'); }
                 const stamp = document.getElementById('technicalLastUpdate');
                 if (stamp) stamp.textContent = 'ERRORE • ' + new Date().toLocaleTimeString('it-IT');
             }
