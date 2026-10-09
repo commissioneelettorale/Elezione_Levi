@@ -11,7 +11,9 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
 (async()=>{
  for(const file of ['election-policy','legal-readiness','election-sandbox','election-sandbox-ui'])w.eval(fs.readFileSync('lib/'+file+'.js','utf8'));
  const main=html.match(/<script type="module">([\s\S]*?)<\/script>/)[1].replace(/^\s*import .*;\s*$/gm,'');
- w.eval(Object.values(context.fixture).join('\n').replace(/\bexport /g,'')+'\n'+main);
+ // Solo il test emula documenti pubblici annuali esistenti: nessuna rete reale.
+ w.eval(Object.values(context.fixture).join('\\n').replace(/\\bexport /g,'')+
+   '\\nconst getDocFromServer=async()=>({exists:()=>true,metadata:{fromCache:false},data:()=>({annoScolastico:"2026/2027"})});\\n'+main);
  const boot=w.onload;w.onload=null;await boot();await tick();
  assert.ok(d.getElementById('adminUsername'));assert.ok(![...d.querySelectorAll('button')].some(b=>b.textContent==='Scarica PDF DPO'));
  d.getElementById('adminUsername').value='synthetic-commission';d.getElementById('adminPwd').value='TEST-ONLY-NOT-A-REAL-PASSWORD';await w.checkAdminLogin();await tick();
@@ -20,7 +22,9 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
  Object.assign(w.configElezioni,{modalitaProva:false,consiglioAttivo:true,listeConsiglio:{DOCENTE:{A:{nome:'FITTIZIA',candidati:['UNO']}}},consultazioni:{consiglio:profile}});
  w.switchAdminTab('collaudo');const form=d.querySelector('[data-batch]');assert.ok(form);
  form.elements.kind.value='DOCENTE';form.elements.count.value='2';form.dispatchEvent(new w.Event('submit',{cancelable:true}));
- d.querySelector('[data-user]').click();d.querySelector('[data-clock]').value='2026-10-10T09:30';d.querySelector('[data-start]').click();
+ assert.match(d.querySelector('[data-token]').value,/^PROVA-DOCENTE-/);
+ assert.equal(d.querySelector('[data-ignore]').checked,true);
+ d.querySelector('[data-start]').click();
  assert.ok(d.getElementById('sandbox-return'));assert.match(d.getElementById('app-container').textContent,/DOCENTE/);
  w.showPage('votoConsiglio');d.querySelector('input[value="__BIANCA__"]').checked=true;w.selectBlankBallot('consiglio');w.saveVotoConsiglio();w.showPage('riepilogo');await w.submitFinalVotes();
  assert.ok(d.getElementById('sandbox-return'));assert.match(d.getElementById('app-container').textContent,/Prova completata/);assert.equal(w.configElezioni.modalitaProva,false);assert.deepEqual(calls,['commissionLogin']);
