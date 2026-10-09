@@ -6197,7 +6197,7 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             try {
                 const [statusResponse,historyResponse]=await Promise.all([
                     SECURE_API.getTechnicalStatus({annoScolastico:configElezioni.annoScolastico,includeRecentEvents:false}),
-                    SECURE_API.getTechnicalLogs({annoScolastico:configElezioni.annoScolastico})
+                    SECURE_API.getTechnicalLogs({annoScolastico:configElezioni.annoScolastico,pageSize:20})
                 ]);
                 currentTechnicalStatus=statusResponse.data;
                 const stored=historyResponse.data||{};
@@ -6407,7 +6407,7 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             try {
                 const [statusResponse, logsResponse] = await Promise.all([
                     SECURE_API.getTechnicalStatus({ annoScolastico: configElezioni.annoScolastico, includeRecentEvents:false }),
-                    SECURE_API.getTechnicalLogs({ annoScolastico: configElezioni.annoScolastico })
+                    SECURE_API.getTechnicalLogs({ annoScolastico: configElezioni.annoScolastico, pageSize:20 })
                 ]);
                 currentTechnicalStatus = statusResponse.data || {};
                 currentTechnicalLogs = logsResponse.data?.logs || currentTechnicalStatus.recentEvents || [];
