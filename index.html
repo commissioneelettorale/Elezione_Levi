@@ -2700,6 +2700,65 @@
             }finally{if(button)button.disabled=false;}
         };
 
+        // Un solo controllo dello stato effettivo: non modifica il calendario,
+        // non trasforma una prova in collaudo e non altera le regole di ammissione.
+        window.checkRealVotingOpening = async function() {
+            const button=document.getElementById('real-voting-check-button');
+            const result=document.getElementById('real-voting-check-result');
+            if(!button||!result)return;
+            if(!auth.currentUser||!commissionSessionReady){
+                result.textContent='Accedere prima come Commissione con una sessione valida.';
+                return;
+            }
+            button.disabled=true;
+            result.textContent='Interrogazione dello stato ufficiale del voto in corso…';
+            try{
+                const response=await SECURE_API.getPublicServiceStatus();
+                const data=response?.data||{};
+                const codes=Array.isArray(data.blockerCodes)?data.blockerCodes:[];
+                const labels={
+                    testModeActive:'Modalità prova globale da disattivare',
+                    structuralSecrecy:'Separazione dei codici dall’identità e segretezza strutturale non ancora dimostrate',
+                    privacyReviewPending:'Revisione indipendente privacy e autorizzazione non completate',
+                    votingReviewStale:'Versione o configurazione variata: revisione da aggiornare',
+                    technicalTestPassed:'Collaudo tecnico non confermato',
+                    softwareFrozen:'Versione software non formalmente congelata',
+                    backupPlanReady:'Backup e prova di ripristino non confermati',
+                    privacyChecked:'Verifica GDPR non confermata'
+                };
+                const safe=value=>technicalEscape(String(value??''));
+                let headline,detail,ok=false;
+                if(data.ok!==true){
+                    headline='STATO NON VERIFICABILE';
+                    detail='Il server non ha restituito una risposta valida: nessuna apertura può essere attestata.';
+                }else if(data.serviceState==='SUSPENDED'){
+                    headline='VOTAZIONI SOSPESE';
+                    detail='La sospensione risulta registrata. La ripresa richiede l’apposita procedura autorizzata.';
+                }else if(data.secretVotingEnabled===true&&data.serviceState==='ADMITTED'){
+                    if(data.phase==='OPEN'){
+                        headline='VOTAZIONI REALI APERTE';
+                        detail='Il server conferma l’ammissione al voto e almeno una fascia elettorale attualmente aperta. Ogni elettore può accedere soltanto alle schede spettanti e nella propria finestra oraria.';
+                        ok=true;
+                    }else if(data.phase==='BEFORE'||data.phase==='PAUSED'){
+                        headline='VOTO AUTORIZZATO — ATTESA DELLA FASCIA';
+                        detail='L’autorizzazione risulta registrata, ma le schede si aprono automaticamente soltanto negli orari previsti dal calendario approvato.';
+                    }else{
+                        headline='VOTO AUTORIZZATO — NESSUNA FASCIA APERTA';
+                        detail='Controllare il calendario delle singole consultazioni senza modificare gli atti già congelati.';
+                    }
+                }else{
+                    headline='VOTAZIONI REALI NON ANCORA ABILITATE';
+                    detail=codes.length?'Requisiti ancora da completare:\n'+codes.map(code=>'• '+(labels[code]||((typeof REGULARITY_LABELS!=='undefined'&&REGULARITY_LABELS[code])||LeviLegalReadiness.BLOCKER_LABELS[code]||code))).join('\n'):'Lo stato ufficiale del server non conferma l’ammissione. Verificare la Regolarità e il Fascicolo DPO.';
+                }
+                result.className='mt-3 rounded-xl border p-4 whitespace-pre-wrap text-sm '+(ok?'bg-emerald-50 border-emerald-300 text-emerald-950':'bg-amber-50 border-amber-300 text-amber-950');
+                result.textContent=headline+'\n'+detail;
+                if(ok)showNotification('Voto reale disponibile','Il server conferma la fascia attualmente aperta. Non è stato modificato alcun dato elettorale.','success');
+            }catch(error){
+                result.className='mt-3 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-950';
+                result.textContent='STATO NON VERIFICABILE: '+(error?.message||'backend non disponibile')+'. Controllare Vercel/Firebase; non ripetere accessi o conferme senza verificarne l’esito.';
+            }finally{button.disabled=false;}
+        };
+
         function renderOpeningTab(container) {
             const w=votingWindowStatus();
             container.innerHTML=`
@@ -2726,21 +2785,30 @@
                         </div>
                         <p class="text-xs text-amber-950 mt-3">I verbali sono bozze basate sullo stato server, da verificare e firmare. Nessun pulsante trasforma verifiche incomplete in attestazioni positive o apre urne senza autorizzazione.</p>
                     </section>
-                    <section class="bg-white border-2 border-blue-300 rounded-2xl p-5">
-                        <h4 class="font-black text-blue-950 text-lg">Preparazione guidata delle votazioni</h4>
-                        <p class="text-xs text-slate-600 mt-2">Un unico controllo legge lo stato reale del server, senza modificare urne, codici o autorizzazioni.</p>
-                        <button id="election-preparation-button" onclick="window.prepareElectionReadiness()" class="mt-3 bg-blue-900 text-white px-5 py-3 rounded-xl font-black hover:bg-blue-800 disabled:opacity-50">PREPARA LE VOTAZIONI — CONTROLLA TUTTO</button>
-                        <div id="election-preparation-result" role="status" aria-live="polite"></div>
+                    <section class="bg-white border-2 border-emerald-400 rounded-2xl p-5">
+                        <h4 class="font-black text-lg text-emerald-950">Verifica apertura delle votazioni reali</h4>
+                        <p class="text-xs text-slate-700 mt-2">Un solo pulsante verifica lo stato ufficiale comunicato dal server. Per le consultazioni con orari dedicati l'accesso degli elettori si attiva automaticamente nella fascia approvata, dopo l'ammissione formale. Non vengono cancellati o riscritti codici e urne.</p>
+                        <button id="real-voting-check-button" onclick="window.checkRealVotingOpening()" class="mt-4 w-full rounded-xl bg-emerald-700 px-5 py-4 text-white font-black text-base hover:bg-emerald-800 disabled:opacity-50">VERIFICA E APRI LE VOTAZIONI REALI</button>
+                        <div id="real-voting-check-result" role="status" aria-live="polite" class="mt-3 text-xs text-slate-600">Premere il pulsante per interrogare lo stato del voto, senza modificarlo.</div>
+                        <details class="mt-4 border rounded-xl p-3 bg-slate-50"><summary class="cursor-pointer text-sm font-bold text-slate-900">Controlli dettagliati e documentazione (solo se necessari)</summary>
+                            <div class="mt-3"><button id="election-preparation-button" onclick="window.prepareElectionReadiness()" class="px-3 py-2 rounded-lg bg-blue-900 text-white text-xs font-black disabled:opacity-50">Controlla tutte le evidenze</button><div id="election-preparation-result" role="status" aria-live="polite"></div></div>
+                            <div id="opening-status-box" class="mt-3"></div>
+                            <div class="flex flex-wrap gap-2 mt-3">
+                                <button onclick="refreshOpeningStatus()" class="px-3 py-2 rounded-lg border bg-white text-xs font-bold">Aggiorna requisiti</button>
+                                <button onclick="window.switchAdminTab('regolarita')" class="px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold">Regolarità</button>
+                                <button onclick="window.openPrivacyReview()" class="px-3 py-2 rounded-lg bg-blue-900 text-white text-xs font-bold">Fascicolo DPO</button>
+                            </div>
+                        </details>
                     </section>
-                    <div id="opening-status-box"></div>
-                    <div class="grid md:grid-cols-3 gap-4">
-                        <button onclick="refreshOpeningStatus()" class="p-5 rounded-2xl bg-blue-50 border-2 border-blue-200 hover:bg-blue-100 text-blue-950 text-left"><div class="text-2xl mb-2">①</div><div class="font-black">VERIFICA</div><div class="text-[10px] mt-1">Ti dice solo cosa manca.</div></button>
-                        <button onclick="openElectionNow()" class="p-5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-left shadow-lg"><div class="text-2xl mb-2">②</div><div class="font-black">${Object.values(configElezioni.consultazioni||{}).some(p=>p.dedicated)?'VERIFICA APERTURA PROGRAMMATA':'APRI ORA'}</div><div class="text-[10px] mt-1">Rispetta gli orari dedicati, se configurati.</div></button>
-                        <button onclick="closeElectionNow()" class="p-5 rounded-2xl bg-red-600 hover:bg-red-700 text-white text-left shadow-lg"><div class="text-2xl mb-2">③</div><div class="font-black">${Object.values(configElezioni.consultazioni||{}).some(p=>p.dedicated)?'SOSPENDI VOTAZIONI':'CHIUDI ORA'}</div><div class="text-[10px] mt-1">Blocca immediatamente nuovi voti.</div></button>
-                    </div>
+                    <section class="border border-red-200 bg-white rounded-xl p-4">
+                        <b class="text-xs text-red-950">Sospensione d'emergenza</b>
+                        <p class="text-xs text-slate-600 mt-1">La sospensione è una procedura separata. Non usarla per verificare l'apertura.</p>
+                        <button onclick="closeElectionNow()" class="mt-2 rounded-lg border border-red-400 px-4 py-2 text-xs font-black text-red-900">SOSPENDI / CHIUDI SECONDO PROCEDURA</button>
+                    </section>
                     <div class="bg-white border rounded-2xl p-5"><label class="text-xs font-black">Durata automatica dopo “APRI ORA”</label><select id="quickOpeningHours" class="mt-2 w-full md:w-52 p-3 border rounded-xl font-bold"><option value="1">1 ora</option><option value="2">2 ore</option><option value="4" selected>4 ore</option><option value="6">6 ore</option><option value="8">8 ore</option></select><p class="text-[10px] text-slate-500 mt-2">Le date dettagliate restano modificabili nella Configurazione.</p></div>
                 </div>`;
-            refreshOpeningStatus();
+            // Evitare letture Firestore ripetute al solo ingresso nel pannello.
+            // Il server è interrogato su esplicita richiesta della Commissione.
         }
 
         window.openElectionNow = async function() {
