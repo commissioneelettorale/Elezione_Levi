@@ -14,6 +14,7 @@ on:
       - 'scripts/check-commission-minutes.cjs'
       - 'lib/privacy-review-ui.js'
       - 'scripts/check-credential-pdf.cjs'
+      - 'scripts/check-credential-recovery.cjs'
       - 'scripts/check-privacy-architecture-label.cjs'
       - 'scripts/build-public-site.cjs'
       - 'scripts/check-management-ui.cjs'
@@ -63,6 +64,8 @@ jobs:
         run: node scripts/check-consultations.cjs
       - name: Verify one-time credentials PDF and manual re-download
         run: node scripts/check-credential-pdf.cjs
+      - name: Verify credential PDF survives cloud failure and duplicate clicks
+        run: node scripts/check-credential-recovery.cjs
       - name: Check login quota error classification
         run: node scripts/check-login-quota-errors.cjs
       - name: Verify Firestore login/vote read efficiency
