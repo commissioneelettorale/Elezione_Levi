@@ -2138,6 +2138,12 @@
                         <input type="text" id="adminUsername" autocomplete="username" placeholder="Username Commissione" class="w-full p-4 border rounded-xl text-center text-sm outline-none focus:ring-4 focus:ring-red-100 focus:border-red-600 font-bold">
                         <input type="password" id="adminPwd" autocomplete="current-password" placeholder="Password personale" class="w-full p-4 border rounded-xl text-center text-lg outline-none focus:ring-4 focus:ring-red-100 focus:border-red-600 font-bold">
                         <button onclick="checkAdminLogin()" class="w-full bg-red-700 hover:bg-red-800 text-white font-extrabold py-3.5 rounded-xl shadow transition-all text-xs">Sblocca Cruscotto</button>
+                        <div id="commission-config-recovery" class="${commissionConfigRecoveryPending&&auth.currentUser?'':'hidden'} rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+                            <b>Credenziali già accettate dal server.</b>
+                            <p class="mt-1 text-xs">Non ripetere username e password. Il problema riguarda il caricamento della configurazione Firestore: verificare le quote, quindi utilizzare questo pulsante.</p>
+                            <button type="button" id="commission-config-retry" onclick="window.retryCommissionConfigAfterLogin()" class="mt-2 bg-amber-800 text-white px-3 py-2 rounded-lg text-xs font-bold">Riprova caricamento senza nuovo login</button>
+                            <button type="button" onclick="window.cancelCommissionConfigRecovery()" class="ml-2 text-xs underline">Annulla sessione</button>
+                        </div>
                         <button onclick="showPage('studentLogin')" class="w-full text-xs text-slate-500 hover:underline text-center block font-extrabold">Torna alla cabina</button>
                     </div>
                 </div>
@@ -2145,9 +2151,44 @@
             lucide.createIcons();
         }
 
+        let commissionConfigRecoveryPending=null;
+        let commissionConfigRetryInProgress=false;
+        window.retryCommissionConfigAfterLogin=async function(){
+            if(!commissionConfigRecoveryPending || commissionConfigRetryInProgress || !auth.currentUser)return;
+            commissionConfigRetryInProgress=true;
+            const retry=document.getElementById('commission-config-retry');
+            if(retry){retry.disabled=true;retry.textContent='Verifica configurazione in corso…';}
+            try{
+                const claims=(await auth.currentUser.getIdTokenResult()).claims||{};
+                if(claims.role!=='COMMISSIONE' || claims.staffYear!==configElezioni.annoScolastico)
+                    throw Error('La sessione autenticata non corrisponde alla Commissione di questa annualità.');
+                if(!(await syncConfigFromDB()))
+                    throw Error('La lettura Firestore non è ancora riuscita. Verificare la quota e riprovare solo quando il servizio è disponibile.');
+                const mustChange=commissionConfigRecoveryPending.mustChangePassword===true;
+                commissionConfigRecoveryPending=null;
+                resetIdleTimer();
+                if(mustChange){showPage('commissionPasswordChange');return;}
+                commissionSessionReady=true;
+                activeAdminTab='config';
+                showPage('adminPanel');
+                await resumeDpoDownload();
+            }catch(error){
+                showNotification('Configurazione non disponibile',error?.message||'Ripristino non riuscito.','error');
+            }finally{
+                commissionConfigRetryInProgress=false;
+                if(retry?.isConnected){retry.disabled=false;retry.textContent='Riprova caricamento senza nuovo login';}
+            }
+        };
+        window.cancelCommissionConfigRecovery=async function(){
+            commissionConfigRecoveryPending=null;
+            commissionSessionReady=false;
+            try{await signOut(auth);}catch(_){}
+            showPage('adminLogin');
+        };
         let commissionLoginInProgress=false;
         let commissionLoginCooldownUntil=0;
         window.checkAdminLogin = async function() {
+            if(commissionConfigRecoveryPending&&auth.currentUser)return window.retryCommissionConfigAfterLogin();
             if(commissionLoginInProgress)return;
             const waitSeconds=Math.max(0,Math.ceil((commissionLoginCooldownUntil-Date.now())/1000));
             if(waitSeconds)return showNotification('Accesso temporaneamente limitato','Attendere '+waitSeconds+' secondi prima di un altro tentativo; il servizio non è stato richiamato.','info');
@@ -2162,14 +2203,17 @@
             try {
                 const res = await SECURE_API.commissionLogin({ username, password, annoScolastico: configElezioni.annoScolastico });
                 await signInWithCustomToken(auth, res.data.customToken);
+                commissionConfigRecoveryPending={mustChangePassword:res.data?.profile?.mustChangePassword===true};
                 if(!(await syncConfigFromDB())){
                     // L'identità è valida, ma l'area Commissione non deve operare su dati
                     // di fallback. Esporre un errore distinto e una via di recupero.
                     commissionSessionReady=false;
-                    showNotification('Accesso riconosciuto, configurazione non caricata',
-                        'Credenziali Commissione accettate. Lettura della configurazione annuale non riuscita: controllare connessione e permessi Firestore e riprovare. Non modificare registri o urne.','error');
+                    showPage('adminLogin');
+                    showNotification('Identità verificata: Firestore non disponibile',
+                        'Le credenziali sono state accettate. Non reinserirle: verificare quote o connettività e poi premere «Riprova caricamento senza nuovo login».','error');
                     return;
                 }
+                commissionConfigRecoveryPending=null;
                 resetIdleTimer();
                 if (res.data?.profile?.mustChangePassword === true) {
                     showPage('commissionPasswordChange');
@@ -5983,11 +6027,12 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             return (diagnostics||[]).map(d=>{
                 const alreadyRecorded=d.id==='evidence' && recorded?.report;
                 const visibleOk=d.ok===true;
-                const cls=visibleOk?'bg-emerald-50 border-emerald-200':alreadyRecorded?'bg-amber-50 border-amber-200':'bg-slate-50 border-slate-200';
+                const notScanned=d.ok===null;
+                const cls=visibleOk?'bg-emerald-50 border-emerald-200':notScanned?'bg-slate-50 border-slate-200':alreadyRecorded?'bg-amber-50 border-amber-200':'bg-slate-50 border-slate-200';
                 const text=alreadyRecorded&&!visibleOk
                     ?'Rapporto tecnico già registrato: ID '+recorded.report.id+'. Occorre la verifica del contenuto e la conferma della Commissione; non ripetere la registrazione.'
                     :d.detail;
-                const label=alreadyRecorded?'Vai a Regolarità':d.action==='recheck'?'Riesegui il controllo':d.action==='report'?'Apri verbale tecnico':'Vai alla verifica';
+                const label=alreadyRecorded?'Vai a Regolarità':d.action==='recheck'?'Verifica limitata su richiesta':d.action==='report'?'Apri verbale tecnico':'Vai alla verifica';
                 return `<div class="p-4 rounded-xl border ${cls}">
                     <b class="text-xs text-slate-900">${technicalEscape(d.label)}</b>
                     <p class="text-xs mt-2 text-slate-700">${technicalEscape(text)}</p>
@@ -6041,10 +6086,24 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             if(action==='protectDatabase'&&currentTechnicalStatus?.role!=='COMMISSIONE')return showNotification('Intervento della Commissione','La cifratura delle schede pregresse si avvia dalla Commissione, nella scheda Collaudo.','info');
             if(button){button.disabled=true;button.textContent='Risoluzione in corso...';}
             try {
-                let total=0,more=false;
-                do {const r=await SECURE_API.resolveTechnicalIssue({annoScolastico:configElezioni.annoScolastico,action});total+=r.data?.processed||0;more=r.data?.more===true;if(button)button.textContent=total?'Schede protette: '+total:'Controllo in corso...';}while(more);
-                if(currentTechnicalData)await window.refreshTechnicalDashboard();else await window.refreshCommissionDiagnostics();
-                showNotification('Controllo completato',action==='protectDatabase'?total+' schede pregresse cifrate e verificate. Le copie storiche esterne richiedono gestione separata.':'Controlli aggiornati: vedere gli esiti effettivi.','success');
+                let total=0,more=false,details=null;
+                do {
+                    const response=await SECURE_API.resolveTechnicalIssue({annoScolastico:configElezioni.annoScolastico,action});
+                    details=response.data;
+                    total+=details?.processed||0;
+                    more=details?.more===true;
+                    if(button)button.textContent=total?'Schede protette: '+total:'Controllo in corso...';
+                }while(more);
+                if(currentTechnicalData)await window.refreshTechnicalDashboard();
+                else if(action!=='recheck')await window.refreshCommissionDiagnostics();
+                if(action==='recheck'&&Array.isArray(details?.diagnostics)){
+                    const target=document.getElementById(currentTechnicalData?'technical-diagnostic-cards':'commission-diagnostics');
+                    if(target)target.innerHTML=diagnosticCards(details.diagnostics);
+                }
+                showNotification(action==='recheck'?'Controllo limitato completato':'Intervento completato',
+                    action==='recheck'?'È stata esaminata una porzione limitata delle urne: se vi sono più di 100 schede per raccolta non è una verifica completa. Nessuna attestazione modificata.'
+                    :action==='protectDatabase'?total+' schede pregresse cifrate e verificate. Le copie storiche esterne richiedono gestione separata.':'Controlli aggiornati: vedere gli esiti effettivi.',
+                    'success');
             }catch(e){showNotification('Intervento non completato',e.message||'Riprovare il controllo.','error');}
             finally {if(button){button.disabled=false;button.textContent='Risolvi';}}
         };
@@ -6198,14 +6257,14 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                 const records=summarizeTechnicalRegistrations(allLogs);
                 const checkpoints=document.getElementById('technical-recorded-checkpoints');
                 if(checkpoints)checkpoints.innerHTML=renderTechnicalRegistrations(records,complete);
-                summary.innerHTML = `<div class="flex flex-col lg:flex-row justify-between gap-4 items-start lg:items-center mb-4"><div><span class="text-[9px] uppercase tracking-wider text-amber-700 font-black">STATO SISTEMA</span><h3 class="text-xl font-black text-slate-900 mt-1">${technicalEscape(currentTechnicalStatus.phase || '—')}</h3><p class="text-[10px] text-slate-500">Backend e registri verificati per l’A.S. ${technicalEscape(currentTechnicalStatus.year || configElezioni.annoScolastico)}</p></div><div class="px-3 py-2 rounded-xl bg-emerald-100 text-emerald-900 text-[10px] font-black">${controls.backendReachable===true && controls.firebaseReachable===true && controls.serverSideAuth===true ? 'COLLEGAMENTO TECNICO VERIFICATO' : 'COLLEGAMENTO DA VERIFICARE'}</div></div><div class="grid md:grid-cols-2 lg:grid-cols-4 gap-3">${technicalStatusCards(controls)}</div><h4 class="font-bold mt-5 mb-3 text-black">Controlli e rimedi</h4><div class="grid md:grid-cols-2 gap-3">${diagnosticCards(currentTechnicalStatus.diagnostics, records)}</div>`;
+                summary.innerHTML = `<div class="flex flex-col lg:flex-row justify-between gap-4 items-start lg:items-center mb-4"><div><span class="text-[9px] uppercase tracking-wider text-amber-700 font-black">STATO SISTEMA</span><h3 class="text-xl font-black text-slate-900 mt-1">${technicalEscape(currentTechnicalStatus.phase || '—')}</h3><p class="text-[10px] text-slate-500">Backend e registri verificati per l’A.S. ${technicalEscape(currentTechnicalStatus.year || configElezioni.annoScolastico)}</p></div><div class="px-3 py-2 rounded-xl bg-emerald-100 text-emerald-900 text-[10px] font-black">${controls.backendReachable===true && controls.firebaseReachable===true && controls.serverSideAuth===true ? 'COLLEGAMENTO TECNICO VERIFICATO' : 'COLLEGAMENTO DA VERIFICARE'}</div></div><div class="grid md:grid-cols-2 lg:grid-cols-4 gap-3">${technicalStatusCards(controls)}</div><h4 class="font-bold mt-5 mb-3 text-black">Controlli e rimedi</h4><div id="technical-diagnostic-cards" class="grid md:grid-cols-2 gap-3">${diagnosticCards(currentTechnicalStatus.diagnostics, records)}</div>`;
                 if (body) body.innerHTML = technicalLogRows(currentTechnicalLogs);
                 const stamp = document.getElementById('technicalLastUpdate');
                 if (stamp) stamp.textContent = 'LIVE • ' + new Date().toLocaleTimeString('it-IT');
                 lucide.createIcons();
             } catch (e) {
                 summary.innerHTML = '<div class="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs font-black">Servizio tecnico non raggiungibile. Aggiornare o informare la Commissione.</div>';
-                if (error) { error.innerHTML = `<div class="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-[10px] font-bold">${technicalEscape(e?.message || 'Errore di collegamento.')}</div>`; error.classList.remove('hidden'); }
+                if (error) { error.textContent = e?.message || 'Errore di collegamento.'; error.classList.remove('hidden'); }
                 const stamp = document.getElementById('technicalLastUpdate');
                 if (stamp) stamp.textContent = 'ERRORE • ' + new Date().toLocaleTimeString('it-IT');
             }

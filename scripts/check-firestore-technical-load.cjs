@@ -1,0 +1,46 @@
+'use strict';
+// Isolated unit checks. No production credentials, documents or network calls.
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),{spawnSync}=require('node:child_process');
+const backend=fs.readFileSync('functions/core.js','utf8');
+const html=fs.readFileSync('index.html','utf8');
+assert.equal(spawnSync(process.execPath,['--check','functions/core.js'],{encoding:'utf8'}).status,0);
+const app=html.match(/<script type="module">([\s\S]*?)<\/script>/);
+assert.ok(app,'App module missing');
+const parsed=spawnSync(process.execPath,['--input-type=module','--check'],{input:app[1],encoding:'utf8'});
+assert.equal(parsed.status,0,parsed.stderr);
+let reads=0,limitUsed=[];
+const dataFor=Object.fromEntries(['a','b'].map(name=>[name,[{schema:'LEVI_SEALED_V1',keyId:'KEY'}]]));
+const privacyContext={BALLOT_COLLECTIONS:['a','b'],BallotVault:{keyMaterial:()=>({keyId:'KEY'})},yearlyCollection:name=>({select:()=>({limit:max=>({get:async()=>{
+ reads++;limitUsed.push(max);
+ const docs=dataFor[name].slice(0,max).map(row=>({data:()=>row}));
+ return {size:docs.length,docs};
+}})})})};
+vm.createContext(privacyContext);
+const begin=backend.indexOf('async function databasePrivacyStatus(year)');
+const end=backend.indexOf('function vaultSelfTest(year)',begin);
+assert.ok(begin>=0&&end>begin);
+vm.runInContext(backend.slice(begin,end)+'\nthis.audit=databasePrivacyStatus;',privacyContext);
+(async()=>{
+ const small=await privacyContext.audit('2026/2027');
+ assert.equal(small.complete,true);assert.equal(small.legacy,0);assert.equal(reads,2);assert.deepEqual(limitUsed,[101,101]);
+ dataFor.a=Array.from({length:125},()=>({schema:'LEVI_SEALED_V1',keyId:'KEY'}));
+ const partial=await privacyContext.audit('2026/2027');
+ assert.equal(partial.complete,false,'A bounded partial sample must not be called a completed security check');
+ assert.equal(partial.inspected,102);
+ assert.ok(limitUsed.every(value=>value<=101));
+ assert.match(backend,/inspectVault\?await databasePrivacyStatus\(year\):null/,'Ordinary diagnostic refresh must avoid reading any ballot');
+ assert.match(backend,/technicalDiagnostics\(config,state,year,\{inspectVault:true\}\)/,'Explicit recheck must be opt-in');
+ const start=app[1].indexOf('let commissionConfigRecoveryPending=null;');
+ const finish=app[1].indexOf('let commissionLoginInProgress=false;',start);
+ assert.ok(start>0&&finish>start,'Commission retry action missing');
+ let succeed=false,retries=0,shown=[],notices=[],resumes=0;
+ const ctx={window:{},document:{getElementById:()=>null},auth:{currentUser:{getIdTokenResult:async()=>({claims:{role:'COMMISSIONE',staffYear:'2026/2027'}})}},configElezioni:{annoScolastico:'2026/2027'},showPage:p=>shown.push(p),showNotification:(...x)=>notices.push(x),resetIdleTimer:()=>{},syncConfigFromDB:async()=>{retries++;return succeed;},resumeDpoDownload:async()=>{resumes++;},signOut:async()=>{}};
+ vm.createContext(ctx);
+ vm.runInContext('let commissionSessionReady=false,activeAdminTab=null;\n'+app[1].slice(start,finish)+'\ncommissionConfigRecoveryPending={mustChangePassword:false};',ctx);
+ await ctx.window.retryCommissionConfigAfterLogin();
+ assert.equal(retries,1);assert.equal(shown.length,0,'No privileged dashboard when Firebase read failed');
+ succeed=true;await ctx.window.retryCommissionConfigAfterLogin();
+ assert.equal(retries,2);assert.deepEqual(shown,['adminPanel']);assert.equal(resumes,1);
+ assert.equal(vm.runInContext('commissionSessionReady',ctx),true);
+ console.log('PASS: Firestore audit bounded to 101 documents per collection, no automatic ballot scan, credentials accepted once and configuration retry safe.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

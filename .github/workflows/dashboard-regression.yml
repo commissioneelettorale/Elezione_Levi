@@ -6,6 +6,8 @@ on:
       - 'scripts/check-token-listener-lazy.cjs'
       - 'api/call.js'
       - 'scripts/check-login-quota-errors.cjs'
+      - 'scripts/check-firestore-technical-load.cjs'
+      - 'scripts/check-sandbox-flow.cjs'
       - 'lib/election-sandbox-ui.js'
       - 'lib/election-sandbox.js'
       - 'scripts/check-sandbox.cjs'
@@ -39,6 +41,10 @@ jobs:
         run: npm install --no-save --ignore-scripts jsdom@26
       - name: Verify sandbox model
         run: node scripts/check-sandbox.cjs
+      - name: Verify Commission simulation start-to-finish with synthetic login
+        run: node scripts/check-sandbox-flow.cjs
+      - name: Verify bounded Firestore diagnostics and Commission login recovery
+        run: node scripts/check-firestore-technical-load.cjs
       - name: Check management UI and document exports
         run: node scripts/check-management-ui.cjs
       - name: Validate collaudo and scrutiny layout
