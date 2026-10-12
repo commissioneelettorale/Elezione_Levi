@@ -2552,12 +2552,11 @@
             const active = configElezioni.modalitaProva === true;
             const log = readElectionTestLog();
             const last = log.length ? log[log.length - 1] : null;
-            void refreshHistoricalCollaudo8Oct();
             container.innerHTML = `
                 <div class="space-y-5">
                     <section class="bg-white border border-blue-200 rounded-xl p-4 text-xs"><h4 class="font-black text-blue-950">Collaudo storico di riferimento · 08 ottobre 2026</h4>
                     <p class="mt-1">Protocollo storico indicato: n. 9507/2.1. Il rapporto viene ricercato negli atti tecnici del database; non costituisce automaticamente la validazione del software successivamente modificato.</p>
-                    <div id="historical-collaudo-8oct" class="mt-2 text-slate-700">Ricerca delle evidenze del giorno 08/10/2026...</div></section>
+                    <button type="button" onclick="refreshHistoricalCollaudo8Oct()" class="mt-2 px-3 py-2 bg-blue-900 text-white rounded-lg font-bold">Recupera rapporto storico dell’8 ottobre</button><div id="historical-collaudo-8oct" class="mt-2 text-slate-700">Usa il pulsante per ricercare le evidenze tecniche nell’archivio.</div></section>
                     <div class="rounded-2xl border-2 ${active ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-slate-50'} p-5 shadow-sm">
                         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                             <div>
