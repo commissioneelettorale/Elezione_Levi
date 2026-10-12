@@ -4888,7 +4888,7 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
 
         async function fetchScrutinioData(colName) {
             const votiDb = await getVotiUrna(colName);
-            const votingInProgress=LeviElectionPolicy.phase(configElezioni,LeviElectionPolicy.keyForCollection(colName))!=='CLOSED' && LeviElectionPolicy.phase(configElezioni,LeviElectionPolicy.keyForCollection(colName))!=='RELEASED';
+            const votingInProgress=votiDb.some(v=>v?._turnoutOnly===true);
             if(votingInProgress){
                 officialVotiScrutinio.liste[colName]={};officialVotiScrutinio.preferenze[colName]={};officialVotiScrutinio.classi[colName]={};officialVotiScrutinio.classDetail[colName]={};
                 officialVotiScrutinio.totali={votanti:votiDb.filter(v=>currentScrutinioSection!=='consiglio'||v.tipo===currentScrutinioSubComponent).length,bianche:0,validi:0};
