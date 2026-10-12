@@ -2533,12 +2533,31 @@
             return { ok: errors.length === 0, errors, details };
         }
 
+        async function refreshHistoricalCollaudo8Oct() {
+            try {
+                const response=await SECURE_API.getHistoricalCollaudo8Oct({annoScolastico:configElezioni.annoScolastico});
+                const node=document.getElementById('historical-collaudo-8oct');
+                if(!node)return;
+                const rows=response.data?.matches||[];
+                node.textContent=rows.length
+                  ? 'Rapporti tecnici trovati: '+rows.length+'. Esiti documentati: '+rows.map(r=>r.result+' ('+(r.evidenceRef||'senza riferimento')+')').join('; ')+'. Verificare il fascicolo originale e le firme.'
+                  : 'Nessun rapporto tecnico del giorno risulta recuperato nell’archivio interrogato. Verificare e acquisire il verbale originale prima di dichiarare un collaudo superato.';
+            }catch(error){
+                const node=document.getElementById('historical-collaudo-8oct');
+                if(node)node.textContent='Archivio storico non verificabile: '+(error?.message||'servizio non disponibile');
+            }
+        }
+
         function renderCollaudoTab(container) {
             const active = configElezioni.modalitaProva === true;
             const log = readElectionTestLog();
             const last = log.length ? log[log.length - 1] : null;
+            void refreshHistoricalCollaudo8Oct();
             container.innerHTML = `
                 <div class="space-y-5">
+                    <section class="bg-white border border-blue-200 rounded-xl p-4 text-xs"><h4 class="font-black text-blue-950">Collaudo storico di riferimento · 08 ottobre 2026</h4>
+                    <p class="mt-1">Protocollo storico indicato: n. 9507/2.1. Il rapporto viene ricercato negli atti tecnici del database; non costituisce automaticamente la validazione del software successivamente modificato.</p>
+                    <div id="historical-collaudo-8oct" class="mt-2 text-slate-700">Ricerca delle evidenze del giorno 08/10/2026...</div></section>
                     <div class="rounded-2xl border-2 ${active ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-slate-50'} p-5 shadow-sm">
                         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                             <div>
@@ -2806,13 +2825,35 @@
             }finally{button.disabled=false;}
         };
 
+        async function refreshCalendarLock(){
+            try{
+                const r=await SECURE_API.getRegularityState({annoScolastico:configElezioni.annoScolastico});
+                const node=document.getElementById('calendar-lock-status');
+                if(node)node.textContent=r.data?.state?.scheduleLock?.locked===true
+                  ? 'Calendario fissato definitivamente lato server: modifiche a date e orari non consentite.'
+                  : 'Calendario non fissato: controllare e salvare date e orari prima della conferma definitiva.';
+            }catch(e){const node=document.getElementById('calendar-lock-status');if(node)node.textContent='Stato non verificabile: '+(e?.message||'errore');}
+        }
+        window.confirmPermanentElectionSchedule=async function(){
+            if(!confirm('La conferma rende irrevocabili tutte le date e gli orari delle consultazioni attive. Vuoi procedere?'))return;
+            try{
+                const result=await SECURE_API.lockElectionSchedule({annoScolastico:configElezioni.annoScolastico});
+                showNotification('Calendario confermato',result.data?.alreadyLocked?'Le date risultano già bloccate.':'Date e orari fissati sul server. Non saranno più modificabili.','success');
+                await refreshCalendarLock();
+            }catch(e){showNotification('Conferma non eseguita',e?.message||'Controllo non riuscito','error');}
+        };
+
         function renderOpeningTab(container) {
             const w=votingWindowStatus();
+            void refreshCalendarLock();
             container.innerHTML=`
                 <div class="max-w-4xl mx-auto space-y-5">
                     <div class="bg-gradient-to-br from-blue-950 to-slate-900 text-white rounded-3xl p-6 shadow-xl">
                         <div class="text-[10px] uppercase tracking-[.2em] text-blue-200 font-black">Gestione semplificata</div>
                         <h3 class="text-2xl font-black mt-1">Apertura votazioni</h3>
+                        <p class="text-xs mt-2">Collaudo di riferimento: 08/10/2026, prot. 9507/2.1 (evidenza storica, non autorizzazione automatica di nuove release).</p>
+                        <div id="calendar-lock-status" class="bg-white text-slate-900 mt-3 p-3 rounded-lg text-xs">Verifica dello stato del calendario...</div>
+                        <button type="button" onclick="window.confirmPermanentElectionSchedule()" class="mt-2 bg-amber-300 text-slate-950 px-3 py-2 rounded-lg font-black text-xs">Conferma definitivamente data e ora delle consultazioni</button>
                         <p class="text-sm text-slate-300 mt-2">I controlli obbligatori restano attivi, ma l'apertura si gestisce da questa sola schermata.</p>
                         <div class="mt-4 bg-white text-black rounded-2xl p-4 text-sm"><b>Stato generale:</b> ${w.open?'FASCE DI VOTO APERTE':(w.reason==='before'?'NON ANCORA APERTE':w.reason==='pause'?'IN ATTESA DELLA PROSSIMA FASCIA':w.reason==='unconfigured'?'CALENDARIO DA CONFIGURARE':'CHIUSE')}<div class="text-xs mt-2">${consultationSummaryHTML()}</div></div>
                     </div>
@@ -4466,17 +4507,17 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                                                     ${isClassBased ? `<td class="p-2.5 uppercase font-semibold text-slate-600">${t.classe} (${t.indirizzo || 'GEN'})</td>` : ''}
                                                     <td class="p-2.5 font-semibold">
                                                         <div class="flex flex-wrap">
-                                                            ${isAnonymousVoteMode()?'Partecipazione non associata al nome':detailStatusHTML}
+                                                            ${isAnonymousVoteMode()?electionKeys.map(key=>`<span class="inline-flex items-center rounded bg-blue-50 border border-blue-200 px-2 py-1 mr-1 mb-1 text-[9px] text-blue-950">${LeviElectionPolicy.ELECTIONS[key].label} · Diritto previsto · Stato individuale non disponibile</span>`).join('')||'<span class="text-slate-500">Nessuna consultazione abilitata</span>':detailStatusHTML}
                                                         </div>
                                                         <div class="mt-1">
-                                                            ${isAnonymousVoteMode() ? '<span class="text-black text-[9px]">Consultare l’affluenza aggregata</span>' : t.hasVoted
+                                                            ${isAnonymousVoteMode() ? '<span class="text-slate-600 text-[9px]">Per verifica e recupero accedere con il codice elettorale nella sezione sovrastante. Non è possibile annullare un voto già depositato.</span>' : t.hasVoted
                                                                 ? `<span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-extrabold uppercase text-[8px] tracking-wider">CONCLUSO</span>` 
                                                                 : `<span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-extrabold uppercase text-[8px] tracking-wider">PARZIALE / APERTO</span>`
                                                             }
                                                         </div>
                                                     </td>
                                                     <td class="p-2.5 text-center flex items-center justify-center gap-2 mt-1.5">
-                                                        ${isAnonymousVoteMode()?'':`<button onclick="window.resetEntireToken('${t.id}')" title="Ripristina Completo" class="text-indigo-650 hover:text-indigo-800"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i></button>`}
+                                                        ${isAnonymousVoteMode()?`<button onclick="document.getElementById('resetToken_${componentType}')?.focus()" type="button" title="Recupera una sessione non votata usando il codice di voto, senza collegare nome e scheda" class="bg-blue-100 text-blue-900 px-2 py-1 rounded text-[9px]">Recupera sessione</button>`:`<button onclick="window.resetEntireToken('${t.id}')" title="Ripristina Completo" class="text-indigo-650 hover:text-indigo-800"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i></button>`}
                                                         ${(!votingStarted && !t.hasVoted && !t.voted_consiglio && !t.voted_istituto && !t.voted_consulta && !t.voted_classe_studente && !t.voted_classe_genitore)
                                                             ? `<button onclick="window.deleteSingleToken('${t.id}')" title="Elimina credenziale non usata inserita per errore" class="text-red-600 hover:text-red-850"><i data-lucide="trash" class="w-3.5 h-3.5"></i></button>`
                                                             : `<button disabled title="Cancellazione bloccata dopo l’avvio o per credenziale già usata" class="text-slate-300 cursor-not-allowed"><i data-lucide="trash" class="w-3.5 h-3.5"></i></button>`}
@@ -4848,6 +4889,12 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
 
         async function fetchScrutinioData(colName) {
             const votiDb = await getVotiUrna(colName);
+            const votingInProgress=LeviElectionPolicy.phase(configElezioni,LeviElectionPolicy.keyForCollection(colName))!=='CLOSED' && LeviElectionPolicy.phase(configElezioni,LeviElectionPolicy.keyForCollection(colName))!=='RELEASED';
+            if(votingInProgress){
+                officialVotiScrutinio.liste[colName]={};officialVotiScrutinio.preferenze[colName]={};officialVotiScrutinio.classi[colName]={};officialVotiScrutinio.classDetail[colName]={};
+                officialVotiScrutinio.totali={votanti:votiDb.filter(v=>currentScrutinioSection!=='consiglio'||v.tipo===currentScrutinioSubComponent).length,bianche:0,validi:0};
+                return votiDb;
+            }
             
             officialVotiScrutinio.liste[colName] = {};
             officialVotiScrutinio.preferenze[colName] = {};
