@@ -1597,6 +1597,58 @@ exports.resetPendingVoterSession = async request => {
   return result;
 };
 
+
+// Conservazione della data del collaudo storico, senza riutilizzarne l'esito
+// come validazione automatica di nuove versioni o configurazioni.
+const HISTORICAL_COLLAUDO=Object.freeze({date:'08/10/2026',protocolRef:'9507/2.1',status:'RIFERIMENTO_DOCUMENTALE_DA_VERIFICARE'});
+function immutableSchedule(config) {
+  const scheduleFields=['votingStartDate','votingStartTime','votingEndDate','votingEndTime','resultsReleaseDate','resultsReleaseTime'];
+  const legacy=Object.fromEntries(scheduleFields.map(key=>[key,config?.calendario?.[key]||'']));
+  const consultations={};
+  for(const key of Object.keys(ElectionPolicy.ELECTIONS)){
+    const p=ElectionPolicy.profile(config,key);
+    consultations[key]={enabled:config?.[ElectionPolicy.ELECTIONS[key].flag]===true,
+      dedicated:p.dedicated===true,windows:p.windows||[],releaseDate:p.releaseDate||'',releaseTime:p.releaseTime||''};
+  }
+  return {legacy,consultations};
+}
+exports.getHistoricalCollaudo8Oct=async request=>{
+  const actor=await requireAuth(request,['COMMISSIONE','ASSISTENTE_TECNICO']);
+  const year=actor.claims.staffYear;
+  // L'intervallo corrisponde al giorno civile 08/10/2026 in Europe/Rome (UTC+2).
+  const start=Timestamp.fromDate(new Date('2026-10-07T22:00:00.000Z'));
+  const end=Timestamp.fromDate(new Date('2026-10-08T22:00:00.000Z'));
+  const snapshot=await yearlyCollection('audit_tecnico',year)
+    .where('at','>=',start).where('at','<',end).orderBy('at','desc').limit(300).get();
+  const matching=snapshot.docs.filter(d=>d.data()?.event==='COLLAUDO').slice(0,30);
+  return {baseline:HISTORICAL_COLLAUDO,
+    matches:matching.map(d=>({id:d.id,result:d.data()?.result||'NON_INDICATO',
+      evidenceRef:String(d.data()?.report?.evidenceRef||'').slice(0,160),
+      releaseCommit:String(d.data()?.release?.commit||'').slice(0,40),
+      testedAt:timestampIso(d.data()?.at)})),
+    complete:snapshot.size<300,verifiedAutomatically:false};
+};
+exports.lockElectionSchedule=async request=>{
+  const actor=await requireAuth(request,['COMMISSIONE']);
+  const year=actor.claims.staffYear,ref=regularityStateRef(year);
+  const result=await db.runTransaction(async tx=>{
+    const [confSnap,stateSnap]=await Promise.all([tx.get(yearlyConfigRef(year)),tx.get(ref)]);
+    if(!confSnap.exists)throw new HttpsError('failed-precondition','Salvare prima la configurazione elettorale.');
+    const conf=confSnap.data()||{},state=stateSnap.data()||{};
+    if(state.procedureClosed)throw new HttpsError('failed-precondition','Procedimento chiuso.');
+    const enabled=ElectionPolicy.enabled(conf);
+    if(!enabled.length||enabled.some(key=>ElectionPolicy.profile(conf,key).dedicated!==true||!ElectionPolicy.windows(conf,key).length))
+      throw new HttpsError('failed-precondition','Configurare e salvare date e orari validi per ogni consultazione attiva prima di fissarli.');
+    if(state.scheduleLock?.locked===true)return {ok:true,alreadyLocked:true,lockedAt:timestampIso(state.scheduleLock.lockedAt)};
+    const lock={locked:true,scheduledSha256:sha256(JSON.stringify(immutableSchedule(conf))),
+      lockedAt:FieldValue.serverTimestamp(),lockedBy:actor.uid};
+    tx.set(ref,{scheduleLock:lock,updatedAt:FieldValue.serverTimestamp()},{merge:true});
+    return {ok:true,alreadyLocked:false};
+  });
+  if(!result.alreadyLocked)await auditAdmin(actor,'CALENDARIO_ELETTORALE_BLOCCATO',{year});
+  return result;
+};
+
 exports.getVotingReviewEvents=async request=>{
   const actor=await requireAuth(request,['COMMISSIONE','ASSISTENTE_TECNICO']),year=actor.claims.staffYear;
   const until=request.data?.snapshotUntil?new Date(request.data.snapshotUntil):new Date();
@@ -1849,6 +1901,8 @@ exports.saveElectionConfig = async (request) => {
     const old = previous.exists ? previous.data() : {};
     const state = regularity.exists ? regularity.data() : {};
     if(TokenCodes.migrationPending(state))throw new HttpsError('unavailable','Aggiornamento dei codici elettorali in corso. Riprovare tra poco.');
+    if(state.scheduleLock?.locked===true&&!sameConfigValue(immutableSchedule(old),immutableSchedule(config)))
+      throw new HttpsError('failed-precondition','Calendario fissato dalla Commissione: date e orari non sono piu modificabili. In caso di emergenza usare la sospensione verbalizzata.');
     if(old.modalitaProva!==true&&config.modalitaProva===true&&ElectionPolicy.enabled(old).some(k=>ElectionPolicy.profile(old,k).dedicated===true&&ElectionPolicy.windows(old,k).some(w=>Date.now()>=+w.start)))throw new HttpsError('failed-precondition','Non attivare la modalità prova globale dopo l’avvio delle consultazioni. Usare il simulatore locale del Collaudo.');
     if((ElectionPolicy.enabled(old).some(k=>ElectionPolicy.windows(old,k).some(w=>Date.now()>=+w.start))||state.votingReview?.stage==='AUTHORIZED')&&old.privacyMode!==config.privacyMode)throw new HttpsError('failed-precondition','Modalità credenziali congelata.');
     if(config.privacyMode&&!['PRESENTIAL_UNLINKED_V1','LEGACY_NAMED'].includes(config.privacyMode))throw new HttpsError('invalid-argument','Modalità credenziali non valida.');
