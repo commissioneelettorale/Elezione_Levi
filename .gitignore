@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.*
+!.env.example
+functions/.runtimeconfig.json
+service-account*.json
+*.pem
+*.key
+.DS_Store
+.firebase/
+public/
