@@ -12,6 +12,8 @@ const ALLOWED_FUNCTIONS = new Set([
   "getVotingReview",
   "getVotingReviewEvents",
   "getAnonymousParticipation",
+  "getHistoricalCollaudo8Oct",
+  "lockElectionSchedule",
   "resetPendingVoterSession",
   "getVoterRegisterSummary",
   "advanceVotingReview",
