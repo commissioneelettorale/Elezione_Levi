@@ -12,6 +12,7 @@ const ALLOWED_FUNCTIONS = new Set([
   "getVotingReview",
   "getVotingReviewEvents",
   "getAnonymousParticipation",
+  "resetPendingVoterSession",
   "getVoterRegisterSummary",
   "advanceVotingReview",
   "createAnonymousCredentials",

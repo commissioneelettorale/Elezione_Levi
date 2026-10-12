@@ -4227,15 +4227,37 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             renderListeTab(document.getElementById('admin-tab-content'));
         };
 
+        const registerElectionSelection = new Map();
+        window.setRegisterElection = function(componentType,electionKey) {
+            registerElectionSelection.set(componentType,electionKey);
+            const node=document.getElementById('admin-tab-content');
+            if(node)renderRegisterTab(componentType,node);
+        };
+
         async function renderRegisterTab(componentType, container) {
             const filteredTokens = activeTokensList.filter(t => t.tipo === componentType);
             const votingStarted = hasVotingStartedClient();
             
             let total = filteredTokens.length;
             let anonSummary;try{anonSummary=await anonymousParticipation();}catch(e){container.innerHTML='<p class="text-black p-4">Riepilogo non disponibile: riprovare.</p>';return;}
-            if(anonSummary)total=anonSummary.stats[componentType].generated;
-            const voted = anonSummary?anonSummary.stats[componentType].voted:filteredTokens.filter(t => t.hasVoted).length;
-            const remaining = total - voted;
+            const electionKeys = anonSummary?.eligibleElections?.[componentType] || [];
+            const openKeys = electionKeys.filter(key => LeviElectionPolicy.phase(configElezioni,key)==='OPEN');
+            const rememberedKey = registerElectionSelection.get(componentType);
+            const selectedElection = (openKeys.includes(rememberedKey) ? rememberedKey : openKeys[0])
+                || (electionKeys.includes(rememberedKey) ? rememberedKey : electionKeys[0]) || '';
+            if(anonSummary)total=Number(anonSummary.stats?.[componentType]?.registered || 0);
+            const voted = anonSummary
+                ? Number(anonSummary.byElection?.find(item => item.tipo===componentType && item.electionKey===selectedElection)?.cast || 0)
+                : filteredTokens.filter(t => t.hasVoted).length;
+            const remaining = anonSummary && (!selectedElection || voted>total) ? null : Math.max(0,total-voted);
+            const electionSelectorHTML = anonSummary ? `
+                <div class="mb-4 text-xs font-semibold">
+                    <label for="registerElection_${componentType}" class="block text-slate-600 mb-1">Consultazione per il conteggio dei voti</label>
+                    <select id="registerElection_${componentType}" class="w-full max-w-lg rounded-lg border p-2" onchange="window.setRegisterElection('${componentType}',this.value)">
+                        ${electionKeys.map(key => `<option value="${key}" ${key===selectedElection?'selected':''}>${LeviElectionPolicy.ELECTIONS[key].label} (${LeviElectionPolicy.phase(configElezioni,key)==='OPEN'?'APERTA':'NON APERTA'})</option>`).join('')}
+                        ${electionKeys.length?'':'<option value="">Nessuna consultazione abilitata</option>'}
+                    </select>
+                </div>` : '';
 
             const isClassBased = (componentType === 'STUDENTE' || componentType === 'GENITORE');
             const uniqueClasses = [...new Set(filteredTokens.map(t => t.classe).filter(Boolean))].sort();
@@ -4334,9 +4356,10 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                         </div>
                     </div>
 
+                    ${electionSelectorHTML}
                     <div class="grid grid-cols-3 gap-4 mb-6 text-center text-xs">
                         <div class="p-3 bg-slate-50 border rounded-xl">
-                            <span class="text-slate-450 uppercase text-[9px] block">${anonSummary?"Diritti abilitati":"Totale generati"}</span>
+                            <span class="text-slate-450 uppercase text-[9px] block">${anonSummary?"Diritti abilitati (registro)":"Totale generati"}</span>
                             <strong class="text-base text-slate-800">${total}</strong>
                         </div>
                         <div class="p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
@@ -4345,10 +4368,29 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                         </div>
                         <div class="p-3 bg-amber-50 border border-amber-100 rounded-xl">
                             <span class="text-amber-700 uppercase text-[9px] block">Non Espressi</span>
-                            <strong class="text-base text-emerald-800">${remaining}</strong>
+                            <strong class="text-base text-emerald-800">${remaining===null?'—':remaining}</strong>
                         </div>
                     </div>
 
+                    ${anonSummary ? `
+                    <p class="text-[10px] text-slate-600 mb-4">Valori relativi alla consultazione selezionata: aventi diritto dal registro; espressi dai codici anonimi utilizzati. I non espressi sono una stima, non una conferma nominativa del mancato voto. La consultazione deve avere al massimo una credenziale per ciascun diritto.</p>
+                    <div class="bg-sky-50 border border-sky-200 rounded-xl p-3 mb-5 text-xs">
+                        <h4 class="font-bold text-slate-900 mb-1">Recupero della sessione del token non ancora votato</h4>
+                        <p class="text-[10px] mb-3">Consente di ripetere l'accesso alla sola consultazione aperta. Non cancella voti gia depositati e non riapre diritti esercitati.</p>
+                        <div class="flex flex-wrap gap-2 items-center">
+                            <input type="password" autocomplete="off" id="resetToken_${componentType}" placeholder="Inserisci token da recuperare" class="p-2 border rounded-lg flex-grow min-w-40">
+                            <select id="resetElection_${componentType}" class="p-2 border rounded-lg">
+                                ${openKeys.map(key=>`<option value="${key}">${LeviElectionPolicy.ELECTIONS[key].label}</option>`).join('')}
+                                ${openKeys.length?'':'<option value="">Nessuna votazione aperta</option>'}
+                            </select>
+                            <select id="resetReason_${componentType}" class="p-2 border rounded-lg">
+                                <option value="SESSIONE_BLOCCATA">Sessione bloccata</option>
+                                <option value="ERRORE_ACCESSO">Errore di accesso</option>
+                                <option value="ASSISTENZA_SEGGIO">Assistenza al seggio</option>
+                            </select>
+                            <button type="button" onclick="window.reopenUncastTokenSession('${componentType}')" ${openKeys.length?'':'disabled'} class="bg-blue-900 text-white font-bold rounded-lg px-3 py-2 disabled:opacity-40">Recupera sessione</button>
+                        </div>
+                    </div>` : ''}
                     <div class="grid md:grid-cols-2 gap-6">
                         <div>
                             <h4 class="text-xs font-black text-slate-800 uppercase mb-3">Aggiungi Credenziali al Registro</h4>
@@ -4644,6 +4686,22 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             } catch (err) {
                 console.error(err);
                 showNotification("Errore PDF", "Impossibile generare il PDF: " + err.message, "error");
+            }
+        };
+
+        window.reopenUncastTokenSession = async function(componentType) {
+            const tokenNode=document.getElementById('resetToken_'+componentType);
+            const code=String(tokenNode?.value||'').trim();
+            const electionKey=String(document.getElementById('resetElection_'+componentType)?.value||'');
+            const reason=String(document.getElementById('resetReason_'+componentType)?.value||'');
+            if(!code||!electionKey)return showNotification('Dati mancanti','Inserisci il token e seleziona una consultazione aperta.','error');
+            if(!window.confirm('Recuperare la sola sessione di accesso per la consultazione selezionata? I voti depositati non saranno modificati.'))return;
+            try {
+                const response=await SECURE_API.resetPendingVoterSession({annoScolastico:configElezioni.annoScolastico,token:code,electionKey,reason});
+                if(tokenNode)tokenNode.value='';
+                showNotification('Recupero verificato',response.data?.alreadyFree?'La credenziale non ha sessioni attive. Può accedere se non ha già votato.':'Sessione annullata. La credenziale può effettuare un nuovo accesso senza duplicare voti.','success');
+            } catch(error) {
+                showNotification('Recupero non consentito',error?.message||'Verifica lo stato del token e della consultazione.','error');
             }
         };
 

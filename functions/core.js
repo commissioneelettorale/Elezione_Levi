@@ -1529,7 +1529,10 @@ exports.getAnonymousParticipation=async request=>{
   if(config.privacyMode!==LegalReadiness.ANONYMOUS_MODE)throw new HttpsError('failed-precondition','Riepilogo riservato al processo con codici non nominativi.');
   const flags={consiglio:'voted_consiglio',istituto:'voted_istituto',consulta:'voted_consulta',classeStudente:'voted_classe_studente',classeGenitore:'voted_classe_genitore'};
   const [roll,credentials]=await Promise.all([yearlyCollection('tokens',year).select('tipo').get(),yearlyCollection('credenziali_anonime',year).select('schema','tipo','classe','electionKey','hasVoted',...Object.values(flags)).get()]);
-  const stats=Object.fromEntries(['STUDENTE','GENITORE','DOCENTE','ATA'].map(k=>[k,{generated:0,issued:0,voted:0,completed:0}]));
+  const stats=Object.fromEntries(['STUDENTE','GENITORE','DOCENTE','ATA'].map(k=>[k,{registered:0,generated:0,issued:0,voted:0,completed:0}]));
+  // Il registro nominale e i codici anonimi sono archivi distinti: non collegare mai un nominativo a una scheda.
+  roll.forEach(doc=>{const type=normalize(doc.data()?.tipo);if(stats[type])stats[type].registered++;});
+  const eligibleElections=Object.fromEntries(Object.keys(stats).map(type=>[type,activeVoterKeys(config,type,{})]));
   const byElection=new Map();let totalIssued=0,excludedLegacyCredentials=0;
   credentials.forEach(d=>{
     const value=d.data(),row=stats[value.tipo];
@@ -1542,8 +1545,58 @@ exports.getAnonymousParticipation=async request=>{
       const item=byElection.get(group);item.issuedRights++;if(value[flags[key]]===true)item.cast++;
     }
   });
-  return {stats,totalEligible:Object.values(stats).reduce((n,s)=>n+s.generated,0),totalIssued,nominalRollEntries:roll.size,excludedLegacyCredentials,totalParticipated:Object.values(stats).reduce((n,s)=>n+s.voted,0),byElection:[...byElection.values()],definition:'Partecipazione tecnica sui diritti abilitati dai codici emessi: schede depositate / diritti disponibili. Non indica persone uniche né l’affluenza ufficiale sugli elenchi definitivi. Il seggio verifica separatamente le consegne per persona e consultazione.'};
+  return {stats,eligibleElections,totalEligible:Object.values(stats).reduce((n,s)=>n+s.generated,0),totalRegistered:roll.size,totalIssued,nominalRollEntries:roll.size,excludedLegacyCredentials,totalParticipated:Object.values(stats).reduce((n,s)=>n+s.voted,0),byElection:[...byElection.values()],definition:'Registro: aventi diritto iscritti, distinto dai codici anonimi. Espressi: credenziali con scheda acquisita per singola consultazione. Non espressi: stima per consultazione; senza corrispondenza nominativa non e affluenza ufficiale per persona.'};
 };
+
+/**
+ * Recupero della SOLA sessione di accesso a una consultazione aperta.
+ * Non modifica i flag di voto, non cancella schede, non riemette diritti.
+ * L'assenza di collegamento identificativo impedisce annullamenti nominali.
+ */
+exports.resetPendingVoterSession = async request => {
+  const actor=await requireAuth(request,['COMMISSIONE']);
+  const year=actor.claims.staffYear;
+  const code=normalize(request.data?.token);
+  const electionKey=String(request.data?.electionKey||'');
+  const reason=String(request.data?.reason||'');
+  if(!code||code.length>80||/^(PROVA-|TEST-)/.test(code)||
+     !Object.prototype.hasOwnProperty.call(VOTED_FLAGS,electionKey)||
+     !['SESSIONE_BLOCCATA','ERRORE_ACCESSO','ASSISTENZA_SEGGIO'].includes(reason))
+    throw new HttpsError('invalid-argument','Indicare credenziale, consultazione e motivo validi.');
+  const config=await loadElectionConfig(year);
+  const anonymous=config.privacyMode===LegalReadiness.ANONYMOUS_MODE;
+  const tokenRef=yearlyCollection(anonymous?'credenziali_anonime':'tokens',year)
+    .doc(anonymous?sha256(year+':'+code.replace(/[ -]/g,'')):code);
+  const result=await db.runTransaction(async tx=>{
+    const [snap,configuration,regularity]=await Promise.all([
+      tx.get(tokenRef),tx.get(yearlyConfigRef(year)),tx.get(regularityStateRef(year))
+    ]);
+    const current=configuration.data()||{},state=regularity.data()||{};
+    if(state.emergencySuspended||state.procedureClosed||regularityMissing(state,current).length)
+      throw new HttpsError('failed-precondition','Votazione sospesa o non ammessa.');
+    if(TokenCodes.migrationPending(state))
+      throw new HttpsError('unavailable','Aggiornamento codici in corso.');
+    if(current.privacyMode!==config.privacyMode)
+      throw new HttpsError('failed-precondition','Configurazione cambiata: ripetere la richiesta.');
+    if(electionPhase(current,electionKey)!=='OPEN')
+      throw new HttpsError('failed-precondition','La consultazione selezionata non e aperta.');
+    if(!snap.exists)throw new HttpsError('not-found','Credenziale non trovata.');
+    const credential=snap.data()||{};
+    if(anonymous&&!VotingAdmission.anonymousRecord(credential))
+      throw new HttpsError('failed-precondition','Credenziale non compatibile.');
+    if(!activeVoterKeys(current,normalize(credential.tipo),credential).includes(electionKey))
+      throw new HttpsError('permission-denied','Credenziale non abilitata per questa consultazione.');
+    if(credential[VOTED_FLAGS[electionKey]]===true)
+      throw new HttpsError('failed-precondition','Voto gia acquisito: non e possibile ripristinare la sessione o duplicare la scheda.');
+    if(!credential.activeSessionHash)
+      return {ok:true,alreadyFree:true};
+    tx.update(tokenRef,{activeSessionHash:FieldValue.delete(),sessionExpiresAt:FieldValue.delete()});
+    return {ok:true,alreadyFree:false};
+  });
+  await auditAdmin(actor,'RECUPERO_SESSIONE_NON_VOTATA',{electionKey,reason,alreadyFree:result.alreadyFree});
+  return result;
+};
+
 exports.getVotingReviewEvents=async request=>{
   const actor=await requireAuth(request,['COMMISSIONE','ASSISTENTE_TECNICO']),year=actor.claims.staffYear;
   const until=request.data?.snapshotUntil?new Date(request.data.snapshotUntil):new Date();
