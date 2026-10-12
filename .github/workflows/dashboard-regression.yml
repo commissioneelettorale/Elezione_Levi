@@ -1,0 +1,105 @@
+name: Dashboard regression checks
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'lib/privacy-review-ui.js'
+      - 'scripts/check-dpo-history-recovery.cjs'
+      - 'scripts/check-dpo-reference-reuse.cjs'
+      - 'lib/privacy-review-ui.js'
+      - 'scripts/check-school-ui.cjs'
+      - 'lib/privacy-review-ui.js'
+      - 'scripts/check-simple-real-opening.cjs'
+      - 'scripts/check-token-listener-lazy.cjs'
+      - 'api/call.js'
+      - 'scripts/check-login-quota-errors.cjs'
+      - 'scripts/check-firestore-technical-load.cjs'
+      - 'scripts/check-sandbox-flow.cjs'
+      - 'lib/election-sandbox-ui.js'
+      - 'lib/election-sandbox.js'
+      - 'scripts/check-sandbox.cjs'
+      - 'scripts/check-commission-minutes.cjs'
+      - 'lib/privacy-review-ui.js'
+      - 'scripts/check-credential-pdf.cjs'
+      - 'scripts/check-credential-recovery.cjs'
+      - 'scripts/check-privacy-architecture-label.cjs'
+      - 'scripts/build-public-site.cjs'
+      - 'scripts/check-management-ui.cjs'
+      - 'scripts/check-collaudo-layout.cjs'
+      - 'scripts/check-cabin-checkpoints.cjs'
+      - 'scripts/check-collaudo-gates.cjs'
+      - 'scripts/check-technical-import.cjs'
+      - 'scripts/check-technical-dates.cjs'
+      - 'lib/privacy-review-ui.js'
+      - 'functions/core.js'
+      - 'lib/voting-admission.js'
+      - 'lib/legal-readiness.js'
+      - 'scripts/check-tally-integrity.cjs'
+      - 'scripts/check-voter-read-efficiency.cjs'
+      - 'scripts/check-two-session-voting.cjs'
+      - 'lib/management-aggregate.js'
+      - 'scripts/check-management-aggregate.cjs'
+      - '.github/workflows/dashboard-regression.yml'
+  workflow_dispatch:
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirm Commission Firestore token listener loads on demand
+        run: node scripts/check-token-listener-lazy.cjs
+      - name: Validate dashboard aggregator
+        run: node scripts/check-management-aggregate.cjs
+      - name: Install isolated jsdom test dependency
+        run: npm install --no-save --ignore-scripts jsdom@26
+      - name: Verify privacy review history and existing references
+        run: node scripts/check-school-ui.cjs
+      - name: Verify sandbox model
+        run: node scripts/check-sandbox.cjs
+      - name: Verify Commission simulation start-to-finish with synthetic login
+        run: node scripts/check-sandbox-flow.cjs
+      - name: Verify bounded Firestore diagnostics and Commission login recovery
+        run: node scripts/check-firestore-technical-load.cjs
+      - name: Check management UI and document exports
+        run: node scripts/check-management-ui.cjs
+      - name: Validate collaudo and scrutiny layout
+        run: node scripts/check-collaudo-layout.cjs
+      - name: Test cabin visibility and checkpoint recognition
+        run: node scripts/check-cabin-checkpoints.cjs
+      - name: Verify independent collaudo controls and real voting gates
+        run: node scripts/check-collaudo-gates.cjs
+      - name: Verify architectural privacy status cannot be self-certified
+        run: node scripts/check-privacy-architecture-label.cjs
+      - name: Validate election-opening and DPO Word generators
+        run: node scripts/check-commission-minutes.cjs
+      - name: Check actual ballot counting and anonymous authorization
+        run: node scripts/check-tally-integrity.cjs
+      - name: Exercise synthetic backend elections and voting admission
+        run: node scripts/check-consultations.cjs
+      - name: Verify one-time credentials PDF and manual re-download
+        run: node scripts/check-credential-pdf.cjs
+      - name: Verify credential PDF survives cloud failure and duplicate clicks
+        run: node scripts/check-credential-recovery.cjs
+      - name: Check login quota error classification
+        run: node scripts/check-login-quota-errors.cjs
+      - name: Verify Firestore login/vote read efficiency
+        run: node scripts/check-voter-read-efficiency.cjs
+      - name: Verify same student token used for two morning consultations
+        run: node scripts/check-two-session-voting.cjs
+      - name: Test 3000 parallel synthetic voting flows
+        run: node scripts/check-concurrent-votes.cjs
+      - name: Validate one-button real voting opening is server-authoritative
+        run: node scripts/check-simple-real-opening.cjs
+      - name: Verify safe reuse of DPO references
+        run: node scripts/check-dpo-reference-reuse.cjs
+      - name: Recover old DPO history across pages without authorizing it
+        run: node scripts/check-dpo-history-recovery.cjs
+      - name: Verify historical collaudo import is read-only
+        run: node scripts/check-technical-import.cjs
+      - name: Verify actual dates and per-test collaudo validation
+        run: node scripts/check-technical-dates.cjs
+      - name: Run public build smoke tests
+        run: node scripts/build-public-site.cjs

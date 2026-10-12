@@ -1,0 +1,74 @@
+name: Deploy Firestore rules and bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      bootstrap_commission:
+        description: "Eseguire anche la preparazione iniziale dell'account Commissione"
+        type: boolean
+        required: false
+        default: false
+  push:
+    branches: ["main"]
+    paths:
+      - "firestore.rules"
+      - "functions/scripts/bootstrap-commission.js"
+      - "functions/package.json"
+      - "firebase.json"
+      - ".firebaserc"
+      - ".github/workflows/firebase-backend.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Installa dipendenze bootstrap
+        run: npm install --prefix functions
+      - name: Verifica sintassi backend condiviso
+        run: |
+          npm run check --prefix functions
+          node --check functions/core.js
+      - name: Prepara credenziale Firebase temporanea
+        shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_VOTAZIONI_LEVI }}
+        run: |
+          set -euo pipefail
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "Secret FIREBASE_SERVICE_ACCOUNT_VOTAZIONI_LEVI mancante" >&2
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+          chmod 600 "$RUNNER_TEMP/firebase-sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-sa.json" >> "$GITHUB_ENV"
+      - name: Installa Firebase CLI
+        run: npm install -g firebase-tools
+      - name: Deploy Firestore Rules
+        run: firebase deploy --project votazioni-levi --only firestore:rules --non-interactive
+      - name: Prepara account Commissione e cambio password iniziale
+        if: github.event_name == 'workflow_dispatch' && inputs.bootstrap_commission == true
+        shell: bash
+        env:
+          COMMISSIONE_INITIAL_PASSWORD: ${{ secrets.COMMISSIONE_INITIAL_PASSWORD }}
+        run: |
+          set -euo pipefail
+          trap 'unset COMMISSIONE_INITIAL_PASSWORD' EXIT
+          node functions/scripts/bootstrap-commission.js
+      - name: Backend applicativo su Vercel
+        run: |
+          echo "Le API applicative sono pubblicate da Vercel in /api/call."
+          echo "Non viene eseguito firebase deploy --only functions: non serve il piano Blaze."
+      - name: Verifica progetto Firebase raggiungibile
+        run: firebase projects:list --json --non-interactive > "$RUNNER_TEMP/firebase-projects.json"
+      - name: Elimina credenziale temporanea dal runner
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/firebase-sa.json" "$RUNNER_TEMP/firebase-projects.json"
