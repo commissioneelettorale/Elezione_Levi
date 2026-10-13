@@ -66,8 +66,15 @@ assert.match(content,/panel\.appendChild\(wrap\)/);
 const appended=content.slice(content.indexOf('// Funzione di stampa amministrativa:'));
 assert.doesNotMatch(appended,/setDoc|updateDoc|deleteDoc|addDoc|writeBatch|runTransaction/);
 
-// Verificare la scadenza firmata senza eccezioni che estendano un incarico.
-const guardStart=content.indexOf('if(claims.staffExpiresAt == null)');
+// La Commissione non riceve normalmente staffExpiresAt dal server.
+const server=fs.readFileSync('functions/core.js','utf8');
+const rules=fs.readFileSync('firestore.rules','utf8');
+assert.match(server,/const MANAGEMENT_ROLES = new Set\(\['DIRIGENTE'/);
+assert.doesNotMatch(server.match(/const MANAGEMENT_ROLES = new Set\((.*?)\);/s)?.[1]||'',/COMMISSIONE/);
+assert.match(rules,/function isCommission\(\)/);
+assert.match(rules,/account\.get\('sessionVersion', 0\) == request\.auth\.token\.get\('sessionVersion', 0\)/);
+assert.match(rules,/collectionId == 'tokens_'/);
+const guardStart=content.indexOf('if(claims.staffExpiresAt !== undefined && claims.staffExpiresAt !== null)');
 const guardEnd=content.indexOf('if(!root.JSZip',guardStart);
 assert.ok(guardStart>=0&&guardEnd>guardStart);
 const expiryGuard=content.slice(guardStart,guardEnd);
@@ -77,11 +84,13 @@ function expiryAllows(claims){
   return true;
  }catch(e){return false;}
 }
-assert.equal(expiryAllows({role:'COMMISSIONE'}),false,'Older Commission sessions require new login');
+assert.equal(expiryAllows({role:'COMMISSIONE'}),true,'Sessione Commissione senza claim scadenza prevista dal server');
+assert.equal(expiryAllows({role:'COMMISSIONE',staffExpiresAt:null}),true);
 assert.equal(expiryAllows({role:'COMMISSIONE',staffExpiresAt:1_798_000_000}),true);
 assert.equal(expiryAllows({role:'COMMISSIONE',staffExpiresAt:1_796_000_000}),false);
 assert.equal(expiryAllows({role:'COMMISSIONE',staffExpiresAt:'invalid'}),false);
+assert.equal(expiryAllows({role:'COMMISSIONE',staffExpiresAt:0}),false);
+assert.match(content,/claims\.role!=='COMMISSIONE'/);
 assert.match(content,/getIdTokenResult\(true\)/);
-assert.match(content,/Accesso Commissione da aggiornare/);
 assert.match(content,/getDocsFromServer/);
 console.log('PASS: ZIP download embedded in existing HTML assets; Commission-only; separate parent/student class PDFs; names and blank signatures only.');
