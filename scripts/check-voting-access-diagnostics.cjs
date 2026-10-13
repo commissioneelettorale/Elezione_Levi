@@ -15,7 +15,7 @@ assert.equal(example.readyForVoting,false);
 assert.ok(example.messages.some(x=>x.includes('sospese')));
 assert.ok(example.messages.some(x=>x.includes('I token nominativi')));
 assert.ok(example.messages.some(x=>x.includes('Revisione privacy')));
-assert.equal(summarize({privacyMode:'LEGACY_NAMED',registered:899,anonymousIssued:0}).readyForVoting,true===false);
+assert.equal(summarize({privacyMode:'LEGACY_NAMED',registered:899,anonymousIssued:0}).readyForVoting,false);
 const ready=summarize({privacyMode:'PRESENTIAL_UNLINKED_V1',registered:2,anonymousIssued:2,reviewStage:'AUTHORIZED',blockerCodes:[],suspended:false,closed:false,migrationPending:false});
 assert.equal(ready.readyForVoting,true);
 assert.match(core,/exports\.getVotingAccessDiagnostics = async \(request\)/);
