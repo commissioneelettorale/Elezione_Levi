@@ -677,7 +677,15 @@ function makeAggregateProjection(rows, collectionName) {
 }
 
 exports.validateVoterToken = async (request) => {
-  const token = normalize(request.data?.token);
+const input = normalize(request.data?.token)
+  .replace(/[\u2010-\u2015\u2212]/g, '-')
+  .replace(/[\u200B\u00A0]/g, '')
+  .replace(/\s*-\s*/g, '-')
+  .replace(/\s+/g, '');
+
+const token = /^(STU|GEN|DOC|ATA)[A-Z0-9]{6}$/.test(input)
+  ? input.slice(0, 3) + '-' + input.slice(3)
+  : input;
   const year = request.data?.annoScolastico;
   if (!token || token.length > 80 || /^PROVA-/.test(token)) throw new HttpsError('invalid-argument', 'Token non valido.');
   // Una sola lettura preliminare determina l'archivio delle credenziali.
