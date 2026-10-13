@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'index.html'
+      - 'lib/accesso-atti.js'
+      - 'scripts/check-registri-firme-html.cjs'
       - 'lib/privacy-review-ui.js'
       - 'scripts/check-dpo-history-recovery.cjs'
       - 'scripts/check-dpo-reference-reuse.cjs'
