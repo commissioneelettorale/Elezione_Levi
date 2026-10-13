@@ -512,7 +512,7 @@
         let configElezioni = {
             annoScolastico: "2026/2027",
             modalitaProva: false,
-            bloccaSmartphoneReali: true,
+            bloccaSmartphoneReali: false, // compatibilità: l'accesso BYOD dipende dai controlli di voto server-side, non dallo User-Agent
             mimCompliance: {},
             consultazioni: {},
             tipologiaElezioni: "Elezioni Organi Collegiali d'Istituto + Rappresentanti di Classe + Consulta",
@@ -1133,7 +1133,7 @@
                     <div class="mb-6 flex flex-col items-center">
                         <img src="levi.png" alt="Primo Levi Logo" onerror="this.onerror=null;this.style.visibility='hidden'" class="w-16 h-16 object-contain mb-4">
                         <h2 class="text-xl font-black text-slate-800">Entra in Cabina Elettorale</h2>
-                        <p class="text-slate-500 text-xs mt-1">Digita il codice segreto (Token) esclusivamente dalla postazione autorizzata predisposta per la votazione.</p>
+                        <p class="text-slate-500 text-xs mt-1">Digita il codice elettorale riportato sul cedolino. Sono supportati anche smartphone autorizzati dalla Commissione; il codice è personale e non va condiviso.</p>
                     </div>
                     <div class="space-y-4">
                         <input type="text" id="tokenInput" placeholder="Inserisci token" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="80" class="w-full p-4 text-center text-2xl font-mono border-2 border-slate-200 rounded-xl uppercase tracking-wider focus:border-blue-600 outline-none font-bold">
@@ -1152,19 +1152,24 @@
             lucide.createIcons();
         }
 
-        function isLikelyPersonalSmartphone() {
-            const ua = String(navigator.userAgent || '');
-            const mobile = /Android|iPhone|iPod|Windows Phone|IEMobile|Opera Mini/i.test(ua);
-            const ipadDesktopMode = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
-            return mobile && !ipadDesktopMode;
+        // Normalizza esclusivamente differenze tipografiche di un codice già emesso:
+        // mai generare o accettare nuovi diritti elettorali nel browser.
+        function normalizeTypedVoterToken(value) {
+            const cleaned = String(value || '').trim().toUpperCase()
+                .replace(/[\u2010-\u2015\u2212]/g, '-')
+                .replace(/[\u200B\u00A0]/g, '')
+                .replace(/\s*-\s*/g, '-')
+                .replace(/\s+/g, '');
+            return /^(STU|GEN|DOC|ATA)[A-Z0-9]{6}$/.test(cleaned)
+                ? cleaned.slice(0, 3) + '-' + cleaned.slice(3)
+                : cleaned;
         }
 
         window.handleStudentLogin = async function() {
-            const token = document.getElementById('tokenInput').value.trim().toUpperCase();
+            const token = normalizeTypedVoterToken(document.getElementById('tokenInput').value);
             const errEl = document.getElementById('loginError');
             errEl.classList.add('hidden');
             if (!token) { errEl.textContent='Inserisci il Token.'; errEl.classList.remove('hidden'); return; }
-            if (!configElezioni.modalitaProva && configElezioni.bloccaSmartphoneReali !== false && isLikelyPersonalSmartphone()) { errEl.textContent='Per la votazione reale è richiesta una postazione autorizzata dell’Istituto. Il voto da smartphone personale è bloccato.'; errEl.classList.remove('hidden'); return; }
             const btn=document.getElementById('loginBtn'); btn.innerHTML=`<div class="spinner mr-2"></div> Convalida in corso...`;
             try {
                 if(!configElezioni.modalitaProva) {
@@ -2529,7 +2534,6 @@
             const mimMissing = mimProductionMissing();
             details.mim = { ok:mimMissing.length === 0, missing:mimMissing };
             if (mimMissing.length) errors.push(`Checklist MIM: ${mimMissing.length} verifica/e documentali o organizzative ancora da confermare.`);
-            if (configElezioni.bloccaSmartphoneReali === false) errors.push('Protezione dispositivi personali disattivata.');
             return { ok: errors.length === 0, errors, details };
         }
 
