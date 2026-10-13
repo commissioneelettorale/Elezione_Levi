@@ -31,6 +31,7 @@ const BallotVault = require('../lib/ballot-vault');
 const LegalReadiness = require('../lib/legal-readiness');
 const VotingAdmission = require('../lib/voting-admission');
 const VoterRegister = require('../lib/voter-register');
+const VoterAccessDiagnostics = require('../lib/voter-access-diagnostics');
 const TokenCodes = require('../lib/voter-token-code');
 
 function initializeFirebaseAdmin() {
@@ -1521,6 +1522,43 @@ exports.getVotingReview=async request=>{
     assessment,privacy:privacyArchitectureAssessment(config),batches:batches.docs.map(d=>{const x=d.data();return {tipo:x.tipo,classe:x.classe,electionKey:x.electionKey||null,issued:x.issued,eligible:x.eligible};})};
 };
 // Only aggregated register counts enter the annual archive; no raw access codes.
+/**
+ * Diagnostica veloce SOLO Commissione: due conteggi aggregati Firestore.
+ * Non elenca token, nomi, classi individuali, sessioni o schede; non scrive dati.
+ * La presenza nel registro non costituisce diritto automatico a un codice anonimo.
+ */
+exports.getVotingAccessDiagnostics = async (request) => {
+  const actor = await requireAuth(request, ['COMMISSIONE']);
+  const year = actor.claims.staffYear;
+  const [configSnap, stateSnap, registeredCount, anonymousCount] = await Promise.all([
+    yearlyConfigRef(year).get(),
+    regularityStateRef(year).get(),
+    yearlyCollection('tokens', year).count().get(),
+    yearlyCollection('credenziali_anonime', year).count().get()
+  ]);
+  if (!configSnap.exists)
+    throw new HttpsError('failed-precondition', 'Configurazione annuale non disponibile.');
+  const config = configSnap.data() || {};
+  const state = {...emptyRegularityState(), ...(stateSnap.exists ? stateSnap.data() : {})};
+  const blockers = regularityMissing(state, config);
+  return VoterAccessDiagnostics.summarize({
+    year,
+    privacyMode: config.privacyMode || 'LEGACY_NAMED',
+    registered: registeredCount.data().count,
+    anonymousIssued: anonymousCount.data().count,
+    suspended: state.emergencySuspended === true,
+    closed: state.procedureClosed === true,
+    locked: state.scheduleLock?.locked === true,
+    migrationPending: TokenCodes.migrationPending(state),
+    reviewStage: state.votingReview?.stage || 'PREPARATION',
+    blockerCodes: blockers,
+    phase: electionPhase(config),
+    consultazioni: ElectionPolicy.enabled(config).map(key => ({
+      key, label: ElectionPolicy.ELECTIONS[key].label, phase: electionPhase(config, key)
+    }))
+  });
+};
+
 exports.getVoterRegisterSummary=async request=>{
   const actor=await requireAuth(request,['COMMISSIONE']);
   const year=actor.claims.staffYear;
