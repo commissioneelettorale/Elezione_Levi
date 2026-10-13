@@ -48,10 +48,8 @@ assert.match(content,/REGISTRI_FIRME_GENITORI_STUDENTI_/);
 const appended=content.slice(content.indexOf('// Funzione di stampa amministrativa:'));
 assert.doesNotMatch(appended,/setDoc|updateDoc|deleteDoc|addDoc|writeBatch|runTransaction/);
 
-// La sessione Commissione precedente alla nuova claim resta valida solo se
-// le regole Firestore confermano ruolo e account attivo. Scadenze effettive
-// presenti devono continuare a essere rispettate.
-const guardStart=content.indexOf('if(claims.staffExpiresAt != null)');
+// Verificare la scadenza firmata senza eccezioni che estendano un incarico.
+const guardStart=content.indexOf('if(claims.staffExpiresAt == null)');
 const guardEnd=content.indexOf('if(!root.JSZip',guardStart);
 assert.ok(guardStart>=0&&guardEnd>guardStart);
 const expiryGuard=content.slice(guardStart,guardEnd);
@@ -61,9 +59,11 @@ function expiryAllows(claims){
   return true;
  }catch(e){return false;}
 }
-assert.equal(expiryAllows({role:'COMMISSIONE'}),true,'Older Commission sessions without expiry field remain eligible for Firestore authorization');
+assert.equal(expiryAllows({role:'COMMISSIONE'}),false,'Older Commission sessions require new login');
 assert.equal(expiryAllows({role:'COMMISSIONE',staffExpiresAt:1_798_000_000}),true);
 assert.equal(expiryAllows({role:'COMMISSIONE',staffExpiresAt:1_796_000_000}),false);
 assert.equal(expiryAllows({role:'COMMISSIONE',staffExpiresAt:'invalid'}),false);
+assert.match(content,/getIdTokenResult\(true\)/);
+assert.match(content,/Accesso Commissione da aggiornare/);
 assert.match(content,/getDocsFromServer/);
 console.log('PASS: ZIP download embedded in existing HTML assets; Commission-only; separate parent/student class PDFs; names and blank signatures only.');
