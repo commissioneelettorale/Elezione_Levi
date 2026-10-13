@@ -49,6 +49,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify read-only lightweight voting access diagnostics
+        run: node scripts/check-voting-access-diagnostics.cjs
       - name: Check mobile BYOD entry, printed token formatting and trusted CORS origins
         run: node scripts/check-mobile-token-entry.cjs
       - name: Confirm Commission Firestore token listener loads on demand

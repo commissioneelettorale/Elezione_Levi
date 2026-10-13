@@ -16,6 +16,8 @@ const ALLOWED_FUNCTIONS = new Set([
   "lockElectionSchedule",
   "resetPendingVoterSession",
   "getVoterRegisterSummary",
+  "getVotingAccessDiagnostics",
+  "inspectVoterCredential",
   "advanceVotingReview",
   "createAnonymousCredentials",
   "getDpoReviewProfile",
