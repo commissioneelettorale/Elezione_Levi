@@ -27,6 +27,15 @@ assert.ok(!JSON.stringify(groups).includes('GEN-123AAA'));
 assert.ok(!JSON.stringify(groups).includes('STU-45AA66'));
 assert.ok(!JSON.stringify(groups).includes('voted_istituto'));
 assert.throws(()=>actual([{tipo:'GENITORE',nome:'ROSSI',classe:'1A'}]),/Mancano/);
+const parents=actual(rows,'GENITORE');
+const students=actual(rows,'STUDENTE');
+assert.equal(parents.length,1,'Genitori: un registro per classe');
+assert.equal(students.length,2,'Studenti: un registro per classe');
+assert.ok(parents.every(g=>g.tipo==='GENITORE'));
+assert.ok(students.every(g=>g.tipo==='STUDENTE'));
+assert.deepEqual(JSON.parse(JSON.stringify(students.map(g=>g.classe))),['1A','2B']);
+assert.throws(()=>actual(rows,'DOCENTE'),/Componente registro non valida/);
+assert.throws(()=>actual([{tipo:'STUDENTE',classe:'1A',nome:'VERDI'}],'GENITORE'),/Nessun nominativo/);
 assert.throws(()=>actual([{tipo:'STUDENTE',nome:'',classe:'1A'}]),/incompleto/);
 class FakePDF{
  setFont(){}setFontSize(){}setLineWidth(){}rect(){}addPage(){}
@@ -43,8 +52,17 @@ assert.ok(lines.includes('ROSSI MARIA'));
 assert.doesNotMatch(lines.join('\n'),/GEN-123AAA|REF-77|token|voted_istituto/i);
 assert.match(content,/claims\.role!=='COMMISSIONE'/);
 assert.match(content,/getDocsFromServer/);
+assert.match(content,/showSaveFilePicker/);
+assert.match(content,/createWritable\(\)/);
+assert.match(content,/link\.download='REGISTRI_FIRME_'\+typeLabel/);
 assert.match(content,/registri-firme-zip-download/);
-assert.match(content,/REGISTRI_FIRME_GENITORI_STUDENTI_/);
+assert.match(content,/const typeLabel=onlyType==='GENITORE'/);
+assert.match(content,/for\(const type of \['GENITORE','STUDENTE'\]\)/);
+assert.match(content,/const id='registri-firme-zip-'\+type/);
+assert.match(content,/button\.addEventListener\('click',\(\)=>download\(type\)\)/);
+assert.match(content,/button\.addEventListener\('click',\(\)=>download\(\)\)/);
+assert.match(content,/pdfClassSelect_/);
+assert.match(content,/panel\.appendChild\(wrap\)/);
 const appended=content.slice(content.indexOf('// Funzione di stampa amministrativa:'));
 assert.doesNotMatch(appended,/setDoc|updateDoc|deleteDoc|addDoc|writeBatch|runTransaction/);
 
