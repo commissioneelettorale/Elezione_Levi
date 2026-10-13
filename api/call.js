@@ -174,7 +174,8 @@ module.exports = async function handler(req, res) {
   const origin = String(req.headers?.origin || '');
   const allowedOrigins = new Set([
     'https://commissioneelettorale.github.io',
-    'https://elezione-levi.vercel.app'
+    'https://elezione-levi.vercel.app',
+    'https://votazione-levi.vercel.app'
   ]);
   if (allowedOrigins.has(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
