@@ -20,8 +20,8 @@ const rows=[
 ];
 const groups=actual(rows);
 assert.equal(groups.length,3);
-assert.deepEqual(groups.map(g=>g.tipo+'|'+g.classe),['GENITORE|1A','STUDENTE|1A','STUDENTE|2B']);
-assert.deepEqual(groups[0].nominativi,['BIANCHI ANNA','ROSSI MARIA']);
+assert.deepEqual(JSON.parse(JSON.stringify(groups.map(g=>g.tipo+'|'+g.classe))),['GENITORE|1A','STUDENTE|1A','STUDENTE|2B']);
+assert.deepEqual(JSON.parse(JSON.stringify(groups[0].nominativi)),['BIANCHI ANNA','ROSSI MARIA']);
 assert.ok(!JSON.stringify(groups).includes('REF-77'));
 assert.ok(!JSON.stringify(groups).includes('GEN-123AAA'));
 assert.ok(!JSON.stringify(groups).includes('STU-45AA66'));
