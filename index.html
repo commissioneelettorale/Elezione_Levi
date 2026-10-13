@@ -1172,10 +1172,9 @@
             if (!token) { errEl.textContent='Inserisci il Token.'; errEl.classList.remove('hidden'); return; }
             const btn=document.getElementById('loginBtn'); btn.innerHTML=`<div class="spinner mr-2"></div> Convalida in corso...`;
             try {
-                if(!configElezioni.modalitaProva) {
-                    const ws=votingWindowStatus();
-                    if(ws.configured && !ws.open) throw new Error(ws.reason==='before'?'Le votazioni non sono ancora aperte.':'Le votazioni sono terminate.');
-                }
+                // Il calendario locale potrebbe essere precedente all'ultima lettura
+                // Firestore: il backend decide l'apertura sulla configurazione attuale,
+                // controlla il codice e valida atomicamente la sessione.
                 let d;
                 if(configElezioni.modalitaProva) {
                     d = makeTestVoter(token);
@@ -2846,6 +2845,39 @@
             }catch(e){showNotification('Conferma non eseguita',e?.message||'Controllo non riuscito','error');}
         };
 
+
+        window.inspectVotingAccess = async function() {
+            const button=document.getElementById('voting-access-check-button');
+            const result=document.getElementById('voting-access-check-result');
+            if(!button||!result)return;
+            if(!auth.currentUser||!commissionSessionReady){
+                result.textContent='Accedere come Commissione per verificare gli archivi.';
+                return;
+            }
+            button.disabled=true;
+            result.textContent='Lettura aggregata dei registri dal database in corso...';
+            try {
+                const response=await SECURE_API.getVotingAccessDiagnostics({annoScolastico:configElezioni.annoScolastico});
+                const d=response.data||{};
+                if(d.year!==configElezioni.annoScolastico)throw new Error('Anno scolastico non coerente.');
+                const safe=v=>technicalEscape(String(v??''));
+                const blocks=Array.isArray(d.messages)?d.messages:[];
+                const voting=Array.isArray(d.consultazioni)?d.consultazioni:[];
+                const statuses=voting.map(x=>'<li>'+safe(x.label)+': '+safe(x.phase)+'</li>').join('');
+                result.innerHTML=
+                    '<p class="font-bold">'+safe(d.readyForVoting?'Controlli di ammissione completi':'Accesso non abilitato')+'</p>'+
+                    '<p>Elettori nel registro: <b>'+safe(d.registered)+'</b>; codici anonimi emessi: <b>'+safe(d.anonymousIssued)+'</b></p>'+
+                    '<p>Modalità: '+safe(d.privacyMode)+' · Revisione: '+safe(d.reviewStage)+' · Sospeso: '+safe(d.suspended?'SÌ':'NO')+'</p>'+
+                    '<p>Calendario bloccato: '+safe(d.locked?'SÌ':'NO')+'</p>'+
+                    (blocks.length?'<ul class="list-disc pl-5 mt-2">'+blocks.map(m=>'<li>'+safe(m)+'</li>').join('')+'</ul>':'')+
+                    (statuses?'<p class="font-bold mt-2">Fasce da configurazione cloud:</p><ul class="list-disc pl-5">'+statuses+'</ul>':'');
+                result.className='mt-3 rounded-xl border border-slate-300 bg-white p-4 text-sm text-slate-900 space-y-1';
+            }catch(error) {
+                result.textContent='Impossibile verificare gli archivi: '+(error?.message||'servizio non disponibile')+'. Nessuna credenziale è stata modificata.';
+                result.className='mt-3 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-950';
+            }finally { button.disabled=false; }
+        };
+
         function renderOpeningTab(container) {
             const w=votingWindowStatus();
             void refreshCalendarLock();
@@ -2860,6 +2892,12 @@
                         <p class="text-sm text-slate-300 mt-2">I controlli obbligatori restano attivi, ma l'apertura si gestisce da questa sola schermata.</p>
                         <div class="mt-4 bg-white text-black rounded-2xl p-4 text-sm"><b>Stato generale:</b> ${w.open?'FASCE DI VOTO APERTE':(w.reason==='before'?'NON ANCORA APERTE':w.reason==='pause'?'IN ATTESA DELLA PROSSIMA FASCIA':w.reason==='unconfigured'?'CALENDARIO DA CONFIGURARE':'CHIUSE')}<div class="text-xs mt-2">${consultationSummaryHTML()}</div></div>
                     </div>
+                    <section class="bg-white border border-slate-300 rounded-2xl p-5">
+                        <h4 class="font-black text-base text-slate-950">Diagnostica accesso e credenziali</h4>
+                        <p class="text-xs text-slate-700 mt-2">Un solo controllo legge conteggi aggregati direttamente da Firestore. Confronta registro nominativo e credenziali anonime, verifica sospensioni e revisione senza cambiare voti, codici o stato del sistema.</p>
+                        <button type="button" id="voting-access-check-button" onclick="window.inspectVotingAccess()" class="mt-3 rounded-xl px-4 py-3 bg-blue-900 text-white text-xs font-black disabled:opacity-50">CONTROLLA REGISTRO, TOKEN E BLOCCO DEL VOTO</button>
+                        <div id="voting-access-check-result" role="status" aria-live="polite" class="text-xs text-slate-600 mt-3">Controllo disponibile su richiesta della Commissione.</div>
+                    </section>
                     <section class="bg-white border border-indigo-200 rounded-2xl p-5">
                         <h4 class="font-black text-sm text-blue-950">Modifica orari scolastici e verbali preparatori</h4>
                         <p class="text-xs text-slate-600 mt-2">Le date e le ore sono modificabili per ciascuna consultazione soltanto prima del congelamento e dell'avvio della fascia. La modifica non ammette automaticamente il voto e, se modifica la configurazione, richiede una nuova revisione della versione.</p>
