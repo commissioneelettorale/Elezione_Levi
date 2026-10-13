@@ -2846,6 +2846,49 @@
         };
 
 
+        window.inspectOneVoterCredential=async function() {
+            const input=document.getElementById('voting-credential-code');
+            const result=document.getElementById('voting-credential-result');
+            const button=document.getElementById('voting-credential-check-button');
+            if(!input||!result||!button)return;
+            if(!auth.currentUser||!commissionSessionReady){
+                result.textContent='Accesso riservato alla Commissione.';
+                return;
+            }
+            const code=normalizeTypedVoterToken(input.value);
+            if(!/^(STU|GEN|DOC|ATA)-[A-Z0-9]{6}$/.test(code)){
+                result.textContent='Formato non valido: verificare il codice stampato.';
+                return;
+            }
+            button.disabled=true;
+            result.textContent='Verifica riservata in corso...';
+            try {
+                const response=await SECURE_API.inspectVoterCredential({
+                    token:code,annoScolastico:configElezioni.annoScolastico
+                });
+                const d=response.data||{};
+                const messages={
+                    CREDENZIALE_PRESENTE_NELL_ARCHIVIO_NON_ATTIVO:
+                        'Il codice è presente, ma NON nell’archivio previsto dalla modalità autorizzata. Non cambiare modalità o copiare i codici durante il voto.',
+                    CREDENZIALE_NON_TROVATA:
+                        'Il codice non risulta nei due archivi. Controllare il cedolino, l’annualità e la migrazione; non rigenerare a tentativi.',
+                    VOTO_SOSPESO_O_NON_AUTORIZZATO:
+                        'Il codice è riconosciuto, ma il voto è sospeso o non autorizzato. Verificare Regolarità e Ripresa.',
+                    ULTERIORI_CONTROLLI_SU_ORARI_E_STATO_CREDENZIALE:
+                        'Il codice è presente nell’archivio previsto. L’ammissione effettiva dipende ancora da orario, diritti inutilizzati e sessione.'
+                };
+                result.textContent=(messages[d.reason]||'Esito non classificato.')+
+                    ' Registro nominativo: '+(d.inNamedRegister?'PRESENTE':'ASSENTE')+
+                    '; credenziali anonime: '+(d.inAnonymousRegister?'PRESENTE':'ASSENTE')+
+                    '; modalità attiva: '+String(d.activeMode||'NON NOTA')+'.';
+            }catch(error) {
+                result.textContent='Verifica non completata: '+(error?.message||'server non disponibile')+'.';
+            }finally {
+                input.value='';
+                button.disabled=false;
+            }
+        };
+
         window.inspectVotingAccess = async function() {
             const button=document.getElementById('voting-access-check-button');
             const result=document.getElementById('voting-access-check-result');
@@ -2897,6 +2940,13 @@
                         <p class="text-xs text-slate-700 mt-2">Un solo controllo legge conteggi aggregati direttamente da Firestore. Confronta registro nominativo e credenziali anonime, verifica sospensioni e revisione senza cambiare voti, codici o stato del sistema.</p>
                         <button type="button" id="voting-access-check-button" onclick="window.inspectVotingAccess()" class="mt-3 rounded-xl px-4 py-3 bg-blue-900 text-white text-xs font-black disabled:opacity-50">CONTROLLA REGISTRO, TOKEN E BLOCCO DEL VOTO</button>
                         <div id="voting-access-check-result" role="status" aria-live="polite" class="text-xs text-slate-600 mt-3">Controllo disponibile su richiesta della Commissione.</div>
+                        <div class="mt-4 pt-4 border-t border-slate-200">
+                            <label for="voting-credential-code" class="block text-xs font-bold text-slate-800">Verifica riservata di un singolo codice stampato</label>
+                            <p class="mt-1 text-xs text-slate-600">Controlla solo la presenza nei due archivi. Non mostra chi ha votato e non modifica i codici.</p>
+                            <input id="voting-credential-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="STU-XXXXXX" maxlength="80" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-mono uppercase">
+                            <button id="voting-credential-check-button" onclick="window.inspectOneVoterCredential()" type="button" class="mt-2 rounded-xl px-4 py-3 bg-slate-800 text-white text-xs font-black disabled:opacity-50">VERIFICA PRESENZA DEL CODICE</button>
+                            <p id="voting-credential-result" role="status" aria-live="polite" class="text-xs mt-3 text-slate-800"></p>
+                        </div>
                     </section>
                     <section class="bg-white border border-indigo-200 rounded-2xl p-5">
                         <h4 class="font-black text-sm text-blue-950">Modifica orari scolastici e verbali preparatori</h4>
