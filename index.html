@@ -655,6 +655,7 @@
         let activeTokensList = [];
         let unsubscribeTokens = null;
         let tokensListenerReady = false;
+        let tokensListenerServerReady = false;
         let tokensListenerError = '';
 
         function normalizeName(name) {
@@ -787,9 +788,13 @@
         function startTokensListener() {
             if (unsubscribeTokens || !auth.currentUser || !commissionSessionReady) return;
             tokensListenerReady = false;
+            tokensListenerServerReady = false;
             tokensListenerError = '';
             const q = query(getCollectionRef('tokens'));
-            unsubscribeTokens = onSnapshot(q, snapshot => {
+            unsubscribeTokens = onSnapshot(q, {includeMetadataChanges:true}, snapshot => {
+                // Solo una risposta confermata dal server permette di usare
+                // il registro gia' caricato per stampare TUTTE le classi.
+                tokensListenerServerReady = snapshot.metadata?.fromCache === false;
                 activeTokensList = [];
                 snapshot.forEach(doc => {
                     activeTokensList.push({ id: doc.id, ...doc.data() });
@@ -821,9 +826,36 @@
                 unsub();
             }
             tokensListenerReady=false;
+            tokensListenerServerReady=false;
             tokensListenerError='';
             activeTokensList=[];
         }
+
+        // Stampa riservata: restituisce SOLO nome/classe/tipo dal registro
+        // gia' sincronizzato e letto con le regole Firestore della Commissione.
+        // Nessun ID, REF, credenziale o stato di voto esce da questa funzione.
+        window.getAuthorizedSignatureRegisterSnapshot = async function(componentType) {
+            if(!['STUDENTE','GENITORE'].includes(componentType))
+                throw new Error('Tipo di registro firme non valido.');
+            if(!commissionSessionReady||!auth.currentUser)
+                throw new Error('Effettuare accesso come Commissione Elettorale.');
+            const claims=(await auth.currentUser.getIdTokenResult(true)).claims||{};
+            if(claims.role!=='COMMISSIONE'||claims.mustChangePassword===true||
+               claims.staffYear!==configElezioni.annoScolastico)
+                throw new Error('Sessione Commissione non autorizzata per l’anno scolastico corrente.');
+            if(claims.staffExpiresAt!=null){
+                const expiresAt=Number(claims.staffExpiresAt);
+                if(!Number.isFinite(expiresAt)||expiresAt<=0||Date.now()>=expiresAt*1000)
+                    throw new Error('Credenziale Commissione effettivamente scaduta o non valida.');
+            }
+            if(tokensListenerError)throw new Error(tokensListenerError);
+            if(!unsubscribeTokens||!tokensListenerReady||!tokensListenerServerReady)
+                throw new Error('Registro non ancora confermato da Firestore. Aprire Registro '+(componentType==='STUDENTE'?'Studenti':'Genitori')+' e verificare il caricamento autorizzato prima di scaricare.');
+            const records=activeTokensList.filter(row=>row.tipo===componentType)
+                .map(row=>({nome:row.nome,classe:row.classe,tipo:row.tipo}));
+            if(!records.length)throw new Error('Nessun elettore '+componentType+' presente nel registro caricato.');
+            return {year:claims.staffYear,records};
+        };
 
         function collectConfigFormFields() {
             const value=id=>document.getElementById(id)?.value.trim();
@@ -4371,7 +4403,17 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             const votingStarted = hasVotingStartedClient();
             
             let total = filteredTokens.length;
-            let anonSummary;try{anonSummary=await anonymousParticipation();}catch(e){container.innerHTML='<p class="text-black p-4">Riepilogo non disponibile: riprovare.</p>';return;}
+            // La stampa amministrativa dei nominativi non dipende dal backend
+            // delle statistiche elettorali: urne anche chiuse o sospese.
+            let anonSummary=null;
+            try {
+                anonSummary=await Promise.race([
+                    anonymousParticipation(),
+                    new Promise((_,reject)=>setTimeout(()=>reject(new Error('Statistiche temporaneamente non disponibili.')),3000))
+                ]);
+            } catch(error) {
+                console.warn('Statistiche non disponibili nel registro:', error?.code||'servizio non raggiungibile');
+            }
             const electionKeys = anonSummary?.eligibleElections?.[componentType] || [];
             const openKeys = electionKeys.filter(key => LeviElectionPolicy.phase(configElezioni,key)==='OPEN');
             const rememberedKey = registerElectionSelection.get(componentType);
@@ -4380,8 +4422,9 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
             if(anonSummary)total=Number(anonSummary.stats?.[componentType]?.registered || 0);
             const voted = anonSummary
                 ? Number(anonSummary.byElection?.find(item => item.tipo===componentType && item.electionKey===selectedElection)?.cast || 0)
-                : filteredTokens.filter(t => t.hasVoted).length;
-            const remaining = anonSummary && (!selectedElection || voted>total) ? null : Math.max(0,total-voted);
+                : null;
+            const remaining = !anonSummary || !selectedElection || voted>total
+                ? null : Math.max(0,total-voted);
             const electionSelectorHTML = anonSummary ? `
                 <div class="mb-4 text-xs font-semibold">
                     <label for="registerElection_${componentType}" class="block text-slate-600 mb-1">Consultazione per il conteggio dei voti</label>
@@ -4496,7 +4539,7 @@ D.Lgs. 82/2005 e Linee guida AgID formazione/gestione/conservazione.
                         </div>
                         <div class="p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
                             <span class="text-emerald-700 uppercase text-[9px] block">Espressi in Urna</span>
-                            <strong class="text-base text-emerald-800">${voted}</strong>
+                            <strong class="text-base text-emerald-800">${voted===null?'—':voted}</strong>
                         </div>
                         <div class="p-3 bg-amber-50 border border-amber-100 rounded-xl">
                             <span class="text-amber-700 uppercase text-[9px] block">Non Espressi</span>

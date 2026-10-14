@@ -93,4 +93,49 @@ assert.equal(expiryAllows({role:'COMMISSIONE',staffExpiresAt:0}),false);
 assert.match(content,/claims\.role!=='COMMISSIONE'/);
 assert.match(content,/getIdTokenResult\(true\)/);
 assert.match(content,/getDocsFromServer/);
-console.log('PASS: ZIP download embedded in existing HTML assets; Commission-only; separate parent/student class PDFs; names and blank signatures only.');
+
+// Il Registro Studenti deve poter stampare anche con statistiche/urne assenti.
+const html=fs.readFileSync('index.html','utf8');
+const regStart=html.indexOf('async function renderRegisterTab(');
+const regEnd=html.indexOf('window.generateClassTokensPDF',regStart);
+assert.ok(regStart>0&&regEnd>regStart);
+const registerTab=html.slice(regStart,regEnd);
+assert.match(registerTab,/anonSummary=await Promise\.race/);
+assert.doesNotMatch(registerTab,/Riepilogo non disponibile: riprovare/);
+assert.match(registerTab,/voted===null\?'—':voted/);
+assert.match(html,/onSnapshot\(q, \{includeMetadataChanges:true\}/);
+assert.match(html,/tokensListenerServerReady = snapshot\.metadata\?\.fromCache === false/);
+// Nessuna credenziale o ID nel bridge tra registro autorizzato e ZIP.
+const bridgeStart=html.indexOf('window.getAuthorizedSignatureRegisterSnapshot = async function(');
+const bridgeEnd=html.indexOf('function collectConfigFormFields()',bridgeStart);
+assert.ok(bridgeStart>0&&bridgeEnd>bridgeStart);
+const bridge=html.slice(bridgeStart,bridgeEnd);
+assert.match(bridge,/getIdTokenResult\(true\)/);
+assert.match(bridge,/tokensListenerServerReady/);
+assert.match(bridge,/commissionSessionReady/);
+assert.match(bridge,/\.map\(row=>\(\{nome:row\.nome,classe:row\.classe,tipo:row\.tipo\}\)\)/);
+assert.doesNotMatch(bridge,/token:row\.|id:row\.|ref:row\.|hasVoted:row\./);
+assert.match(content,/getAuthorizedSignatureRegisterSnapshot\(onlyType\)/);
+assert.match(content,/if\(onlyType && typeof root\.getAuthorizedSignatureRegisterSnapshot/);
+// Browser-side authorization tests on synthetic entries only.
+const claim={role:'COMMISSIONE',staffYear:'2026/2027'};
+const browser={
+ window:{}, auth:{currentUser:{getIdTokenResult:async()=>({claims:claim})}},
+ commissionSessionReady:true,configElezioni:{annoScolastico:'2026/2027'},
+ tokensListenerReady:true,tokensListenerServerReady:true,tokensListenerError:'',
+ unsubscribeTokens:()=>{},activeTokensList:rows,Date,Number,Error
+};
+vm.runInNewContext(bridge,browser);
+(async()=>{
+ const data=await browser.window.getAuthorizedSignatureRegisterSnapshot('STUDENTE');
+ assert.equal(data.records.length,2);
+ assert.deepEqual(Object.keys(data.records[0]),['nome','classe','tipo']);
+ assert.doesNotMatch(JSON.stringify(data),/STU-45AA66|GEN-123AAA|REF-77|voted_istituto/);
+ browser.tokensListenerServerReady=false;
+ await assert.rejects(browser.window.getAuthorizedSignatureRegisterSnapshot('STUDENTE'),/Registro non ancora confermato/);
+ browser.tokensListenerServerReady=true;
+ claim.role='REFERENTE';
+ await assert.rejects(browser.window.getAuthorizedSignatureRegisterSnapshot('STUDENTE'),/non autorizzata/);
+ console.log('PASS: ZIP firme genitori e studenti; registro confermato dal server; nessuna seconda lettura; nessun codice o REF; indipendente dai conteggi.');
+})().catch(e=>{console.error(e);process.exitCode=1;});
+
